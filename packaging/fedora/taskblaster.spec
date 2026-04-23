@@ -3,7 +3,7 @@ Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Desktop .csx script editor and runner with GuiBlast-powered forms
 
-License:        MIT
+License:        GPL-2.0-or-later
 URL:            https://github.com/petervdpas/TaskBlaster
 Source0:        %{name}-%{version}.tar.gz
 

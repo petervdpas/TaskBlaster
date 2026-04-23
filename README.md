@@ -35,4 +35,4 @@ dotnet run --project TaskBlaster
 
 ## License
 
-MIT
+GPL v2 (or later) — see [LICENSE](LICENSE).

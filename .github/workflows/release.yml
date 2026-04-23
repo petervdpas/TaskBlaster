@@ -236,7 +236,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora: [41, 43]
+        fedora: [43]
     container:
       image: fedora:${{ matrix.fedora }}
 
@@ -290,7 +290,7 @@ jobs:
           cp -a packaging/fedora/taskblaster.sh "$STAGE/$PKGROOT/packaging/fedora/"
           cp -a packaging/fedora/taskblaster.desktop "$STAGE/$PKGROOT/packaging/fedora/"
           cp -a packaging/fedora/icons/taskblaster.png "$STAGE/$PKGROOT/packaging/fedora/icons/"
-          cp -a LICENSE "$STAGE/$PKGROOT/" 2>/dev/null || true
+          cp -a LICENSE "$STAGE/$PKGROOT/"
 
           tar -C "$STAGE" -czf "$RPMTOP/SOURCES/$TARBALL" "$PKGROOT"
 
