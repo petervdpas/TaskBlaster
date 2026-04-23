@@ -1,11 +1,14 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using TaskBlaster.Dialogs;
+using TaskBlaster.Engine;
 using TaskBlaster.Views;
 
 namespace TaskBlaster;
@@ -22,6 +25,9 @@ public partial class MainWindow : Window
     private readonly StatusBarView _statusBar;
 
     private string? _currentFilePath;
+
+    private readonly ScriptBlaster _blaster = new();
+    private CancellationTokenSource? _runCts;
 
     public MainWindow()
     {
@@ -111,21 +117,64 @@ public partial class MainWindow : Window
         _toolbar.CanSave = _currentFilePath is not null && _editor.IsDirty;
     }
 
-    private void OnRunClicked(object? sender, EventArgs e)
+    private async void OnRunClicked(object? sender, EventArgs e)
     {
         if (_currentFilePath is null)
         {
-            _terminal.Log("[stub] no script selected.");
+            _terminal.Log("No script selected.");
             return;
         }
+        if (_runCts is not null) return; // already running
+
+        if (_editor.IsDirty) SaveCurrent();
+
+        var path = _currentFilePath;
+        var name = Path.GetFileName(path);
+        var scriptText = File.ReadAllText(path);
+
+        _runCts = new CancellationTokenSource();
+        _toolbar.CanRun = false;
+        _toolbar.CanStop = true;
         _statusBar.Status = "Running…";
-        _terminal.Log($"[stub] would run: {Path.GetFileName(_currentFilePath)}");
-        _statusBar.Status = "Ready";
+        _terminal.Log($"▶ {name}");
+
+        BlastResult result;
+        try
+        {
+            result = await _blaster.RunAsync(
+                scriptText,
+                path,
+                line => Dispatcher.UIThread.Post(() => _terminal.Log(line)),
+                _runCts.Token);
+        }
+        finally
+        {
+            _runCts?.Dispose();
+            _runCts = null;
+            _toolbar.CanRun = true;
+            _toolbar.CanStop = false;
+        }
+
+        switch (result.Status)
+        {
+            case BlastStatus.Ok:
+                _terminal.Log($"✓ {name} finished.");
+                _statusBar.Status = "Ready";
+                break;
+            case BlastStatus.Cancelled:
+                _terminal.Log($"⊘ {name} cancelled.");
+                _statusBar.Status = "Cancelled";
+                break;
+            case BlastStatus.Error:
+                _terminal.Log($"✗ {name} failed: {result.Message}");
+                _statusBar.Status = "Error";
+                break;
+        }
     }
 
     private void OnStopClicked(object? sender, EventArgs e)
     {
-        _terminal.Log("[stub] stop requested.");
+        _runCts?.Cancel();
     }
 
     private void OnThemeClicked(object? sender, EventArgs e)
