@@ -59,7 +59,8 @@ public partial class ActionsEditorView : UserControl
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,*,Auto,Auto,Auto")
+            // Match the header row's columns exactly so they line up.
+            ColumnDefinitions = new ColumnDefinitions("*,*,72,72,40")
         };
 
         var idBox = new TextBox { Text = action.Id, Margin = new Thickness(0, 0, 8, 0) };
@@ -89,8 +90,9 @@ public partial class ActionsEditorView : UserControl
 
         var submit = new CheckBox
         {
-            IsChecked = action.Submit, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0)
+            IsChecked = action.Submit,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
         submit.IsCheckedChanged += (_, _) =>
         {
@@ -103,8 +105,9 @@ public partial class ActionsEditorView : UserControl
 
         var dismiss = new CheckBox
         {
-            IsChecked = action.Dismiss, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0)
+            IsChecked = action.Dismiss,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
         dismiss.IsCheckedChanged += (_, _) =>
         {

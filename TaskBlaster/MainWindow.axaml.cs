@@ -308,29 +308,49 @@ public partial class MainWindow : Window
 
     private async void OnConfigClicked(object? sender, EventArgs e)
     {
-        var chosen = await new ConfigDialog(_config.ScriptsFolder).ShowDialog<string?>(this);
-        if (chosen is null) return;
+        var result = await new ConfigDialog(_config.ScriptsFolder, _config.FormsFolder).ShowDialog<ConfigDialogResult?>(this);
+        if (result is null) return;
 
-        var normalized = Path.GetFullPath(chosen);
-        if (string.Equals(normalized, _config.ScriptsFolder, StringComparison.Ordinal)) return;
+        var scriptsChanged = await TryApplyFolder(
+            result.ScriptsFolder, _config.ScriptsFolder, "Scripts folder",
+            path => _config.ScriptsFolder = path);
+
+        var formsChanged = await TryApplyFolder(
+            result.FormsFolder, _config.FormsFolder, "Forms folder",
+            path => _config.FormsFolder = path);
+
+        if (!scriptsChanged && !formsChanged) return;
+
+        _config.Save();
+
+        // Any folder change invalidates the current selection.
+        _currentFilePath = null;
+        _editor.Text = string.Empty;
+        DetachCurrentFormDoc();
+        _designer.Document = null;
+        _toolbar.CanModify = false;
+        UpdateDirtyUi();
+
+        // Refresh the sidebar for the mode we're in.
+        _sidebar.Folder = _mode == AppMode.Forms ? _config.FormsFolder : _config.ScriptsFolder;
+    }
+
+    private async System.Threading.Tasks.Task<bool> TryApplyFolder(string? raw, string current, string label, Action<string> apply)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        var normalized = Path.GetFullPath(raw);
+        if (string.Equals(normalized, current, StringComparison.Ordinal)) return false;
 
         try { Directory.CreateDirectory(normalized); }
         catch (Exception ex)
         {
-            await _prompts.MessageAsync("Invalid folder", $"Could not use '{normalized}':\n{ex.Message}");
-            return;
+            await _prompts.MessageAsync("Invalid folder", $"Could not use '{normalized}' for {label}:\n{ex.Message}");
+            return false;
         }
 
-        _config.ScriptsFolder = normalized;
-        _config.Save();
-
-        _currentFilePath = null;
-        _editor.Text = string.Empty;
-        _toolbar.CanModify = false;
-        UpdateDirtyUi();
-
-        if (_mode == AppMode.Scripts) _sidebar.Folder = normalized;
-        _terminal.Log($"Scripts folder: {normalized}");
+        apply(normalized);
+        _terminal.Log($"{label}: {normalized}");
+        return true;
     }
 
     // ==================== New / Rename / Delete (mode-aware) ====================

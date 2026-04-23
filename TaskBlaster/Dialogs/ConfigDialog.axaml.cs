@@ -1,4 +1,3 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -6,49 +5,57 @@ using Avalonia.Platform.Storage;
 
 namespace TaskBlaster.Dialogs;
 
+/// <summary>
+/// Result returned by <see cref="ConfigDialog"/>. Null fields mean "leave the existing value alone".
+/// </summary>
+public sealed record ConfigDialogResult(string? ScriptsFolder, string? FormsFolder);
+
 public partial class ConfigDialog : Window
 {
-    private readonly TextBox _folderBox;
+    private readonly TextBox _scriptsBox;
+    private readonly TextBox _formsBox;
 
-    public ConfigDialog() : this(string.Empty) { }
+    public ConfigDialog() : this("", "") { }
 
-    public ConfigDialog(string currentFolder)
+    public ConfigDialog(string currentScriptsFolder, string currentFormsFolder)
     {
         InitializeComponent();
-        _folderBox = this.FindControl<TextBox>("FolderBox")!;
-        _folderBox.Text = currentFolder;
+        _scriptsBox = this.FindControl<TextBox>("ScriptsFolderBox")!;
+        _formsBox   = this.FindControl<TextBox>("FormsFolderBox")!;
+        _scriptsBox.Text = currentScriptsFolder;
+        _formsBox.Text   = currentFormsFolder;
 
-        KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Escape) Close((string?)null);
-        };
+        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close((ConfigDialogResult?)null); };
     }
 
-    private async void OnBrowse(object? sender, RoutedEventArgs e)
+    private async void OnBrowseScripts(object? sender, RoutedEventArgs e) => await Browse(_scriptsBox, "Select scripts folder");
+    private async void OnBrowseForms  (object? sender, RoutedEventArgs e) => await Browse(_formsBox,   "Select forms folder");
+
+    private async System.Threading.Tasks.Task Browse(TextBox target, string title)
     {
         var sp = StorageProvider;
         if (sp is null) return;
-
-        var startFolder = !string.IsNullOrWhiteSpace(_folderBox.Text)
-            ? await sp.TryGetFolderFromPathAsync(_folderBox.Text)
+        var start = !string.IsNullOrWhiteSpace(target.Text)
+            ? await sp.TryGetFolderFromPathAsync(target.Text)
             : null;
-
-        var result = await sp.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        var picked = await sp.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Select scripts folder",
+            Title = title,
             AllowMultiple = false,
-            SuggestedStartLocation = startFolder
+            SuggestedStartLocation = start,
         });
-
-        if (result.Count == 0) return;
-        _folderBox.Text = result[0].Path.LocalPath;
+        if (picked.Count == 0) return;
+        target.Text = picked[0].Path.LocalPath;
     }
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
-        var chosen = (_folderBox.Text ?? string.Empty).Trim();
-        Close(string.IsNullOrEmpty(chosen) ? null : chosen);
+        var scripts = (_scriptsBox.Text ?? "").Trim();
+        var forms   = (_formsBox.Text   ?? "").Trim();
+        Close(new ConfigDialogResult(
+            ScriptsFolder: string.IsNullOrEmpty(scripts) ? null : scripts,
+            FormsFolder:   string.IsNullOrEmpty(forms)   ? null : forms));
     }
 
-    private void OnCancel(object? sender, RoutedEventArgs e) => Close((string?)null);
+    private void OnCancel(object? sender, RoutedEventArgs e) => Close((ConfigDialogResult?)null);
 }

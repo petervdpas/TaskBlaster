@@ -6,16 +6,25 @@
              x:Class="TaskBlaster.Views.VisibilityEditorView">
     <Border BorderThickness="1" CornerRadius="4" Padding="12"
             BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,Auto,Auto,*">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                 <TextBlock Grid.Column="0" Text="Visibility rules" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Button    Grid.Column="1" Name="AddButton" Content="+ Add rule" Click="OnAdd" />
             </Grid>
 
-            <TextBlock Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,6"
+            <TextBlock Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8"
                        Text="When the controller field matches the condition, show or hide the listed target fields (comma-separated keys)." />
 
-            <ItemsControl Grid.Row="2" Name="RulesList">
+            <Grid Grid.Row="2" Margin="0,0,0,4" ColumnDefinitions="120,100,120,Auto,90,*,Auto">
+                <TextBlock Grid.Column="0" Text="Field"   Opacity="0.7" FontSize="11" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="1" Text="Op"      Opacity="0.7" FontSize="11" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="2" Text="Value"   Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="3" Text=""        Margin="0,0,8,0" />
+                <TextBlock Grid.Column="4" Text="Action"  Opacity="0.7" FontSize="11" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="5" Text="Targets" Opacity="0.7" FontSize="11" Margin="0,0,6,0" />
+            </Grid>
+
+            <ItemsControl Grid.Row="3" Name="RulesList">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <StackPanel Spacing="4" />

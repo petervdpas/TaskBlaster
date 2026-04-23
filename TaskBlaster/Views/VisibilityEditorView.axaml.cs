@@ -52,7 +52,8 @@ public partial class VisibilityEditorView : UserControl
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("120,80,120,Auto,90,*,Auto")
+            // Must match the header row's column definitions so they line up.
+            ColumnDefinitions = new ColumnDefinitions("120,100,120,Auto,90,*,Auto")
         };
 
         // Controller field

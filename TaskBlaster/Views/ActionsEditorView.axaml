@@ -12,12 +12,11 @@
                 <Button Grid.Column="1" Name="AddButton" Content="+ Add action" Click="OnAdd" />
             </Grid>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,*,Auto,Auto,Auto" Margin="0,0,0,4">
-                <TextBlock Grid.Column="0" Text="ID"       Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="1" Text="Label"    Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="2" Text="Submit"   Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="3" Text="Dismiss"  Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="4" Text=""                                              />
+            <Grid Grid.Row="1" ColumnDefinitions="*,*,72,72,40" Margin="0,0,0,4">
+                <TextBlock Grid.Column="0" Text="ID"      Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Text="Label"   Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="2" Text="Submit"  Opacity="0.7" FontSize="11" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="Dismiss" Opacity="0.7" FontSize="11" HorizontalAlignment="Center" />
             </Grid>
 
             <ItemsControl Grid.Row="2" Name="ActionsList">
