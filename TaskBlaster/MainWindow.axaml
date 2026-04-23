@@ -6,6 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
         x:Class="TaskBlaster.MainWindow"
         Title="TaskBlaster"
+        Icon="/Images/taskblaster.ico"
         Width="1100" Height="720">
 
     <Grid RowDefinitions="Auto,*,Auto">
