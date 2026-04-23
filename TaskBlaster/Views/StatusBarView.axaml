@@ -9,27 +9,32 @@
             Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             MinHeight="28"
             Padding="12,8">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0" Name="FileLabel"
                        Text="No script selected"
                        VerticalAlignment="Center"
                        FontSize="11"
                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-            <TextBlock Grid.Column="1" Name="ThemeLabel"
-                       Text=""
-                       VerticalAlignment="Center"
-                       FontSize="11"
-                       Margin="12,0"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-            <Rectangle Grid.Column="2" Width="1"
-                       Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                       Margin="4,2" />
-            <TextBlock Grid.Column="3" Name="StatusLabel"
-                       Text="Ready"
-                       VerticalAlignment="Center"
-                       FontSize="11"
-                       Margin="8,0,0,0"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Name="FontSizeLabel"
+                           Text=""
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="0,2" />
+                <TextBlock Name="ThemeLabel"
+                           Text=""
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="0,2" />
+                <TextBlock Name="StatusLabel"
+                           Text="Ready"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Styling;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Views;
@@ -40,10 +41,21 @@ public partial class MainWindow : Window
         _toolbar.StopClicked   += OnStopClicked;
         _toolbar.ThemeClicked  += OnThemeClicked;
         _toolbar.NewClicked    += OnNewClicked;
+        _toolbar.SaveClicked   += (_, _) => SaveCurrent();
         _toolbar.RenameClicked += OnRenameClicked;
         _toolbar.DeleteClicked += OnDeleteClicked;
 
+        _editor.DirtyChanged += (_, _) => UpdateDirtyUi();
+        _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
+
         ActualThemeVariantChanged += (_, _) => ApplyCurrentTheme();
+
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.S, KeyModifiers.Control),        Command = new Command(SaveCurrent) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.OemPlus, KeyModifiers.Control),  Command = new Command(_editor.ZoomIn) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.Add, KeyModifiers.Control),      Command = new Command(_editor.ZoomIn) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.OemMinus, KeyModifiers.Control), Command = new Command(_editor.ZoomOut) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.Subtract, KeyModifiers.Control), Command = new Command(_editor.ZoomOut) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.D0, KeyModifiers.Control),       Command = new Command(_editor.ResetZoom) });
 
         _terminal.Log($"Scripts folder: {ScriptsFolder}");
     }
@@ -52,6 +64,12 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         ApplyCurrentTheme();
+        UpdateFontSizeUi();
+    }
+
+    private void UpdateFontSizeUi()
+    {
+        _statusBar.FontSizeText = $"{_editor.EditorFontSize:0}px";
     }
 
     private void ApplyCurrentTheme()
@@ -65,18 +83,32 @@ public partial class MainWindow : Window
     {
         if (Directory.Exists(ScriptsFolder)) return;
         Directory.CreateDirectory(ScriptsFolder);
-        var sample = Path.Combine(ScriptsFolder, "hello.csx");
-        File.WriteAllText(sample,
-            "// Sample TaskBlaster script\n" +
-            "Console.WriteLine(\"Hello from TaskBlaster!\");\n");
+        foreach (var (name, body) in DemoScripts.All)
+            File.WriteAllText(Path.Combine(ScriptsFolder, name), body);
     }
 
     private void OnScriptSelected(object? sender, string path)
     {
         _editor.LoadFile(path);
         _currentFilePath = path;
-        _statusBar.CurrentFile = Path.GetFileName(path);
         _toolbar.CanModify = true;
+        UpdateDirtyUi();
+        _terminal.Log($"Loaded: {Path.GetFileName(path)} ({_editor.Text.Length} chars)");
+    }
+
+    private void SaveCurrent()
+    {
+        if (_currentFilePath is null) return;
+        _editor.SaveTo(_currentFilePath);
+        _terminal.Log($"Saved: {Path.GetFileName(_currentFilePath)}");
+        UpdateDirtyUi();
+    }
+
+    private void UpdateDirtyUi()
+    {
+        var name = _currentFilePath is null ? string.Empty : Path.GetFileName(_currentFilePath);
+        _statusBar.CurrentFile = _editor.IsDirty && !string.IsNullOrEmpty(name) ? name + " •" : name;
+        _toolbar.CanSave = _currentFilePath is not null && _editor.IsDirty;
     }
 
     private void OnRunClicked(object? sender, EventArgs e)
@@ -154,7 +186,7 @@ public partial class MainWindow : Window
         _currentFilePath = newPath;
         _sidebar.Refresh();
         _sidebar.Select(safe + ".csx");
-        _statusBar.CurrentFile = safe + ".csx";
+        UpdateDirtyUi();
         _terminal.Log($"Renamed to: {safe}.csx");
     }
 
@@ -170,8 +202,8 @@ public partial class MainWindow : Window
 
         _currentFilePath = null;
         _editor.Text = string.Empty;
-        _statusBar.CurrentFile = string.Empty;
         _toolbar.CanModify = false;
+        UpdateDirtyUi();
         _sidebar.Refresh();
     }
 
@@ -183,5 +215,14 @@ public partial class MainWindow : Window
         var invalid = Path.GetInvalidFileNameChars();
         if (trimmed.Any(c => invalid.Contains(c))) return string.Empty;
         return trimmed;
+    }
+
+    private sealed class Command : System.Windows.Input.ICommand
+    {
+        private readonly Action _action;
+        public Command(Action action) => _action = action;
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => _action();
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
     }
 }

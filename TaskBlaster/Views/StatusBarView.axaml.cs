@@ -5,21 +5,29 @@ namespace TaskBlaster.Views;
 public partial class StatusBarView : UserControl
 {
     private readonly TextBlock _fileLabel;
+    private readonly TextBlock _fontSizeLabel;
     private readonly TextBlock _themeLabel;
     private readonly TextBlock _statusLabel;
 
     public StatusBarView()
     {
         InitializeComponent();
-        _fileLabel = this.FindControl<TextBlock>("FileLabel")!;
-        _themeLabel = this.FindControl<TextBlock>("ThemeLabel")!;
-        _statusLabel = this.FindControl<TextBlock>("StatusLabel")!;
+        _fileLabel     = this.FindControl<TextBlock>("FileLabel")!;
+        _fontSizeLabel = this.FindControl<TextBlock>("FontSizeLabel")!;
+        _themeLabel    = this.FindControl<TextBlock>("ThemeLabel")!;
+        _statusLabel   = this.FindControl<TextBlock>("StatusLabel")!;
     }
 
     public string CurrentFile
     {
         get => _fileLabel.Text ?? string.Empty;
         set => _fileLabel.Text = string.IsNullOrEmpty(value) ? "No script selected" : value;
+    }
+
+    public string FontSizeText
+    {
+        get => _fontSizeLabel.Text ?? string.Empty;
+        set => _fontSizeLabel.Text = value;
     }
 
     public string ThemeName
