@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="40"
+             x:Class="TaskBlaster.Views.ToolbarView">
+    <Border Padding="8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Name="RunButton"  Content="▶ Run"  Click="OnRunClicked" />
+            <Button Name="StopButton" Content="■ Stop" IsEnabled="False" Click="OnStopClicked" />
+            <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="6,2" />
+            <Button Name="NewButton"    Content="➕ New"    Click="OnNewClicked" />
+            <Button Name="RenameButton" Content="✏ Rename" IsEnabled="False" Click="OnRenameClicked" />
+            <Button Name="DeleteButton" Content="🗑 Delete" IsEnabled="False" Click="OnDeleteClicked" />
+            <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="6,2" />
+            <Button Name="ThemeButton" Content="🌓 Theme" Click="OnThemeClicked" />
+        </StackPanel>
+    </Border>
+</UserControl>

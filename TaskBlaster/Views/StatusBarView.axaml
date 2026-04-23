@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="24"
+             x:Class="TaskBlaster.Views.StatusBarView">
+    <Border BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+            Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            MinHeight="28"
+            Padding="12,8">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+            <TextBlock Grid.Column="0" Name="FileLabel"
+                       Text="No script selected"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <TextBlock Grid.Column="1" Name="ThemeLabel"
+                       Text=""
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Margin="12,0"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <Rectangle Grid.Column="2" Width="1"
+                       Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                       Margin="4,2" />
+            <TextBlock Grid.Column="3" Name="StatusLabel"
+                       Text="Ready"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Margin="8,0,0,0"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Grid>
+    </Border>
+</UserControl>

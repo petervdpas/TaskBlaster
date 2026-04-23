@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="220" d:DesignHeight="600"
+             x:Class="TaskBlaster.Views.SidebarView">
+    <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+        <Grid RowDefinitions="Auto,*">
+            <TextBlock Grid.Row="0" Text="Scripts" FontWeight="SemiBold" Padding="10,8" />
+            <ListBox Grid.Row="1" Name="ScriptList" SelectionChanged="OnSelectionChanged" />
+        </Grid>
+    </Border>
+</UserControl>

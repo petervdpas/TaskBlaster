@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TaskBlaster.Dialogs.ConfirmDialog"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Confirm">
+    <Grid RowDefinitions="Auto,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,14" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Name="NoButton"  Content="No"  Click="OnNo"  />
+            <Button Name="YesButton" Content="Yes" Click="OnYes" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>
