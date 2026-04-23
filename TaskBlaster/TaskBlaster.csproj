@@ -29,6 +29,9 @@
     <AvaloniaResource Include="Images\taskblaster.ico" />
     <AvaloniaResource Include="Images\taskblaster.png" />
     <AvaloniaResource Include="Images\spacegun.png" />
+    <AvaloniaResource Include="Themes\Base.axaml" />
+    <AvaloniaResource Include="Themes\Industrial.axaml" />
+    <AvaloniaResource Include="Themes\Light.axaml" />
   </ItemGroup>
 
   <ItemGroup>

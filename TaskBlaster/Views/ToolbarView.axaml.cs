@@ -14,6 +14,7 @@ public partial class ToolbarView : UserControl
     private readonly Button _saveButton;
     private readonly Button _renameButton;
     private readonly Button _deleteButton;
+    private readonly Button _themeButton;
     private readonly ToggleButton _scriptsMode;
     private readonly ToggleButton _formsMode;
 
@@ -37,9 +38,12 @@ public partial class ToolbarView : UserControl
         _saveButton   = this.FindControl<Button>("SaveButton")!;
         _renameButton = this.FindControl<Button>("RenameButton")!;
         _deleteButton = this.FindControl<Button>("DeleteButton")!;
+        _themeButton  = this.FindControl<Button>("ThemeButton")!;
         _scriptsMode  = this.FindControl<ToggleButton>("ScriptsMode")!;
         _formsMode    = this.FindControl<ToggleButton>("FormsMode")!;
     }
+
+    public void SetThemeLabel(string label) => _themeButton.Content = label;
 
     public bool CanRun    { get => _runButton.IsEnabled;    set => _runButton.IsEnabled    = value; }
     public bool CanStop   { get => _stopButton.IsEnabled;   set => _stopButton.IsEnabled   = value; }

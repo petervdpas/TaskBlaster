@@ -4,16 +4,19 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Platform;
+using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Views;
 
 public partial class SplashWindow : Window
 {
+    private readonly IThemeService _themes;
     private bool _dismissed;
 
-    public SplashWindow()
+    public SplashWindow(IThemeService themes)
     {
         InitializeComponent();
+        _themes = themes;
         VersionText.Text = $"Version {AppInfo.Version}";
     }
 
@@ -36,7 +39,7 @@ public partial class SplashWindow : Window
 
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var main = new MainWindow
+            var main = new MainWindow(_themes)
             {
                 Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TaskBlaster/Images/taskblaster.ico")))
             };

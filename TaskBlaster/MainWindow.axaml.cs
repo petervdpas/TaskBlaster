@@ -33,13 +33,15 @@ public partial class MainWindow : Window
     private readonly IScriptBlaster _blaster = new ScriptBlaster();
     private readonly IConfigStore _config = new ConfigStore();
     private readonly IPromptService _prompts;
+    private readonly IThemeService _themes;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
-    public MainWindow()
+    public MainWindow(IThemeService themes)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
+        _themes = themes;
         _prompts = new AvaloniaPromptService(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
@@ -96,8 +98,10 @@ public partial class MainWindow : Window
     private void ApplyCurrentTheme()
     {
         var variant = ActualThemeVariant ?? ThemeVariant.Default;
-        _statusBar.ThemeName = variant.ToString();
+        var current = _themes.CurrentTheme;
+        _statusBar.ThemeName = current;
         _editor.ApplyTheme(variant);
+        _toolbar.SetThemeLabel(current == "Light" ? "🌓 Industrial" : "🌓 Light");
     }
 
     private void UpdateFontSizeUi() => _statusBar.FontSizeText = $"{_editor.EditorFontSize:0}px";
@@ -291,8 +295,8 @@ public partial class MainWindow : Window
 
     private void OnThemeClicked(object? sender, EventArgs e)
     {
-        var next = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
-        Application.Current!.RequestedThemeVariant = next;
+        var next = _themes.CurrentTheme == "Light" ? "Industrial" : "Light";
+        _themes.Apply(next);
         _terminal.Log($"Theme: {next}");
     }
 
