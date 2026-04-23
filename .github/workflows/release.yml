@@ -38,7 +38,8 @@ jobs:
         run: >
           dotnet test TaskBlaster.Tests/TaskBlaster.Tests.csproj
           --configuration Release --no-build
-          --logger "trx;LogFileName=test-results.trx"
+          --
+          --report-trx
           --results-directory TestResults
 
       - name: Upload test results
@@ -46,7 +47,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: TestResults/**/*.trx
+          path: TestResults/*.trx
           if-no-files-found: warn
 
       - name: Publish test report
@@ -54,7 +55,7 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: xUnit Tests
-          path: TestResults/**/*.trx
+          path: TestResults/*.trx
           reporter: dotnet-trx
           fail-on-error: false
 
