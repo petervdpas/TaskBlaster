@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"{AppInfo.Name} - v{AppInfo.Version}";
         _prompts = new AvaloniaPromptService(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;

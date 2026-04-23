@@ -6,7 +6,24 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Images\taskblaster.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Version>0.0.0-local</Version>
   </PropertyGroup>
+
+  <!--
+    Derive Version from the latest git tag (e.g. v1.0.16 → 1.0.16) at build time.
+    CI passes -p:Version=x.y.z on publish, which overrides this.
+  -->
+  <Target Name="SetVersionFromGit" BeforeTargets="GetAssemblyVersion;GenerateNuspec;BeforeCompile" Condition="'$(Version)' == '0.0.0-local'">
+    <Exec Command="git describe --tags --abbrev=0" ConsoleToMsBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitTagRaw" />
+    </Exec>
+
+    <PropertyGroup>
+      <_GitTag>$([System.String]::Copy('$(_GitTagRaw)').Trim())</_GitTag>
+      <Version Condition="'$(_GitTag)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitTag)', '^v?\d+\.\d+\.\d+([-.][0-9A-Za-z]+)*$'))">$(_GitTag.TrimStart('v'))</Version>
+      <Version Condition="'$(Version)' == '0.0.0-local'">0.0.0-local</Version>
+    </PropertyGroup>
+  </Target>
 
   <ItemGroup>
     <AvaloniaResource Include="Images\taskblaster.ico" />

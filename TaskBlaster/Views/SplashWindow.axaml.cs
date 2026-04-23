@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -15,11 +14,7 @@ public partial class SplashWindow : Window
     public SplashWindow()
     {
         InitializeComponent();
-
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = version is null
-            ? "version unknown"
-            : $"Version {version.Major}.{version.Minor}.{version.Build}";
+        VersionText.Text = $"Version {AppInfo.Version}";
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)

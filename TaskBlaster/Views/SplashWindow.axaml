@@ -28,7 +28,7 @@
                                FontSize="40"
                                FontWeight="Bold"
                                Foreground="#E6E6FA"/>
-                    <TextBlock Text=".csx script editor and runner"
+                    <TextBlock Text=".csx editor and runner with form designer"
                                FontSize="13"
                                Foreground="#9898B8"/>
                     <TextBlock Name="VersionText"
