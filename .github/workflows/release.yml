@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -39,7 +38,8 @@ jobs:
         run: >
           dotnet test TaskBlaster.Tests/TaskBlaster.Tests.csproj
           --configuration Release --no-build
-          --report-trx --results-directory TestResults
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
 
       - name: Upload test results
         if: always()
