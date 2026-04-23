@@ -87,10 +87,20 @@ public partial class MainWindow : Window
 
     private static void EnsureScriptsFolder()
     {
-        if (Directory.Exists(ScriptsFolder)) return;
         Directory.CreateDirectory(ScriptsFolder);
-        foreach (var (name, body) in DemoScripts.All)
-            File.WriteAllText(Path.Combine(ScriptsFolder, name), body);
+        SeedMissingDemos();
+    }
+
+    private static void SeedMissingDemos()
+    {
+        var demoDir = Path.Combine(AppContext.BaseDirectory, "DemoScripts");
+        if (!Directory.Exists(demoDir)) return;
+
+        foreach (var src in Directory.EnumerateFiles(demoDir, "*.csx"))
+        {
+            var dst = Path.Combine(ScriptsFolder, Path.GetFileName(src));
+            if (!File.Exists(dst)) File.Copy(src, dst);
+        }
     }
 
     private void OnScriptSelected(object? sender, string path)

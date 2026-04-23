@@ -24,4 +24,10 @@
     <PackageReference Include="AzureBlast" Version="2.0.2" />
     <PackageReference Include="GuiBlast" Version="2.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="DemoScripts\*.csx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

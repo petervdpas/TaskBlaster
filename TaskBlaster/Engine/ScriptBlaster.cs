@@ -55,8 +55,13 @@ public sealed class ScriptBlaster
                 .WithFilePath(scriptPath ?? "script.csx")
                 .WithLanguageVersion(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest);
 
-            await CSharpScript.RunAsync(scriptText, options, cancellationToken: cancellationToken)
-                              .ConfigureAwait(false);
+            // Off-load to a thread-pool thread so the UI dispatcher stays free.
+            // Blocking calls (e.g. GuiBlast Prompts) need the UI thread to be pumping.
+            await Task.Run(async () =>
+            {
+                await CSharpScript.RunAsync(scriptText, options, cancellationToken: cancellationToken)
+                                  .ConfigureAwait(false);
+            }, cancellationToken).ConfigureAwait(false);
 
             writer.Flush();
             return BlastResult.Ok();
