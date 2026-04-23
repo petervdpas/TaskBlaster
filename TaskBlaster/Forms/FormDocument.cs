@@ -40,6 +40,28 @@ public sealed class FormDocument : IFormDocument
         }
     }
 
+    public double? Width
+    {
+        get => _form.Width;
+        set
+        {
+            if (Nullable.Equals(_form.Width, value)) return;
+            _form.Width = value;
+            MarkDirty();
+        }
+    }
+
+    public double? Height
+    {
+        get => _form.Height;
+        set
+        {
+            if (Nullable.Equals(_form.Height, value)) return;
+            _form.Height = value;
+            MarkDirty();
+        }
+    }
+
     public IReadOnlyList<FieldEditor> Fields => _fields;
 
     public FieldEditor? SelectedField => _selected;

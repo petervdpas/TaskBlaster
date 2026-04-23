@@ -13,6 +13,8 @@ namespace TaskBlaster.Forms;
 public sealed class FormEditor
 {
     public string Title { get; set; } = "Untitled";
+    public double? Width { get; set; }
+    public double? Height { get; set; }
     public ObservableCollection<FieldEditor> Fields { get; } = new();
     public ObservableCollection<VisibilityRuleEditor> Visibility { get; } = new();
     public ObservableCollection<ActionEditor> Actions { get; } = new();
@@ -30,7 +32,12 @@ public sealed class FormEditor
         var dto = JsonSerializer.Deserialize<FormDto>(json, ReadOptions);
         if (dto is null) return CreateDefault();
 
-        var editor = new FormEditor { Title = dto.Title ?? "Untitled" };
+        var editor = new FormEditor
+        {
+            Title = dto.Title ?? "Untitled",
+            Width = dto.Size?.Width,
+            Height = dto.Size?.Height,
+        };
         if (dto.Fields is not null)
             foreach (var f in dto.Fields) editor.Fields.Add(FieldEditor.FromDto(f));
         if (dto.Visibility is not null)
@@ -51,6 +58,9 @@ public sealed class FormEditor
         var dto = new FormDto
         {
             Title = Title,
+            Size = (Width is not null || Height is not null)
+                ? new SizeDto { Width = Width, Height = Height }
+                : null,
             Fields = new List<FieldDto>(),
             Visibility = Visibility.Count > 0 ? new List<VisibilityDto>() : null,
             Actions = new List<ActionDto>(),
@@ -81,9 +91,16 @@ public sealed class FormEditor
     internal sealed class FormDto
     {
         public string? Title { get; set; }
+        public SizeDto? Size { get; set; }
         public List<FieldDto>? Fields { get; set; }
         public List<VisibilityDto>? Visibility { get; set; }
         public List<ActionDto>? Actions { get; set; }
+    }
+
+    internal sealed class SizeDto
+    {
+        public double? Width { get; set; }
+        public double? Height { get; set; }
     }
 
     internal sealed class FieldDto

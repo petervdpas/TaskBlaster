@@ -37,6 +37,10 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
+    // Required by Avalonia's XAML runtime loader; not used at runtime.
+    public MainWindow() => throw new InvalidOperationException(
+        "MainWindow must be constructed with an IThemeService.");
+
     public MainWindow(IThemeService themes)
     {
         InitializeComponent();

@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -9,6 +10,11 @@ namespace TaskBlaster;
 public partial class App : Application
 {
     private readonly IThemeService _themes;
+
+    // Required by Avalonia's XAML runtime loader. Not used: we always construct
+    // App via the factory in Program.BuildAvaloniaApp so services are injected.
+    public App() => throw new InvalidOperationException(
+        "App must be constructed via Program.BuildAvaloniaApp so IThemeService is injected.");
 
     public App(IThemeService themes)
     {

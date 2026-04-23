@@ -13,6 +13,10 @@ public partial class SplashWindow : Window
     private readonly IThemeService _themes;
     private bool _dismissed;
 
+    // Required by Avalonia's XAML runtime loader; not used at runtime.
+    public SplashWindow() => throw new InvalidOperationException(
+        "SplashWindow must be constructed with an IThemeService.");
+
     public SplashWindow(IThemeService themes)
     {
         InitializeComponent();

@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="180"
+             x:Class="TaskBlaster.Views.SizeEditorView">
+    <Border BorderThickness="1" CornerRadius="4" Padding="12"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+        <StackPanel Spacing="10">
+            <TextBlock Text="Form size" FontWeight="SemiBold" />
+            <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                       Text="Override the width and/or height of the rendered GuiBlast form (device-independent pixels). Leave blank to let the form auto-size to its contents." />
+
+            <Grid ColumnDefinitions="Auto,120,24,Auto,120" RowDefinitions="Auto,Auto" Margin="0,4,0,0">
+                <TextBlock Grid.Column="0" Grid.Row="0" Text="Width"  Opacity="0.7" FontSize="11" Margin="0,0,8,2" />
+                <TextBlock Grid.Column="3" Grid.Row="0" Text="Height" Opacity="0.7" FontSize="11" Margin="0,0,8,2" />
+                <TextBox   Grid.Column="1" Grid.Row="1" Name="WidthBox"  PlaceholderText="auto" />
+                <TextBox   Grid.Column="4" Grid.Row="1" Name="HeightBox" PlaceholderText="auto" />
+            </Grid>
+
+            <TextBlock Name="ErrorText"
+                       Foreground="{DynamicResource DangerBrush}"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       IsVisible="False" />
+
+            <Button Name="ClearButton"
+                    Content="Reset to auto"
+                    HorizontalAlignment="Left"
+                    Click="OnClear" />
+        </StackPanel>
+    </Border>
+</UserControl>

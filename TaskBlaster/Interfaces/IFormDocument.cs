@@ -14,6 +14,12 @@ public interface IFormDocument
     /// <summary>Current form title.</summary>
     string Title { get; set; }
 
+    /// <summary>Optional desired width of the rendered form (device-independent pixels). Null → auto.</summary>
+    double? Width { get; set; }
+
+    /// <summary>Optional desired height of the rendered form (device-independent pixels). Null → auto.</summary>
+    double? Height { get; set; }
+
     /// <summary>Snapshot of the fields in display order.</summary>
     IReadOnlyList<FieldEditor> Fields { get; }
 

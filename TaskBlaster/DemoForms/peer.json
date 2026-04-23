@@ -1,5 +1,6 @@
 {
   "title": "Peer",
+  "size": { "width": 400, "height": 320 },
   "fields": [
     { "key": "name", "type": "text", "label": "Name", "required": true, "placeholder": "Alice" },
     {

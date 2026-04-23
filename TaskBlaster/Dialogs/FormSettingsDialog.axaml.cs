@@ -10,6 +10,7 @@ public partial class FormSettingsDialog : Window
 {
     private readonly ActionsEditorView _actions;
     private readonly VisibilityEditorView _visibility;
+    private readonly SizeEditorView _size;
 
     public FormSettingsDialog() : this(null) { }
 
@@ -18,8 +19,10 @@ public partial class FormSettingsDialog : Window
         InitializeComponent();
         _actions    = this.FindControl<ActionsEditorView>("ActionsEditor")!;
         _visibility = this.FindControl<VisibilityEditorView>("VisibilityEditor")!;
+        _size       = this.FindControl<SizeEditorView>("SizeEditor")!;
         _actions.Document    = document;
         _visibility.Document = document;
+        _size.Document       = document;
 
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
     }

@@ -10,6 +10,9 @@
         Title="Form Settings">
     <Grid RowDefinitions="*,Auto" Margin="12">
         <TabControl Grid.Row="0">
+            <TabItem Header="Size">
+                <views:SizeEditorView Name="SizeEditor" Margin="0,8,0,0" />
+            </TabItem>
             <TabItem Header="Actions">
                 <views:ActionsEditorView Name="ActionsEditor" Margin="0,8,0,0" />
             </TabItem>
