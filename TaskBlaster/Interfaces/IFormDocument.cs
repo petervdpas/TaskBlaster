@@ -31,6 +31,17 @@ public interface IFormDocument
     void MoveUp();
     void MoveDown();
 
+    /// <summary>
+    /// Rename the selected field's key. Throws if the new key is empty, already in use, or contains invalid characters.
+    /// Fires <see cref="FieldsChanged"/> (so the displayed list label updates) and dirties the document.
+    /// </summary>
+    void RenameSelectedKey(string newKey);
+
+    /// <summary>
+    /// Validate a candidate key for the selected field. Returns null if valid, otherwise an error message.
+    /// </summary>
+    string? ValidateKey(string candidate);
+
     /// <summary>Replace the whole form (e.g. when loading a file).</summary>
     void Load(FormEditor form);
 

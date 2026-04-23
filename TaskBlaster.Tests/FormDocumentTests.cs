@@ -208,4 +208,116 @@ public class FormDocumentTests
 
         Assert.True(doc.IsDirty);
     }
+
+    // --- Key validation ---
+
+    [Fact]
+    public void ValidateKey_Empty_ReturnsError()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+
+        Assert.NotNull(doc.ValidateKey(""));
+        Assert.NotNull(doc.ValidateKey("   "));
+    }
+
+    [Fact]
+    public void ValidateKey_InvalidCharacter_ReturnsError()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+
+        Assert.NotNull(doc.ValidateKey("has space"));
+        Assert.NotNull(doc.ValidateKey("has/slash"));
+        Assert.NotNull(doc.ValidateKey("has$dollar"));
+    }
+
+    [Fact]
+    public void ValidateKey_ValidChars_ReturnsNull()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+
+        Assert.Null(doc.ValidateKey("first_name"));
+        Assert.Null(doc.ValidateKey("field-1"));
+        Assert.Null(doc.ValidateKey("data.value"));
+        Assert.Null(doc.ValidateKey("f123"));
+    }
+
+    [Fact]
+    public void ValidateKey_DuplicateOfOtherField_ReturnsError()
+    {
+        var doc = NewFormWithFields("name", "role");
+        doc.SelectField(doc.Fields[0]); // editing "name"
+
+        Assert.NotNull(doc.ValidateKey("role")); // used by the OTHER field
+    }
+
+    [Fact]
+    public void ValidateKey_SameAsOwnKey_IsAllowed()
+    {
+        var doc = NewFormWithFields("name");
+        doc.SelectField(doc.Fields[0]);
+
+        Assert.Null(doc.ValidateKey("name")); // renaming to your own key is a no-op, not a conflict
+    }
+
+    [Fact]
+    public void RenameSelectedKey_Valid_UpdatesKeyAndMarksDirty()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+        doc.MarkClean();
+
+        doc.RenameSelectedKey("new_key");
+
+        Assert.Equal("new_key", doc.Fields[0].Key);
+        Assert.True(doc.IsDirty);
+    }
+
+    [Fact]
+    public void RenameSelectedKey_Invalid_Throws()
+    {
+        var doc = NewFormWithFields("a", "b");
+        doc.SelectField(doc.Fields[0]);
+
+        Assert.Throws<System.ArgumentException>(() => doc.RenameSelectedKey(""));
+        Assert.Throws<System.ArgumentException>(() => doc.RenameSelectedKey("b"));   // duplicate
+        Assert.Throws<System.ArgumentException>(() => doc.RenameSelectedKey("x y")); // space
+    }
+
+    [Fact]
+    public void RenameSelectedKey_NoSelection_Throws()
+    {
+        var doc = new FormDocument();
+        Assert.Throws<System.InvalidOperationException>(() => doc.RenameSelectedKey("x"));
+    }
+
+    [Fact]
+    public void RenameSelectedKey_SameKey_DoesNothing()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+        doc.MarkClean();
+        var fieldsFires = 0;
+        doc.FieldsChanged += (_, _) => fieldsFires++;
+
+        doc.RenameSelectedKey("a");
+
+        Assert.False(doc.IsDirty);
+        Assert.Equal(0, fieldsFires);
+    }
+
+    [Fact]
+    public void RenameSelectedKey_Valid_FiresFieldsChangedOnce()
+    {
+        var doc = NewFormWithFields("a");
+        doc.SelectField(doc.Fields[0]);
+        var fires = 0;
+        doc.FieldsChanged += (_, _) => fires++;
+
+        doc.RenameSelectedKey("renamed");
+
+        Assert.Equal(1, fires);
+    }
 }

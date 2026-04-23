@@ -32,15 +32,14 @@ public partial class MainWindow : Window
 
     private readonly IScriptBlaster _blaster = new ScriptBlaster();
     private readonly IConfigStore _config = new ConfigStore();
+    private readonly IPromptService _prompts;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
     public MainWindow()
     {
-        DebugLog.Clear();
-        DebugLog.Write("MainWindow ctor BEGIN");
         InitializeComponent();
-        DebugLog.Write("MainWindow ctor InitializeComponent done");
+        _prompts = new AvaloniaPromptService(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
         _sidebar   = this.FindControl<SidebarView>("Sidebar")!;
@@ -116,14 +115,9 @@ public partial class MainWindow : Window
 
     private void SwitchMode(AppMode mode)
     {
-        _terminal.Log($"[switch] → {mode}");
-        DebugLog.Write($"SwitchMode → {mode} START");
-
         _mode = mode;
-        _terminal.Log("[switch] 1/7 set toolbar mode");
         _toolbar.Mode = mode;
 
-        _terminal.Log("[switch] 2/7 clear current file");
         _currentFilePath = null;
         _toolbar.CanModify = false;
         UpdateDirtyUi();
@@ -131,36 +125,23 @@ public partial class MainWindow : Window
         switch (mode)
         {
             case AppMode.Scripts:
-                _terminal.Log("[switch] 3/7 show editor, hide designer");
                 _editor.IsVisible = true;
                 _designer.IsVisible = false;
-                _terminal.Log("[switch] 4/7 sidebar header");
                 _sidebar.Header = "Scripts";
-                _terminal.Log("[switch] 5/7 sidebar pattern");
                 _sidebar.Pattern = "*.csx";
-                _terminal.Log("[switch] 6/7 sidebar folder");
                 _sidebar.Folder = _config.ScriptsFolder;
-                _terminal.Log("[switch] 7/7 run label");
                 _toolbar.SetRunLabel("▶ Run");
                 break;
 
             case AppMode.Forms:
-                _terminal.Log("[switch] 3/7 hide editor, show designer");
                 _editor.IsVisible = false;
                 _designer.IsVisible = true;
-                _terminal.Log("[switch] 4/7 sidebar header");
                 _sidebar.Header = "Forms";
-                _terminal.Log("[switch] 5/7 sidebar pattern");
                 _sidebar.Pattern = "*.json";
-                _terminal.Log("[switch] 6/7 sidebar folder");
                 _sidebar.Folder = _config.FormsFolder;
-                _terminal.Log("[switch] 7/7 run label");
                 _toolbar.SetRunLabel("👁 Preview");
                 break;
         }
-
-        _terminal.Log($"[switch] DONE (handler returns; layout pass runs next on UI thread)");
-        DebugLog.Write($"SwitchMode → {mode} END (handler returned)");
     }
 
     private string CurrentFolder => _mode == AppMode.Forms ? _config.FormsFolder : _config.ScriptsFolder;
@@ -324,7 +305,7 @@ public partial class MainWindow : Window
         try { Directory.CreateDirectory(normalized); }
         catch (Exception ex)
         {
-            await PromptService.MessageAsync(this, "Invalid folder", $"Could not use '{normalized}':\n{ex.Message}");
+            await _prompts.MessageAsync("Invalid folder", $"Could not use '{normalized}':\n{ex.Message}");
             return;
         }
 
@@ -346,21 +327,21 @@ public partial class MainWindow : Window
     {
         var ext = CurrentExtension;
         var defName = _mode == AppMode.Forms ? "new-form" : "new-script";
-        var name = await PromptService.InputAsync(this, "New " + (_mode == AppMode.Forms ? "Form" : "Script"),
+        var name = await _prompts.InputAsync("New " + (_mode == AppMode.Forms ? "Form" : "Script"),
             $"File name (without extension):", defName);
         if (name is null) return;
 
         var safe = SanitizeFileName(name);
         if (string.IsNullOrWhiteSpace(safe))
         {
-            await PromptService.MessageAsync(this, "Invalid name", "File name cannot be empty or contain invalid characters.");
+            await _prompts.MessageAsync("Invalid name", "File name cannot be empty or contain invalid characters.");
             return;
         }
 
         var path = Path.Combine(CurrentFolder, safe + ext);
         if (File.Exists(path))
         {
-            await PromptService.MessageAsync(this, "Already exists", $"A file named '{safe}{ext}' already exists.");
+            await _prompts.MessageAsync("Already exists", $"A file named '{safe}{ext}' already exists.");
             return;
         }
 
@@ -384,13 +365,13 @@ public partial class MainWindow : Window
         if (_currentFilePath is null) return;
         var ext = CurrentExtension;
         var oldName = Path.GetFileNameWithoutExtension(_currentFilePath);
-        var name = await PromptService.InputAsync(this, "Rename", "New file name (without extension):", oldName);
+        var name = await _prompts.InputAsync("Rename", "New file name (without extension):", oldName);
         if (name is null) return;
 
         var safe = SanitizeFileName(name);
         if (string.IsNullOrWhiteSpace(safe))
         {
-            await PromptService.MessageAsync(this, "Invalid name", "File name cannot be empty or contain invalid characters.");
+            await _prompts.MessageAsync("Invalid name", "File name cannot be empty or contain invalid characters.");
             return;
         }
 
@@ -398,7 +379,7 @@ public partial class MainWindow : Window
         if (string.Equals(newPath, _currentFilePath, StringComparison.OrdinalIgnoreCase)) return;
         if (File.Exists(newPath))
         {
-            await PromptService.MessageAsync(this, "Already exists", $"A file named '{safe}{ext}' already exists.");
+            await _prompts.MessageAsync("Already exists", $"A file named '{safe}{ext}' already exists.");
             return;
         }
 
@@ -414,7 +395,7 @@ public partial class MainWindow : Window
     {
         if (_currentFilePath is null) return;
         var fileName = Path.GetFileName(_currentFilePath);
-        var ok = await PromptService.ConfirmAsync(this, "Delete", $"Delete '{fileName}'? This cannot be undone.");
+        var ok = await _prompts.ConfirmAsync("Delete", $"Delete '{fileName}'? This cannot be undone.");
         if (!ok) return;
 
         File.Delete(_currentFilePath);

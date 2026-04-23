@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TaskBlaster.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="DemoScripts\*.csx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

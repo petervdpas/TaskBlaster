@@ -105,6 +105,31 @@ public sealed class FormDocument : IFormDocument
     public void MoveUp() => Move(-1);
     public void MoveDown() => Move(+1);
 
+    public string? ValidateKey(string candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+            return "Field key cannot be empty.";
+        foreach (var ch in candidate)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch != '_' && ch != '-' && ch != '.')
+                return $"Field key contains invalid character '{ch}'. Allowed: letters, digits, '_', '-', '.'.";
+        }
+        if (_fields.Any(f => !ReferenceEquals(f, _selected) && string.Equals(f.Key, candidate, StringComparison.Ordinal)))
+            return $"A field with key '{candidate}' already exists.";
+        return null;
+    }
+
+    public void RenameSelectedKey(string newKey)
+    {
+        if (_selected is null) throw new InvalidOperationException("No field selected.");
+        var error = ValidateKey(newKey);
+        if (error is not null) throw new ArgumentException(error, nameof(newKey));
+        if (string.Equals(_selected.Key, newKey, StringComparison.Ordinal)) return;
+        _selected.Key = newKey;
+        FieldsChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+    }
+
     private void Move(int delta)
     {
         if (_selected is null) return;
