@@ -39,7 +39,8 @@ jobs:
           dotnet test TaskBlaster.Tests/TaskBlaster.Tests.csproj
           --configuration Release --no-build
           --
-          --report-trx
+          --report-xunit-trx
+          --report-xunit-trx-filename test-results.trx
           --results-directory ${{ github.workspace }}/TestResults
 
       - name: Dump test output on failure
