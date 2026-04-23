@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     name: Build & Test
@@ -27,4 +32,24 @@ jobs:
         run: dotnet build TaskBlaster.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test TaskBlaster.Tests/TaskBlaster.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal"
+        run: >
+          dotnet test TaskBlaster.Tests/TaskBlaster.Tests.csproj
+          --configuration Release --no-build
+          --report-trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: warn
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: xUnit Tests
+          path: TestResults/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
