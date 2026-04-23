@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Views.FieldEditors;
@@ -139,7 +140,11 @@ public partial class FormDesignerView : UserControl
             ShowExtraFor(field);
         }
 
-        _updatingFromDocument = false;
+        // Release suppression only after Avalonia's layout pass completes.
+        // Any spurious FieldList/OptionList SelectionChanged events fired during
+        // that pass (a known Avalonia quirk when Content swaps) hit our handlers
+        // while _updatingFromDocument is still true, and get ignored.
+        Dispatcher.UIThread.Post(() => _updatingFromDocument = false, DispatcherPriority.Loaded);
     }
 
     private void ShowExtraFor(FieldEditor? field)
