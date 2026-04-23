@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TaskBlaster
+Comment=.csx script editor and runner with form designer
+Exec=/usr/bin/taskblaster
+Icon=taskblaster
+Terminal=false
+Categories=Development;IDE;Utility;
+StartupWMClass=TaskBlaster
