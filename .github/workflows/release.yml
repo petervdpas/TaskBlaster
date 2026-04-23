@@ -40,14 +40,33 @@ jobs:
           --configuration Release --no-build
           --
           --report-trx
-          --results-directory TestResults
+          --results-directory ${{ github.workspace }}/TestResults
+
+      - name: Dump test output on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== TestResults directory tree ==="
+          find "${GITHUB_WORKSPACE}" -path '*TestResults*' -type f 2>/dev/null | sort
+          echo
+          echo "=== Contents of every TestResults .log ==="
+          for f in $(find "${GITHUB_WORKSPACE}" -path '*TestResults*' -name '*.log' 2>/dev/null); do
+            echo "--- $f ---"; cat "$f" || true; echo
+          done
+          echo "=== Head of every TestResults .trx ==="
+          for f in $(find "${GITHUB_WORKSPACE}" -path '*TestResults*' -name '*.trx' 2>/dev/null); do
+            echo "--- $f ---"; head -c 4000 "$f" || true; echo
+          done
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/**/*.log
+            TaskBlaster.Tests/bin/**/TestResults/**/*
           if-no-files-found: warn
 
       - name: Publish test report
@@ -55,7 +74,7 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: xUnit Tests
-          path: TestResults/*.trx
+          path: TestResults/**/*.trx
           reporter: dotnet-trx
           fail-on-error: false
 
