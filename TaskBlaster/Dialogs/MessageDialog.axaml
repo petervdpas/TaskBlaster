@@ -5,6 +5,7 @@
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
         Title="Message">
     <Grid RowDefinitions="Auto,Auto" Margin="16">
         <TextBlock Grid.Row="0" Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,14" />

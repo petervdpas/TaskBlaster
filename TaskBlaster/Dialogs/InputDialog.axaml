@@ -5,6 +5,7 @@
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
         Title="Input">
     <Grid RowDefinitions="Auto,Auto,Auto" Margin="16">
         <TextBlock Grid.Row="0" Name="PromptText" TextWrapping="Wrap" Margin="0,0,0,10" />

@@ -15,9 +15,6 @@ namespace TaskBlaster;
 
 public partial class MainWindow : Window
 {
-    private static readonly string ScriptsFolder =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".taskblaster", "scripts");
-
     private readonly ToolbarView _toolbar;
     private readonly SidebarView _sidebar;
     private readonly EditorView _editor;
@@ -39,13 +36,15 @@ public partial class MainWindow : Window
         _terminal = this.FindControl<TerminalView>("Terminal")!;
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
 
-        EnsureScriptsFolder();
-        _sidebar.Folder = ScriptsFolder;
+        Config.Load();
+        EnsureScriptsFolder(Config.ScriptsFolder, seedDemos: true);
+        _sidebar.Folder = Config.ScriptsFolder;
         _sidebar.ScriptSelected += OnScriptSelected;
 
         _toolbar.RunClicked    += OnRunClicked;
         _toolbar.StopClicked   += OnStopClicked;
         _toolbar.ThemeClicked  += OnThemeClicked;
+        _toolbar.ConfigClicked += OnConfigClicked;
         _toolbar.NewClicked    += OnNewClicked;
         _toolbar.SaveClicked   += (_, _) => SaveCurrent();
         _toolbar.RenameClicked += OnRenameClicked;
@@ -62,8 +61,9 @@ public partial class MainWindow : Window
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.OemMinus, KeyModifiers.Control), Command = new Command(_editor.ZoomOut) });
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.Subtract, KeyModifiers.Control), Command = new Command(_editor.ZoomOut) });
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.D0, KeyModifiers.Control),       Command = new Command(_editor.ResetZoom) });
+        KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.L, KeyModifiers.Control),        Command = new Command(_terminal.Clear) });
 
-        _terminal.Log($"Scripts folder: {ScriptsFolder}");
+        _terminal.Log($"Scripts folder: {Config.ScriptsFolder}");
     }
 
     protected override void OnOpened(EventArgs e)
@@ -85,20 +85,20 @@ public partial class MainWindow : Window
         _editor.ApplyTheme(variant);
     }
 
-    private static void EnsureScriptsFolder()
+    private static void EnsureScriptsFolder(string folder, bool seedDemos)
     {
-        Directory.CreateDirectory(ScriptsFolder);
-        SeedMissingDemos();
+        Directory.CreateDirectory(folder);
+        if (seedDemos) SeedMissingDemos(folder);
     }
 
-    private static void SeedMissingDemos()
+    private static void SeedMissingDemos(string targetFolder)
     {
         var demoDir = Path.Combine(AppContext.BaseDirectory, "DemoScripts");
         if (!Directory.Exists(demoDir)) return;
 
         foreach (var src in Directory.EnumerateFiles(demoDir, "*.csx"))
         {
-            var dst = Path.Combine(ScriptsFolder, Path.GetFileName(src));
+            var dst = Path.Combine(targetFolder, Path.GetFileName(src));
             if (!File.Exists(dst)) File.Copy(src, dst);
         }
     }
@@ -194,6 +194,36 @@ public partial class MainWindow : Window
         _terminal.Log($"Theme: {next}");
     }
 
+    private async void OnConfigClicked(object? sender, EventArgs e)
+    {
+        var chosen = await new ConfigDialog(Config.ScriptsFolder).ShowDialog<string?>(this);
+        if (chosen is null) return;
+
+        var normalized = Path.GetFullPath(chosen);
+        if (string.Equals(normalized, Config.ScriptsFolder, StringComparison.Ordinal)) return;
+
+        try
+        {
+            Directory.CreateDirectory(normalized);
+        }
+        catch (Exception ex)
+        {
+            await PromptService.MessageAsync(this, "Invalid folder", $"Could not use '{normalized}':\n{ex.Message}");
+            return;
+        }
+
+        Config.ScriptsFolder = normalized;
+        Config.Save();
+
+        _currentFilePath = null;
+        _editor.Text = string.Empty;
+        _toolbar.CanModify = false;
+        UpdateDirtyUi();
+
+        _sidebar.Folder = normalized;
+        _terminal.Log($"Scripts folder: {normalized}");
+    }
+
     private async void OnNewClicked(object? sender, EventArgs e)
     {
         var name = await PromptService.InputAsync(this, "New Script", "File name (without extension):", "new-script");
@@ -206,7 +236,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var path = Path.Combine(ScriptsFolder, safe + ".csx");
+        var path = Path.Combine(Config.ScriptsFolder, safe + ".csx");
         if (File.Exists(path))
         {
             await PromptService.MessageAsync(this, "Already exists", $"A script named '{safe}.csx' already exists.");
@@ -233,7 +263,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var newPath = Path.Combine(ScriptsFolder, safe + ".csx");
+        var newPath = Path.Combine(Config.ScriptsFolder, safe + ".csx");
         if (string.Equals(newPath, _currentFilePath, StringComparison.OrdinalIgnoreCase)) return;
         if (File.Exists(newPath))
         {

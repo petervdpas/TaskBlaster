@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TaskBlaster.Dialogs.ConfigDialog"
+        Width="520" SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
+        Title="Settings">
+    <Grid RowDefinitions="Auto,Auto,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Scripts folder" FontWeight="SemiBold" Margin="0,0,0,6" />
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+            <TextBox   Grid.Column="0" Name="FolderBox" />
+            <Button    Grid.Column="1" Name="BrowseButton" Content="Browse…" Margin="8,0,0,0" Click="OnBrowse" />
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Name="CancelButton" Content="Cancel" Click="OnCancel" />
+            <Button Name="SaveButton"   Content="Save"   Click="OnSave" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

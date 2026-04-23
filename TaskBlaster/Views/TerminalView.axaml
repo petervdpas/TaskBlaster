@@ -6,7 +6,16 @@
              x:Class="TaskBlaster.Views.TerminalView">
     <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
         <Grid RowDefinitions="Auto,*">
-            <TextBlock Grid.Row="0" Text="Output" FontWeight="SemiBold" Padding="10,6" />
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,4,6,0">
+                <TextBlock Grid.Column="0" Text="Output" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button   Grid.Column="1"
+                          Name="ClearButton"
+                          Content="Clear"
+                          FontSize="11"
+                          Padding="8,2"
+                          Click="OnClearClicked"
+                          ToolTip.Tip="Clear output" />
+            </Grid>
             <TextBox Grid.Row="1" Name="Output"
                      IsReadOnly="True"
                      AcceptsReturn="True"

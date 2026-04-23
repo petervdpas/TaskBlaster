@@ -14,7 +14,8 @@
             <Button Name="RenameButton" Content="✏ Rename" IsEnabled="False" Click="OnRenameClicked" />
             <Button Name="DeleteButton" Content="🗑 Delete" IsEnabled="False" Click="OnDeleteClicked" />
             <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="6,2" />
-            <Button Name="ThemeButton" Content="🌓 Theme" Click="OnThemeClicked" />
+            <Button Name="ThemeButton"  Content="🌓 Theme"    Click="OnThemeClicked" />
+            <Button Name="ConfigButton" Content="⚙ Settings" Click="OnConfigClicked" />
         </StackPanel>
     </Border>
 </UserControl>

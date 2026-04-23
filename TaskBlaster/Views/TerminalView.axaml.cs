@@ -1,5 +1,6 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 
 namespace TaskBlaster.Views;
 
@@ -22,4 +23,6 @@ public partial class TerminalView : UserControl
     }
 
     public void Clear() => _output.Text = string.Empty;
+
+    private void OnClearClicked(object? sender, RoutedEventArgs e) => Clear();
 }

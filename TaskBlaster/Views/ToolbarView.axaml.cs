@@ -15,6 +15,7 @@ public partial class ToolbarView : UserControl
     public event EventHandler? RunClicked;
     public event EventHandler? StopClicked;
     public event EventHandler? ThemeClicked;
+    public event EventHandler? ConfigClicked;
     public event EventHandler? NewClicked;
     public event EventHandler? SaveClicked;
     public event EventHandler? RenameClicked;
@@ -38,6 +39,7 @@ public partial class ToolbarView : UserControl
     private void OnRunClicked(object? sender, RoutedEventArgs e)    => RunClicked?.Invoke(this, EventArgs.Empty);
     private void OnStopClicked(object? sender, RoutedEventArgs e)   => StopClicked?.Invoke(this, EventArgs.Empty);
     private void OnThemeClicked(object? sender, RoutedEventArgs e)  => ThemeClicked?.Invoke(this, EventArgs.Empty);
+    private void OnConfigClicked(object? sender, RoutedEventArgs e) => ConfigClicked?.Invoke(this, EventArgs.Empty);
     private void OnNewClicked(object? sender, RoutedEventArgs e)    => NewClicked?.Invoke(this, EventArgs.Empty);
     private void OnSaveClicked(object? sender, RoutedEventArgs e)   => SaveClicked?.Invoke(this, EventArgs.Empty);
     private void OnRenameClicked(object? sender, RoutedEventArgs e) => RenameClicked?.Invoke(this, EventArgs.Empty);
