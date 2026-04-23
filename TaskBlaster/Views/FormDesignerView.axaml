@@ -2,24 +2,29 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:TaskBlaster.Views"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
              x:Class="TaskBlaster.Views.FormDesignerView">
     <Grid RowDefinitions="Auto,*" Margin="10">
 
         <!-- Title row -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
             <TextBlock Grid.Column="0" Text="Title:" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBox   Grid.Column="1" Name="TitleBox" />
+            <Button    Grid.Column="2" Name="FormSettingsButton" Content="⚙ Form…" Margin="8,0,0,0" Click="OnFormSettingsClicked" />
         </Grid>
 
         <!-- Fields list + property pane -->
         <Grid Grid.Row="1" ColumnDefinitions="280,*" Margin="0,10,0,0">
 
             <Border Grid.Column="0" BorderThickness="1" CornerRadius="4" Margin="0,0,8,0"
+                    ClipToBounds="True"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <TextBlock Grid.Row="0" Text="Fields" FontWeight="SemiBold" Padding="8,6" />
-                    <ListBox   Grid.Row="1" Name="FieldList" SelectionChanged="OnFieldSelectionChanged" />
+                    <ListBox   Grid.Row="1" Name="FieldList"
+                               SelectionChanged="OnFieldSelectionChanged"
+                               DragDrop.AllowDrop="True" />
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="6">
                         <Button Content="+" Click="OnAddField"    ToolTip.Tip="Add field" />
                         <Button Content="–" Click="OnRemoveField" ToolTip.Tip="Remove" />
@@ -30,11 +35,13 @@
             </Border>
 
             <Border Grid.Column="1" BorderThickness="1" CornerRadius="4" Padding="12"
+                    ClipToBounds="True"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="10">
                     <TextBlock Text="Properties" FontWeight="SemiBold" />
 
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Key"       VerticalAlignment="Center" />
                         <TextBox   Grid.Row="0" Grid.Column="1" Name="KeyBox"    />
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Label"     VerticalAlignment="Center" Margin="0,6,0,0" />
@@ -54,13 +61,19 @@
                             <ComboBoxItem Content="time" />
                             <ComboBoxItem Content="datetime" />
                         </ComboBox>
-                        <CheckBox  Grid.Row="3" Grid.Column="1" Name="RequiredBox" Content="Required" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Description" VerticalAlignment="Top" Margin="0,6,0,0" />
+                        <TextBox   Grid.Row="3" Grid.Column="1" Name="DescriptionBox"
+                                   AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48"
+                                   Margin="0,6,0,0" />
+                        <CheckBox  Grid.Row="4" Grid.Column="1" Name="RequiredBox" Content="Required" Margin="0,8,0,0" />
                     </Grid>
 
                     <!-- Type-specific editor lives here (swapped by the factory). -->
                     <ContentControl Name="TypeSpecificHost" />
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
+
     </Grid>
 </UserControl>

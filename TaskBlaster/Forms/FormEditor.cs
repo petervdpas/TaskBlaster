@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -13,6 +14,7 @@ public sealed class FormEditor
 {
     public string Title { get; set; } = "Untitled";
     public ObservableCollection<FieldEditor> Fields { get; } = new();
+    public ObservableCollection<VisibilityRuleEditor> Visibility { get; } = new();
     public ObservableCollection<ActionEditor> Actions { get; } = new();
 
     public static FormEditor CreateDefault()
@@ -31,6 +33,8 @@ public sealed class FormEditor
         var editor = new FormEditor { Title = dto.Title ?? "Untitled" };
         if (dto.Fields is not null)
             foreach (var f in dto.Fields) editor.Fields.Add(FieldEditor.FromDto(f));
+        if (dto.Visibility is not null)
+            foreach (var v in dto.Visibility) editor.Visibility.Add(VisibilityRuleEditor.FromDto(v));
         if (dto.Actions is not null)
             foreach (var a in dto.Actions) editor.Actions.Add(ActionEditor.FromDto(a));
 
@@ -48,10 +52,13 @@ public sealed class FormEditor
         {
             Title = Title,
             Fields = new List<FieldDto>(),
+            Visibility = Visibility.Count > 0 ? new List<VisibilityDto>() : null,
             Actions = new List<ActionDto>(),
         };
-        foreach (var f in Fields)  dto.Fields.Add(f.ToDto());
-        foreach (var a in Actions) dto.Actions.Add(a.ToDto());
+        foreach (var f in Fields)     dto.Fields.Add(f.ToDto());
+        if (dto.Visibility is not null)
+            foreach (var v in Visibility) dto.Visibility.Add(v.ToDto());
+        foreach (var a in Actions)    dto.Actions.Add(a.ToDto());
         return JsonSerializer.Serialize(dto, WriteOptions);
     }
 
@@ -75,6 +82,7 @@ public sealed class FormEditor
     {
         public string? Title { get; set; }
         public List<FieldDto>? Fields { get; set; }
+        public List<VisibilityDto>? Visibility { get; set; }
         public List<ActionDto>? Actions { get; set; }
     }
 
@@ -88,14 +96,30 @@ public sealed class FormEditor
         public double? Min { get; set; }
         public double? Max { get; set; }
         public double? Step { get; set; }
+        public int? Rows { get; set; }
+        public string? Pattern { get; set; }
+        public bool? Email { get; set; }
         public List<OptionDto>? Options { get; set; }
         public string? Description { get; set; }
+        public string[]? Tags { get; set; }
     }
 
     internal sealed class OptionDto
     {
         public string? Value { get; set; }
         public string? Label { get; set; }
+        public string[]? Tags { get; set; }
+    }
+
+    internal sealed class VisibilityDto
+    {
+        public string? Field { get; set; }
+        public string? Eq { get; set; }
+        public string? Neq { get; set; }
+        public string[]? Show { get; set; }
+        public string[]? Hide { get; set; }
+        [JsonPropertyName("show_tags")] public string[]? ShowTags { get; set; }
+        [JsonPropertyName("hide_tags")] public string[]? HideTags { get; set; }
     }
 
     internal sealed class ActionDto
@@ -117,7 +141,12 @@ public sealed class FieldEditor
     public double? Min { get; set; }
     public double? Max { get; set; }
     public double? Step { get; set; }
+    public int? Rows { get; set; }
+    public string? Pattern { get; set; }
+    public bool Email { get; set; }
+    public string? Description { get; set; }
     public ObservableCollection<OptionEditor> Options { get; } = new();
+    public ObservableCollection<string> Tags { get; } = new();
 
     internal static FieldEditor FromDto(FormEditor.FieldDto dto)
     {
@@ -131,10 +160,20 @@ public sealed class FieldEditor
             Min = dto.Min,
             Max = dto.Max,
             Step = dto.Step,
+            Rows = dto.Rows,
+            Pattern = dto.Pattern,
+            Email = dto.Email ?? false,
+            Description = dto.Description,
         };
         if (dto.Options is not null)
             foreach (var o in dto.Options)
-                f.Options.Add(new OptionEditor { Value = o.Value ?? "", Label = o.Label });
+            {
+                var opt = new OptionEditor { Value = o.Value ?? "", Label = o.Label };
+                if (o.Tags is not null) foreach (var t in o.Tags) opt.Tags.Add(t);
+                f.Options.Add(opt);
+            }
+        if (dto.Tags is not null)
+            foreach (var t in dto.Tags) f.Tags.Add(t);
         return f;
     }
 
@@ -150,12 +189,22 @@ public sealed class FieldEditor
             Min = SupportsNumeric(Type) ? Min : null,
             Max = SupportsNumeric(Type) ? Max : null,
             Step = SupportsNumeric(Type) ? Step : null,
+            Rows = Type == "textarea" ? Rows : null,
+            Pattern = SupportsPattern(Type) ? Pattern : null,
+            Email = Email && Type == "text" ? true : null,
+            Description = string.IsNullOrEmpty(Description) ? null : Description,
+            Tags = Tags.Count > 0 ? Tags.ToArray() : null,
         };
         if (SupportsOptions(Type) && Options.Count > 0)
         {
             dto.Options = new List<FormEditor.OptionDto>();
             foreach (var o in Options)
-                dto.Options.Add(new FormEditor.OptionDto { Value = o.Value, Label = o.Label });
+                dto.Options.Add(new FormEditor.OptionDto
+                {
+                    Value = o.Value,
+                    Label = o.Label,
+                    Tags = o.Tags.Count > 0 ? o.Tags.ToArray() : null,
+                });
         }
         return dto;
     }
@@ -163,12 +212,51 @@ public sealed class FieldEditor
     public static bool SupportsPlaceholder(string type) => type is "text" or "textarea" or "password" or "email" or "number";
     public static bool SupportsNumeric(string type) => type is "number";
     public static bool SupportsOptions(string type) => type is "select" or "multiselect" or "radio";
+    public static bool SupportsPattern(string type) => type is "text" or "textarea" or "password" or "email";
 }
 
 public sealed class OptionEditor
 {
     public string Value { get; set; } = "";
     public string? Label { get; set; }
+    public ObservableCollection<string> Tags { get; } = new();
+}
+
+public sealed class VisibilityRuleEditor
+{
+    public string Field { get; set; } = "";
+    public string? Eq { get; set; }
+    public string? Neq { get; set; }
+    public ObservableCollection<string> Show { get; } = new();
+    public ObservableCollection<string> Hide { get; } = new();
+    public ObservableCollection<string> ShowTags { get; } = new();
+    public ObservableCollection<string> HideTags { get; } = new();
+
+    internal static VisibilityRuleEditor FromDto(FormEditor.VisibilityDto dto)
+    {
+        var r = new VisibilityRuleEditor
+        {
+            Field = dto.Field ?? "",
+            Eq = dto.Eq,
+            Neq = dto.Neq,
+        };
+        if (dto.Show     is not null) foreach (var s in dto.Show)     r.Show.Add(s);
+        if (dto.Hide     is not null) foreach (var s in dto.Hide)     r.Hide.Add(s);
+        if (dto.ShowTags is not null) foreach (var s in dto.ShowTags) r.ShowTags.Add(s);
+        if (dto.HideTags is not null) foreach (var s in dto.HideTags) r.HideTags.Add(s);
+        return r;
+    }
+
+    internal FormEditor.VisibilityDto ToDto() => new()
+    {
+        Field = string.IsNullOrEmpty(Field) ? null : Field,
+        Eq = Eq,
+        Neq = Neq,
+        Show     = Show.Count     > 0 ? Show.ToArray()     : null,
+        Hide     = Hide.Count     > 0 ? Hide.ToArray()     : null,
+        ShowTags = ShowTags.Count > 0 ? ShowTags.ToArray() : null,
+        HideTags = HideTags.Count > 0 ? HideTags.ToArray() : null,
+    };
 }
 
 public sealed class ActionEditor

@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="150"
+             x:Class="TaskBlaster.Views.ActionsEditorView">
+    <Border BorderThickness="1" CornerRadius="4" Padding="12"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+        <Grid RowDefinitions="Auto,Auto,*">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                <TextBlock Grid.Column="0" Text="Actions" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Name="AddButton" Content="+ Add action" Click="OnAdd" />
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,*,Auto,Auto,Auto" Margin="0,0,0,4">
+                <TextBlock Grid.Column="0" Text="ID"       Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Text="Label"    Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="2" Text="Submit"   Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="3" Text="Dismiss"  Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="4" Text=""                                              />
+            </Grid>
+
+            <ItemsControl Grid.Row="2" Name="ActionsList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </Grid>
+    </Border>
+</UserControl>

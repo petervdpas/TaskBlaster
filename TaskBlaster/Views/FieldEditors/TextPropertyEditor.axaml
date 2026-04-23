@@ -2,10 +2,24 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="100"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="240"
              x:Class="TaskBlaster.Views.FieldEditors.TextPropertyEditor">
-    <StackPanel Spacing="6">
-        <TextBlock Text="Placeholder" />
-        <TextBox   Name="PlaceholderBox" />
+    <StackPanel Spacing="10">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Placeholder" />
+            <TextBox   Name="PlaceholderBox" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Pattern (regex)" />
+            <TextBox   Name="PatternBox" />
+        </StackPanel>
+
+        <CheckBox Name="EmailBox" Content="Validate as email address" />
+
+        <StackPanel Name="RowsSection" Spacing="4">
+            <TextBlock Text="Rows (textarea)" />
+            <TextBox   Name="RowsBox" />
+        </StackPanel>
     </StackPanel>
 </UserControl>

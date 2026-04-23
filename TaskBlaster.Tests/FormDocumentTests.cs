@@ -320,4 +320,212 @@ public class FormDocumentTests
 
         Assert.Equal(1, fires);
     }
+
+    // --- Actions ---
+
+    [Fact]
+    public void NewDocument_HasSaveAndCancelActions()
+    {
+        var doc = new FormDocument();
+        Assert.Equal(2, doc.Actions.Count);
+    }
+
+    [Fact]
+    public void AddAction_GeneratesUniqueId_FiresEvents_MarksDirty()
+    {
+        var doc = new FormDocument();
+        var changes = 0; var dirtyFires = 0;
+        doc.ActionsChanged += (_, _) => changes++;
+        doc.DirtyChanged   += (_, _) => dirtyFires++;
+
+        var a = doc.AddAction();
+        var b = doc.AddAction();
+
+        Assert.NotEqual(a.Id, b.Id);
+        Assert.Equal(4, doc.Actions.Count); // save + cancel + 2 new
+        Assert.Equal(2, changes);
+        Assert.Equal(1, dirtyFires);        // dirty flip false→true once
+        Assert.True(doc.IsDirty);
+    }
+
+    [Fact]
+    public void RemoveAction_Removes_AndFires()
+    {
+        var doc = new FormDocument();
+        var cancel = doc.Actions[1];
+        var fires = 0;
+        doc.ActionsChanged += (_, _) => fires++;
+
+        doc.RemoveAction(cancel);
+
+        Assert.Single(doc.Actions);
+        Assert.DoesNotContain(cancel, doc.Actions);
+        Assert.Equal(1, fires);
+    }
+
+    [Fact]
+    public void RemoveAction_NotInList_IsNoOp()
+    {
+        var doc = new FormDocument();
+        doc.MarkClean();
+        var fires = 0;
+        doc.ActionsChanged += (_, _) => fires++;
+
+        doc.RemoveAction(new ActionEditor { Id = "stranger" });
+
+        Assert.Equal(0, fires);
+        Assert.False(doc.IsDirty);
+    }
+
+    [Fact]
+    public void ValidateActionId_Empty_ReturnsError()
+    {
+        var doc = new FormDocument();
+        Assert.NotNull(doc.ValidateActionId(""));
+        Assert.NotNull(doc.ValidateActionId("   "));
+    }
+
+    [Fact]
+    public void ValidateActionId_InvalidChars_ReturnsError()
+    {
+        var doc = new FormDocument();
+        Assert.NotNull(doc.ValidateActionId("has space"));
+        Assert.NotNull(doc.ValidateActionId("has/slash"));
+    }
+
+    [Fact]
+    public void ValidateActionId_DuplicateWithinForm_ReturnsError()
+    {
+        var doc = new FormDocument();
+        // doc.Actions[0] = save
+        Assert.NotNull(doc.ValidateActionId("save"));
+    }
+
+    [Fact]
+    public void ValidateActionId_DuplicateIgnoringSelf_IsAllowed()
+    {
+        var doc = new FormDocument();
+        var save = doc.Actions[0];
+        Assert.Null(doc.ValidateActionId("save", ignore: save));
+    }
+
+    // --- MoveField (arbitrary index) ---
+
+    [Fact]
+    public void MoveField_ReordersAndMarksDirty()
+    {
+        var doc = NewFormWithFields("a", "b", "c", "d");
+        doc.MarkClean();
+
+        doc.MoveField(0, 2); // move a from 0 to 2 → [b,c,a,d]
+
+        Assert.Equal("b", doc.Fields[0].Key);
+        Assert.Equal("c", doc.Fields[1].Key);
+        Assert.Equal("a", doc.Fields[2].Key);
+        Assert.Equal("d", doc.Fields[3].Key);
+        Assert.True(doc.IsDirty);
+    }
+
+    [Fact]
+    public void MoveField_InvalidIndices_NoOp()
+    {
+        var doc = NewFormWithFields("a", "b");
+        doc.MarkClean();
+        var fires = 0;
+        doc.FieldsChanged += (_, _) => fires++;
+
+        doc.MoveField(-1, 0);
+        doc.MoveField(0, 10);
+        doc.MoveField(5, 0);
+        doc.MoveField(0, 0);  // no-op (same)
+
+        Assert.False(doc.IsDirty);
+        Assert.Equal(0, fires);
+    }
+
+    [Fact]
+    public void MoveField_FiresFieldsChangedOnce()
+    {
+        var doc = NewFormWithFields("a", "b", "c");
+        var fires = 0;
+        doc.FieldsChanged += (_, _) => fires++;
+
+        doc.MoveField(2, 0);
+
+        Assert.Equal(1, fires);
+    }
+
+    // --- Visibility rules ---
+
+    [Fact]
+    public void NewDocument_HasNoVisibilityRules()
+    {
+        var doc = new FormDocument();
+        Assert.Empty(doc.Visibility);
+    }
+
+    [Fact]
+    public void AddVisibilityRule_Appends_FiresEvents_MarksDirty()
+    {
+        var doc = new FormDocument();
+        var changes = 0; var dirty = 0;
+        doc.VisibilityChanged += (_, _) => changes++;
+        doc.DirtyChanged      += (_, _) => dirty++;
+
+        var rule = doc.AddVisibilityRule();
+
+        Assert.Single(doc.Visibility);
+        Assert.Same(rule, doc.Visibility[0]);
+        Assert.Equal(1, changes);
+        Assert.Equal(1, dirty);
+        Assert.True(doc.IsDirty);
+    }
+
+    [Fact]
+    public void RemoveVisibilityRule_Removes_AndFires()
+    {
+        var doc = new FormDocument();
+        var a = doc.AddVisibilityRule();
+        var b = doc.AddVisibilityRule();
+        var fires = 0;
+        doc.VisibilityChanged += (_, _) => fires++;
+
+        doc.RemoveVisibilityRule(a);
+
+        Assert.Single(doc.Visibility);
+        Assert.Same(b, doc.Visibility[0]);
+        Assert.Equal(1, fires);
+    }
+
+    [Fact]
+    public void RemoveVisibilityRule_NotInList_IsNoOp()
+    {
+        var doc = new FormDocument();
+        doc.MarkClean();
+        var fires = 0;
+        doc.VisibilityChanged += (_, _) => fires++;
+
+        doc.RemoveVisibilityRule(new VisibilityRuleEditor());
+
+        Assert.Equal(0, fires);
+        Assert.False(doc.IsDirty);
+    }
+
+    [Fact]
+    public void AddVisibilityRule_RoundTripsThroughJson()
+    {
+        var doc = new FormDocument();
+        var rule = doc.AddVisibilityRule();
+        rule.Field = "role";
+        rule.Eq = "Admin";
+        rule.Show.Add("quota");
+
+        var json = doc.Snapshot().ToJson();
+        var reloaded = FormEditor.FromJson(json);
+
+        Assert.Single(reloaded.Visibility);
+        Assert.Equal("role",  reloaded.Visibility[0].Field);
+        Assert.Equal("Admin", reloaded.Visibility[0].Eq);
+        Assert.Contains("quota", reloaded.Visibility[0].Show);
+    }
 }

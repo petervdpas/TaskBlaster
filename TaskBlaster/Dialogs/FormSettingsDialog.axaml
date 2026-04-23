@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TaskBlaster.Views"
+        x:Class="TaskBlaster.Dialogs.FormSettingsDialog"
+        Width="720" Height="440"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
+        Title="Form Settings">
+    <Grid RowDefinitions="*,Auto" Margin="12">
+        <TabControl Grid.Row="0">
+            <TabItem Header="Actions">
+                <views:ActionsEditorView Name="ActionsEditor" Margin="0,8,0,0" />
+            </TabItem>
+            <TabItem Header="Visibility">
+                <views:VisibilityEditorView Name="VisibilityEditor" Margin="0,8,0,0" />
+            </TabItem>
+        </TabControl>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+            <Button Name="CloseButton" Content="Close" Click="OnClose" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -68,6 +68,7 @@ public partial class MainWindow : Window
 
         _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
         _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
+        _designer.FormSettingsClicked += OnFormSettingsClicked;
 
         ActualThemeVariantChanged += (_, _) => ApplyCurrentTheme();
 
@@ -292,6 +293,17 @@ public partial class MainWindow : Window
         var next = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
         Application.Current!.RequestedThemeVariant = next;
         _terminal.Log($"Theme: {next}");
+    }
+
+    private async void OnFormSettingsClicked(object? sender, EventArgs e)
+    {
+        if (_currentFormDoc is null)
+        {
+            await _prompts.MessageAsync("Form settings", "Open a form first to edit its settings.");
+            return;
+        }
+        var dlg = new FormSettingsDialog(_currentFormDoc);
+        await dlg.ShowDialog(this);
     }
 
     private async void OnConfigClicked(object? sender, EventArgs e)

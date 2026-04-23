@@ -1,8 +1,11 @@
 using System;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Views.FieldEditors;
@@ -22,12 +25,15 @@ public partial class FormDesignerView : UserControl
     private readonly TextBox _labelBox;
     private readonly ComboBox _typeBox;
     private readonly CheckBox _requiredBox;
+    private readonly TextBox _descriptionBox;
     private readonly ContentControl _typeSpecificHost;
 
     private IFormDocument? _document;
     private IFieldPropertyEditor? _currentExtra;
     private string? _currentExtraType;
     private bool _updatingFromDocument;
+
+    public event EventHandler? FormSettingsClicked;
 
     public FormDesignerView()
     {
@@ -39,12 +45,19 @@ public partial class FormDesignerView : UserControl
         _labelBox         = this.FindControl<TextBox>("LabelBox")!;
         _typeBox          = this.FindControl<ComboBox>("TypeBox")!;
         _requiredBox      = this.FindControl<CheckBox>("RequiredBox")!;
+        _descriptionBox   = this.FindControl<TextBox>("DescriptionBox")!;
         _typeSpecificHost = this.FindControl<ContentControl>("TypeSpecificHost")!;
+
+        // Drag-and-drop reorder on the fields list.
+        _fieldList.AddHandler(PointerPressedEvent, OnFieldListPointerPressed, RoutingStrategies.Tunnel);
+        _fieldList.AddHandler(DragDrop.DragOverEvent, OnFieldListDragOver);
+        _fieldList.AddHandler(DragDrop.DropEvent,     OnFieldListDrop);
 
         _titleBox.TextChanged         += (_, _) => { if (_updatingFromDocument || _document is null) return; _document.Title = _titleBox.Text ?? ""; };
         _keyBox.TextChanged           += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Key = _keyBox.Text ?? ""; _document.MarkFieldChanged(); RefreshFieldListKeepSelection(); };
         _labelBox.TextChanged         += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Label = _labelBox.Text; _document.MarkFieldChanged(); };
         _requiredBox.IsCheckedChanged += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Required = _requiredBox.IsChecked == true; _document.MarkFieldChanged(); };
+        _descriptionBox.TextChanged   += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Description = string.IsNullOrEmpty(_descriptionBox.Text) ? null : _descriptionBox.Text; _document.MarkFieldChanged(); };
         _typeBox.SelectionChanged     += OnTypeBoxChanged;
     }
 
@@ -129,6 +142,7 @@ public partial class FormDesignerView : UserControl
             _labelBox.Text = "";
             _typeBox.SelectedIndex = -1;
             _requiredBox.IsChecked = false;
+            _descriptionBox.Text = "";
             ShowExtraFor(null);
         }
         else
@@ -137,6 +151,7 @@ public partial class FormDesignerView : UserControl
             _labelBox.Text = field.Label ?? "";
             _typeBox.SelectedIndex = FindTypeIndex(field.Type);
             _requiredBox.IsChecked = field.Required;
+            _descriptionBox.Text = field.Description ?? "";
             ShowExtraFor(field);
         }
 
@@ -220,8 +235,78 @@ public partial class FormDesignerView : UserControl
         RefreshFieldList();           // reflect [type] in the list label
     }
 
+    private void OnFormSettingsClicked(object? sender, RoutedEventArgs e) => FormSettingsClicked?.Invoke(this, EventArgs.Empty);
+
     private void OnAddField(object? sender, RoutedEventArgs e)    => _document?.AddField();
     private void OnRemoveField(object? sender, RoutedEventArgs e) => _document?.RemoveSelected();
     private void OnMoveUp(object? sender, RoutedEventArgs e)      => _document?.MoveUp();
     private void OnMoveDown(object? sender, RoutedEventArgs e)    => _document?.MoveDown();
+
+    // ==================== Drag-and-drop reorder ====================
+
+    private static readonly DataFormat<string> FieldIndexFormat =
+        DataFormat.CreateStringApplicationFormat("taskblaster.field-index");
+
+    private async void OnFieldListPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_document is null) return;
+        if (!e.GetCurrentPoint(_fieldList).Properties.IsLeftButtonPressed) return;
+
+        var item = (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>();
+        if (item is null) return;
+        var idx = _fieldList.IndexFromContainer(item);
+        if (idx < 0 || idx >= _document.Fields.Count) return;
+
+        var transfer = new DataTransfer();
+        transfer.Add(DataTransferItem.Create(FieldIndexFormat, idx.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+        try
+        {
+            await DragDrop.DoDragDropAsync(e, transfer, DragDropEffects.Move);
+        }
+        catch
+        {
+            // Swallow — user cancel / interruption during drag.
+        }
+    }
+
+    private void OnFieldListDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = Contains(e, FieldIndexFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnFieldListDrop(object? sender, DragEventArgs e)
+    {
+        if (_document is null) return;
+        if (!TryGet(e, FieldIndexFormat, out var raw)) return;
+        if (!int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var from)) return;
+
+        var targetItem = (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>();
+        int to = targetItem is not null
+            ? _fieldList.IndexFromContainer(targetItem)
+            : _document.Fields.Count - 1;
+        if (to < 0) to = _document.Fields.Count - 1;
+
+        _document.MoveField(from, to);
+        e.Handled = true;
+    }
+
+    private static bool Contains(DragEventArgs e, DataFormat<string> format)
+    {
+        foreach (var item in e.DataTransfer.Items)
+            foreach (var f in item.Formats)
+                if (f == format) return true;
+        return false;
+    }
+
+    private static bool TryGet(DragEventArgs e, DataFormat<string> format, out string? value)
+    {
+        foreach (var item in e.DataTransfer.Items)
+        {
+            if (item.TryGetRaw(format) is string s) { value = s; return true; }
+        }
+        value = null;
+        return false;
+    }
 }

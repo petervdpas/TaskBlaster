@@ -31,6 +31,9 @@ public interface IFormDocument
     void MoveUp();
     void MoveDown();
 
+    /// <summary>Move the field at <paramref name="fromIndex"/> to <paramref name="toIndex"/>. No-op if either index is out of range or equal.</summary>
+    void MoveField(int fromIndex, int toIndex);
+
     /// <summary>
     /// Rename the selected field's key. Throws if the new key is empty, already in use, or contains invalid characters.
     /// Fires <see cref="FieldsChanged"/> (so the displayed list label updates) and dirties the document.
@@ -41,6 +44,43 @@ public interface IFormDocument
     /// Validate a candidate key for the selected field. Returns null if valid, otherwise an error message.
     /// </summary>
     string? ValidateKey(string candidate);
+
+    // --- Actions (form-level buttons) ---
+
+    /// <summary>Snapshot of the form's action list.</summary>
+    IReadOnlyList<ActionEditor> Actions { get; }
+
+    /// <summary>Append a new action. Returns the created <see cref="ActionEditor"/>.</summary>
+    ActionEditor AddAction();
+
+    /// <summary>Remove the given action. No-op if not present.</summary>
+    void RemoveAction(ActionEditor action);
+
+    /// <summary>Validate a candidate action id. Returns null if valid, otherwise an error message.</summary>
+    string? ValidateActionId(string candidate, ActionEditor? ignore = null);
+
+    /// <summary>Notify the document that an action property changed (via view). Dirties the form.</summary>
+    void MarkActionChanged();
+
+    /// <summary>Raised when the actions collection changes (add/remove/reorder).</summary>
+    event EventHandler? ActionsChanged;
+
+    // --- Visibility rules ---
+
+    /// <summary>Snapshot of the form's visibility rules.</summary>
+    IReadOnlyList<VisibilityRuleEditor> Visibility { get; }
+
+    /// <summary>Append a new visibility rule. Returns the created editor.</summary>
+    VisibilityRuleEditor AddVisibilityRule();
+
+    /// <summary>Remove the given rule. No-op if not present.</summary>
+    void RemoveVisibilityRule(VisibilityRuleEditor rule);
+
+    /// <summary>Notify the document that a rule's properties were edited (dirties only).</summary>
+    void MarkVisibilityChanged();
+
+    /// <summary>Raised when the visibility rules collection changes (add/remove).</summary>
+    event EventHandler? VisibilityChanged;
 
     /// <summary>Replace the whole form (e.g. when loading a file).</summary>
     void Load(FormEditor form);

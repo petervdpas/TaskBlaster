@@ -49,6 +49,8 @@ public sealed class FormDocument : IFormDocument
     public event EventHandler? SelectionChanged;
     public event EventHandler? FieldsChanged;
     public event EventHandler? DirtyChanged;
+    public event EventHandler? ActionsChanged;
+    public event EventHandler? VisibilityChanged;
 
     public void SelectField(FieldEditor? field)
     {
@@ -105,6 +107,17 @@ public sealed class FormDocument : IFormDocument
     public void MoveUp() => Move(-1);
     public void MoveDown() => Move(+1);
 
+    public void MoveField(int fromIndex, int toIndex)
+    {
+        if (fromIndex < 0 || fromIndex >= _fields.Count) return;
+        if (toIndex   < 0 || toIndex   >= _fields.Count) return;
+        if (fromIndex == toIndex) return;
+        _fields.Move(fromIndex, toIndex);
+        _form.Fields.Move(fromIndex, toIndex);
+        FieldsChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+    }
+
     public string? ValidateKey(string candidate)
     {
         if (string.IsNullOrWhiteSpace(candidate))
@@ -118,6 +131,67 @@ public sealed class FormDocument : IFormDocument
             return $"A field with key '{candidate}' already exists.";
         return null;
     }
+
+    // --- Actions ---
+
+    public IReadOnlyList<ActionEditor> Actions => _form.Actions;
+
+    public ActionEditor AddAction()
+    {
+        var n = _form.Actions.Count + 1;
+        string id;
+        do { id = $"action{n++}"; } while (_form.Actions.Any(a => a.Id == id));
+        var action = new ActionEditor { Id = id, Label = id };
+        _form.Actions.Add(action);
+        ActionsChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+        return action;
+    }
+
+    public void RemoveAction(ActionEditor action)
+    {
+        if (!_form.Actions.Remove(action)) return;
+        ActionsChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+    }
+
+    public string? ValidateActionId(string candidate, ActionEditor? ignore = null)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+            return "Action id cannot be empty.";
+        foreach (var ch in candidate)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch != '_' && ch != '-' && ch != '.')
+                return $"Action id contains invalid character '{ch}'. Allowed: letters, digits, '_', '-', '.'.";
+        }
+        if (_form.Actions.Any(a => !ReferenceEquals(a, ignore) && string.Equals(a.Id, candidate, StringComparison.Ordinal)))
+            return $"An action with id '{candidate}' already exists.";
+        return null;
+    }
+
+    public void MarkActionChanged() => MarkDirty();
+
+    // --- Visibility rules ---
+
+    public IReadOnlyList<VisibilityRuleEditor> Visibility => _form.Visibility;
+
+    public VisibilityRuleEditor AddVisibilityRule()
+    {
+        var rule = new VisibilityRuleEditor();
+        _form.Visibility.Add(rule);
+        VisibilityChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+        return rule;
+    }
+
+    public void RemoveVisibilityRule(VisibilityRuleEditor rule)
+    {
+        if (!_form.Visibility.Remove(rule)) return;
+        VisibilityChanged?.Invoke(this, EventArgs.Empty);
+        MarkDirty();
+    }
+
+    public void MarkVisibilityChanged() => MarkDirty();
 
     public void RenameSelectedKey(string newKey)
     {
@@ -175,17 +249,32 @@ public sealed class FormDocument : IFormDocument
 
     // --- Convenience I/O (caller passes the path; the document doesn't know about files) ---
 
+    /// <summary>
+    /// Read a form JSON file and build a document. IO exceptions (missing file, permission
+    /// denied, etc.) propagate; only malformed JSON is silently replaced with a default form.
+    /// </summary>
     public static FormDocument LoadFromFile(string path)
     {
-        var json = File.ReadAllText(path);
+        if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path is required.", nameof(path));
+
+        var json = File.ReadAllText(path); // IO errors bubble up intentionally
         FormEditor form;
         try   { form = FormEditor.FromJson(json); }
         catch { form = FormEditor.CreateDefault(); }
         return new FormDocument(form);
     }
 
+    /// <summary>
+    /// Serialize the current form to the given path. Creates the target directory if it
+    /// doesn't exist. IO errors propagate.
+    /// </summary>
     public void SaveToFile(string path)
     {
+        if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path is required.", nameof(path));
+
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
         File.WriteAllText(path, _form.ToJson());
         MarkClean();
     }
