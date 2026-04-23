@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="280"
+             x:Class="TaskBlaster.Views.FieldEditors.OptionsPropertyEditor">
+    <StackPanel Spacing="6">
+        <TextBlock Text="Options" FontWeight="SemiBold" />
+        <Border BorderThickness="1" CornerRadius="3"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+            <StackPanel>
+                <ListBox Name="OptionList" Height="140" SelectionChanged="OnOptionSelectionChanged" />
+                <StackPanel Orientation="Horizontal" Spacing="4" Margin="6">
+                    <Button Content="+" Click="OnAddOption"    ToolTip.Tip="Add option" />
+                    <Button Content="–" Click="OnRemoveOption" ToolTip.Tip="Remove option" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <Grid ColumnDefinitions="*,*">
+            <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                <TextBlock Text="Value" />
+                <TextBox   Name="OptionValueBox" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                <TextBlock Text="Label" />
+                <TextBox   Name="OptionLabelBox" />
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>

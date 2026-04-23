@@ -16,11 +16,11 @@ public static class Config
     /// <summary>Directory that holds config.json. Tests may override.</summary>
     public static string BaseDirectory { get; set; } = DefaultBaseDir;
 
-    /// <summary>Default scripts folder (&lt;BaseDirectory&gt;/scripts) computed from the current BaseDirectory.</summary>
     public static string DefaultScriptsFolder => Path.Combine(BaseDirectory, "scripts");
+    public static string DefaultFormsFolder   => Path.Combine(BaseDirectory, "forms");
 
-    /// <summary>Currently configured scripts folder. Starts at DefaultScriptsFolder.</summary>
     public static string ScriptsFolder { get; set; } = Path.Combine(DefaultBaseDir, "scripts");
+    public static string FormsFolder   { get; set; } = Path.Combine(DefaultBaseDir, "forms");
 
     private static string ConfigPath => Path.Combine(BaseDirectory, "config.json");
 
@@ -30,8 +30,9 @@ public static class Config
         try
         {
             var data = JsonSerializer.Deserialize<ConfigData>(File.ReadAllText(ConfigPath));
-            if (data is not null && !string.IsNullOrWhiteSpace(data.ScriptsFolder))
-                ScriptsFolder = data.ScriptsFolder;
+            if (data is null) return;
+            if (!string.IsNullOrWhiteSpace(data.ScriptsFolder)) ScriptsFolder = data.ScriptsFolder;
+            if (!string.IsNullOrWhiteSpace(data.FormsFolder))   FormsFolder   = data.FormsFolder;
         }
         catch
         {
@@ -42,7 +43,7 @@ public static class Config
     public static void Save()
     {
         Directory.CreateDirectory(BaseDirectory);
-        var data = new ConfigData { ScriptsFolder = ScriptsFolder };
+        var data = new ConfigData { ScriptsFolder = ScriptsFolder, FormsFolder = FormsFolder };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
     }
@@ -50,5 +51,6 @@ public static class Config
     private sealed class ConfigData
     {
         public string? ScriptsFolder { get; set; }
+        public string? FormsFolder   { get; set; }
     }
 }

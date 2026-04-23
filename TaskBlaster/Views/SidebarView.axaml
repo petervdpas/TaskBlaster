@@ -6,7 +6,7 @@
              x:Class="TaskBlaster.Views.SidebarView">
     <Border BorderThickness="0,0,1,0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
         <Grid RowDefinitions="Auto,*">
-            <TextBlock Grid.Row="0" Text="Scripts" FontWeight="SemiBold" Padding="10,8" />
+            <TextBlock Grid.Row="0" Name="HeaderLabel" Text="Scripts" FontWeight="SemiBold" Padding="10,8" />
             <ListBox Grid.Row="1" Name="ScriptList" SelectionChanged="OnSelectionChanged" />
         </Grid>
     </Border>

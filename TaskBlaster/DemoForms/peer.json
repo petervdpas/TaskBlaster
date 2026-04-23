@@ -1,0 +1,22 @@
+{
+  "title": "Peer",
+  "fields": [
+    { "key": "name", "type": "text", "label": "Name", "required": true, "placeholder": "Alice" },
+    {
+      "key": "role",
+      "type": "select",
+      "label": "Role",
+      "options": [
+        { "value": "User",  "label": "User" },
+        { "value": "Admin", "label": "Admin" },
+        { "value": "Guest", "label": "Guest" }
+      ]
+    },
+    { "key": "enabled", "type": "switch", "label": "Enabled" },
+    { "key": "quota", "type": "number", "label": "Quota (GB)", "min": 0, "max": 100, "step": 1 }
+  ],
+  "actions": [
+    { "id": "save",   "label": "Save",   "submit": true },
+    { "id": "cancel", "label": "Cancel", "dismiss": true }
+  ]
+}

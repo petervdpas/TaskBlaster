@@ -3,20 +3,23 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:TaskBlaster.Views"
-        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
         x:Class="TaskBlaster.MainWindow"
         Title="TaskBlaster"
-        Width="1000" Height="700">
+        Width="1100" Height="720">
 
     <Grid RowDefinitions="Auto,*,Auto">
 
         <views:ToolbarView Grid.Row="0" Name="Toolbar" />
 
-        <Grid Grid.Row="1" ColumnDefinitions="220,4,*">
+        <Grid Grid.Row="1" ColumnDefinitions="240,4,*">
             <views:SidebarView Grid.Column="0" Name="Sidebar" />
             <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
             <Grid Grid.Column="2" RowDefinitions="*,4,180">
-                <views:EditorView Grid.Row="0" Name="Editor" />
+                <Panel Grid.Row="0">
+                    <views:EditorView          Name="Editor"     IsVisible="True"  />
+                    <views:FormDesignerView    Name="Designer"   IsVisible="False" />
+                </Panel>
                 <GridSplitter Grid.Row="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
                 <views:TerminalView Grid.Row="2" Name="Terminal" />
             </Grid>

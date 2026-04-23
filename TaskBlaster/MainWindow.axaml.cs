@@ -2,11 +2,14 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using GuiBlast.Forms.Rendering;
+using GuiBlast.Forms.Result;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Views;
@@ -18,9 +21,11 @@ public partial class MainWindow : Window
     private readonly ToolbarView _toolbar;
     private readonly SidebarView _sidebar;
     private readonly EditorView _editor;
+    private readonly FormDesignerView _designer;
     private readonly TerminalView _terminal;
     private readonly StatusBarView _statusBar;
 
+    private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
 
     private readonly ScriptBlaster _blaster = new();
@@ -28,18 +33,25 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        DebugLog.Clear();
+        DebugLog.Write("MainWindow ctor BEGIN");
         InitializeComponent();
+        DebugLog.Write("MainWindow ctor InitializeComponent done");
 
-        _toolbar = this.FindControl<ToolbarView>("Toolbar")!;
-        _sidebar = this.FindControl<SidebarView>("Sidebar")!;
-        _editor = this.FindControl<EditorView>("Editor")!;
-        _terminal = this.FindControl<TerminalView>("Terminal")!;
+        _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
+        _sidebar   = this.FindControl<SidebarView>("Sidebar")!;
+        _editor    = this.FindControl<EditorView>("Editor")!;
+        _designer  = this.FindControl<FormDesignerView>("Designer")!;
+        _terminal  = this.FindControl<TerminalView>("Terminal")!;
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
 
         Config.Load();
-        EnsureScriptsFolder(Config.ScriptsFolder, seedDemos: true);
-        _sidebar.Folder = Config.ScriptsFolder;
-        _sidebar.ScriptSelected += OnScriptSelected;
+        Directory.CreateDirectory(Config.ScriptsFolder);
+        Directory.CreateDirectory(Config.FormsFolder);
+        SeedMissingFromFolder("DemoScripts", Config.ScriptsFolder, "*.csx");
+        SeedMissingFromFolder("DemoForms",   Config.FormsFolder,   "*.json");
+
+        _sidebar.ScriptSelected += OnFileSelected;
 
         _toolbar.RunClicked    += OnRunClicked;
         _toolbar.StopClicked   += OnStopClicked;
@@ -49,9 +61,11 @@ public partial class MainWindow : Window
         _toolbar.SaveClicked   += (_, _) => SaveCurrent();
         _toolbar.RenameClicked += OnRenameClicked;
         _toolbar.DeleteClicked += OnDeleteClicked;
+        _toolbar.ModeChanged   += (_, mode) => SwitchMode(mode);
 
-        _editor.DirtyChanged += (_, _) => UpdateDirtyUi();
+        _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
         _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
+        _designer.DirtyChanged += (_, _) => UpdateDirtyUi();
 
         ActualThemeVariantChanged += (_, _) => ApplyCurrentTheme();
 
@@ -63,7 +77,9 @@ public partial class MainWindow : Window
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.D0, KeyModifiers.Control),       Command = new Command(_editor.ResetZoom) });
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.L, KeyModifiers.Control),        Command = new Command(_terminal.Clear) });
 
+        SwitchMode(AppMode.Scripts);
         _terminal.Log($"Scripts folder: {Config.ScriptsFolder}");
+        _terminal.Log($"Forms folder:   {Config.FormsFolder}");
     }
 
     protected override void OnOpened(EventArgs e)
@@ -73,11 +89,6 @@ public partial class MainWindow : Window
         UpdateFontSizeUi();
     }
 
-    private void UpdateFontSizeUi()
-    {
-        _statusBar.FontSizeText = $"{_editor.EditorFontSize:0}px";
-    }
-
     private void ApplyCurrentTheme()
     {
         var variant = ActualThemeVariant ?? ThemeVariant.Default;
@@ -85,60 +96,139 @@ public partial class MainWindow : Window
         _editor.ApplyTheme(variant);
     }
 
-    private static void EnsureScriptsFolder(string folder, bool seedDemos)
-    {
-        Directory.CreateDirectory(folder);
-        if (seedDemos) SeedMissingDemos(folder);
-    }
+    private void UpdateFontSizeUi() => _statusBar.FontSizeText = $"{_editor.EditorFontSize:0}px";
 
-    private static void SeedMissingDemos(string targetFolder)
+    private static void SeedMissingFromFolder(string demoFolderName, string targetFolder, string pattern)
     {
-        var demoDir = Path.Combine(AppContext.BaseDirectory, "DemoScripts");
+        var demoDir = Path.Combine(AppContext.BaseDirectory, demoFolderName);
         if (!Directory.Exists(demoDir)) return;
-
-        foreach (var src in Directory.EnumerateFiles(demoDir, "*.csx"))
+        foreach (var src in Directory.EnumerateFiles(demoDir, pattern))
         {
             var dst = Path.Combine(targetFolder, Path.GetFileName(src));
             if (!File.Exists(dst)) File.Copy(src, dst);
         }
     }
 
-    private void OnScriptSelected(object? sender, string path)
+    // ==================== Mode switching ====================
+
+    private void SwitchMode(AppMode mode)
     {
-        _editor.LoadFile(path);
-        _currentFilePath = path;
-        _toolbar.CanModify = true;
+        _terminal.Log($"[switch] → {mode}");
+        DebugLog.Write($"SwitchMode → {mode} START");
+
+        _mode = mode;
+        _terminal.Log("[switch] 1/7 set toolbar mode");
+        _toolbar.Mode = mode;
+
+        _terminal.Log("[switch] 2/7 clear current file");
+        _currentFilePath = null;
+        _toolbar.CanModify = false;
         UpdateDirtyUi();
-        _terminal.Log($"Loaded: {Path.GetFileName(path)} ({_editor.Text.Length} chars)");
+
+        switch (mode)
+        {
+            case AppMode.Scripts:
+                _terminal.Log("[switch] 3/7 show editor, hide designer");
+                _editor.IsVisible = true;
+                _designer.IsVisible = false;
+                _terminal.Log("[switch] 4/7 sidebar header");
+                _sidebar.Header = "Scripts";
+                _terminal.Log("[switch] 5/7 sidebar pattern");
+                _sidebar.Pattern = "*.csx";
+                _terminal.Log("[switch] 6/7 sidebar folder");
+                _sidebar.Folder = Config.ScriptsFolder;
+                _terminal.Log("[switch] 7/7 run label");
+                _toolbar.SetRunLabel("▶ Run");
+                break;
+
+            case AppMode.Forms:
+                _terminal.Log("[switch] 3/7 hide editor, show designer");
+                _editor.IsVisible = false;
+                _designer.IsVisible = true;
+                _terminal.Log("[switch] 4/7 sidebar header");
+                _sidebar.Header = "Forms";
+                _terminal.Log("[switch] 5/7 sidebar pattern");
+                _sidebar.Pattern = "*.json";
+                _terminal.Log("[switch] 6/7 sidebar folder");
+                _sidebar.Folder = Config.FormsFolder;
+                _terminal.Log("[switch] 7/7 run label");
+                _toolbar.SetRunLabel("👁 Preview");
+                break;
+        }
+
+        _terminal.Log($"[switch] DONE (handler returns; layout pass runs next on UI thread)");
+        DebugLog.Write($"SwitchMode → {mode} END (handler returned)");
     }
 
-    private void SaveCurrent()
+    private string CurrentFolder => _mode == AppMode.Forms ? Config.FormsFolder : Config.ScriptsFolder;
+    private string CurrentExtension => _mode == AppMode.Forms ? ".json" : ".csx";
+
+    // ==================== Sidebar selection ====================
+
+    private void OnFileSelected(object? sender, string path)
     {
-        if (_currentFilePath is null) return;
-        _editor.SaveTo(_currentFilePath);
-        _terminal.Log($"Saved: {Path.GetFileName(_currentFilePath)}");
+        DebugLog.Write($"OnFileSelected path={path} mode={_mode}");
+        _currentFilePath = path;
+        _toolbar.CanModify = true;
+
+        if (_mode == AppMode.Scripts)
+        {
+            DebugLog.Write("  -> Editor.LoadFile");
+            _editor.LoadFile(path);
+            _terminal.Log($"Loaded: {Path.GetFileName(path)} ({_editor.Text.Length} chars)");
+        }
+        else
+        {
+            DebugLog.Write("  -> Designer.LoadFile");
+            _designer.LoadFile(path);
+            DebugLog.Write("  -> Designer.LoadFile returned");
+            _terminal.Log($"Loaded form: {Path.GetFileName(path)}");
+        }
         UpdateDirtyUi();
+        DebugLog.Write("OnFileSelected DONE");
     }
+
+    // ==================== Dirty state ====================
+
+    private bool IsDirty => _mode == AppMode.Forms ? _designer.IsDirty : _editor.IsDirty;
 
     private void UpdateDirtyUi()
     {
         var name = _currentFilePath is null ? string.Empty : Path.GetFileName(_currentFilePath);
-        _statusBar.CurrentFile = _editor.IsDirty && !string.IsNullOrEmpty(name) ? name + " •" : name;
-        _toolbar.CanSave = _currentFilePath is not null && _editor.IsDirty;
+        _statusBar.CurrentFile = IsDirty && !string.IsNullOrEmpty(name) ? name + " •" : name;
+        _toolbar.CanSave = _currentFilePath is not null && IsDirty;
     }
+
+    // ==================== Save ====================
+
+    private void SaveCurrent()
+    {
+        if (_currentFilePath is null) return;
+        if (_mode == AppMode.Scripts) _editor.SaveTo(_currentFilePath);
+        else                          _designer.SaveTo(_currentFilePath);
+        _terminal.Log($"Saved: {Path.GetFileName(_currentFilePath)}");
+        UpdateDirtyUi();
+    }
+
+    // ==================== Run / Preview ====================
 
     private async void OnRunClicked(object? sender, EventArgs e)
     {
         if (_currentFilePath is null)
         {
-            _terminal.Log("No script selected.");
+            _terminal.Log(_mode == AppMode.Forms ? "No form selected." : "No script selected.");
             return;
         }
-        if (_runCts is not null) return; // already running
 
+        if (_mode == AppMode.Scripts) await RunScriptAsync(_currentFilePath);
+        else                          await PreviewFormAsync();
+    }
+
+    private async Task RunScriptAsync(string path)
+    {
+        if (_runCts is not null) return;
         if (_editor.IsDirty) SaveCurrent();
 
-        var path = _currentFilePath;
         var name = Path.GetFileName(path);
         var scriptText = File.ReadAllText(path);
 
@@ -167,25 +257,34 @@ public partial class MainWindow : Window
 
         switch (result.Status)
         {
-            case BlastStatus.Ok:
-                _terminal.Log($"✓ {name} finished.");
-                _statusBar.Status = "Ready";
-                break;
-            case BlastStatus.Cancelled:
-                _terminal.Log($"⊘ {name} cancelled.");
-                _statusBar.Status = "Cancelled";
-                break;
-            case BlastStatus.Error:
-                _terminal.Log($"✗ {name} failed: {result.Message}");
-                _statusBar.Status = "Error";
-                break;
+            case BlastStatus.Ok:        _terminal.Log($"✓ {name} finished.");           _statusBar.Status = "Ready";     break;
+            case BlastStatus.Cancelled: _terminal.Log($"⊘ {name} cancelled.");           _statusBar.Status = "Cancelled"; break;
+            case BlastStatus.Error:     _terminal.Log($"✗ {name} failed: {result.Message}"); _statusBar.Status = "Error"; break;
         }
     }
 
-    private void OnStopClicked(object? sender, EventArgs e)
+    private async Task PreviewFormAsync()
     {
-        _runCts?.Cancel();
+        var json = _designer.ToJson();
+        _terminal.Log("👁 Previewing form…");
+        _statusBar.Status = "Previewing…";
+        try
+        {
+            var result = await DynamicForm.ShowJsonAsync(json);
+            _terminal.Log($"Form {(result.Submitted ? "submitted" : "cancelled")}.");
+            if (result.Submitted) _terminal.Log(result.ToJson(indented: true));
+        }
+        catch (Exception ex)
+        {
+            _terminal.Log($"✗ Preview failed: {ex.Message}");
+        }
+        finally
+        {
+            _statusBar.Status = "Ready";
+        }
     }
+
+    private void OnStopClicked(object? sender, EventArgs e) => _runCts?.Cancel();
 
     private void OnThemeClicked(object? sender, EventArgs e)
     {
@@ -202,10 +301,7 @@ public partial class MainWindow : Window
         var normalized = Path.GetFullPath(chosen);
         if (string.Equals(normalized, Config.ScriptsFolder, StringComparison.Ordinal)) return;
 
-        try
-        {
-            Directory.CreateDirectory(normalized);
-        }
+        try { Directory.CreateDirectory(normalized); }
         catch (Exception ex)
         {
             await PromptService.MessageAsync(this, "Invalid folder", $"Could not use '{normalized}':\n{ex.Message}");
@@ -220,13 +316,18 @@ public partial class MainWindow : Window
         _toolbar.CanModify = false;
         UpdateDirtyUi();
 
-        _sidebar.Folder = normalized;
+        if (_mode == AppMode.Scripts) _sidebar.Folder = normalized;
         _terminal.Log($"Scripts folder: {normalized}");
     }
 
+    // ==================== New / Rename / Delete (mode-aware) ====================
+
     private async void OnNewClicked(object? sender, EventArgs e)
     {
-        var name = await PromptService.InputAsync(this, "New Script", "File name (without extension):", "new-script");
+        var ext = CurrentExtension;
+        var defName = _mode == AppMode.Forms ? "new-form" : "new-script";
+        var name = await PromptService.InputAsync(this, "New " + (_mode == AppMode.Forms ? "Form" : "Script"),
+            $"File name (without extension):", defName);
         if (name is null) return;
 
         var safe = SanitizeFileName(name);
@@ -236,24 +337,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        var path = Path.Combine(Config.ScriptsFolder, safe + ".csx");
+        var path = Path.Combine(CurrentFolder, safe + ext);
         if (File.Exists(path))
         {
-            await PromptService.MessageAsync(this, "Already exists", $"A script named '{safe}.csx' already exists.");
+            await PromptService.MessageAsync(this, "Already exists", $"A file named '{safe}{ext}' already exists.");
             return;
         }
 
-        File.WriteAllText(path, $"// {safe}.csx\n");
+        if (_mode == AppMode.Forms)
+        {
+            var blank = Forms.FormEditor.CreateDefault();
+            File.WriteAllText(path, blank.ToJson());
+        }
+        else
+        {
+            File.WriteAllText(path, $"// {safe}{ext}\n");
+        }
+
         _sidebar.Refresh();
-        _sidebar.Select(safe + ".csx");
-        _terminal.Log($"Created: {safe}.csx");
+        _sidebar.Select(safe + ext);
+        _terminal.Log($"Created: {safe}{ext}");
     }
 
     private async void OnRenameClicked(object? sender, EventArgs e)
     {
         if (_currentFilePath is null) return;
+        var ext = CurrentExtension;
         var oldName = Path.GetFileNameWithoutExtension(_currentFilePath);
-        var name = await PromptService.InputAsync(this, "Rename Script", "New file name (without extension):", oldName);
+        var name = await PromptService.InputAsync(this, "Rename", "New file name (without extension):", oldName);
         if (name is null) return;
 
         var safe = SanitizeFileName(name);
@@ -263,34 +374,35 @@ public partial class MainWindow : Window
             return;
         }
 
-        var newPath = Path.Combine(Config.ScriptsFolder, safe + ".csx");
+        var newPath = Path.Combine(CurrentFolder, safe + ext);
         if (string.Equals(newPath, _currentFilePath, StringComparison.OrdinalIgnoreCase)) return;
         if (File.Exists(newPath))
         {
-            await PromptService.MessageAsync(this, "Already exists", $"A script named '{safe}.csx' already exists.");
+            await PromptService.MessageAsync(this, "Already exists", $"A file named '{safe}{ext}' already exists.");
             return;
         }
 
         File.Move(_currentFilePath, newPath);
         _currentFilePath = newPath;
         _sidebar.Refresh();
-        _sidebar.Select(safe + ".csx");
+        _sidebar.Select(safe + ext);
         UpdateDirtyUi();
-        _terminal.Log($"Renamed to: {safe}.csx");
+        _terminal.Log($"Renamed to: {safe}{ext}");
     }
 
     private async void OnDeleteClicked(object? sender, EventArgs e)
     {
         if (_currentFilePath is null) return;
         var fileName = Path.GetFileName(_currentFilePath);
-        var ok = await PromptService.ConfirmAsync(this, "Delete Script", $"Delete '{fileName}'? This cannot be undone.");
+        var ok = await PromptService.ConfirmAsync(this, "Delete", $"Delete '{fileName}'? This cannot be undone.");
         if (!ok) return;
 
         File.Delete(_currentFilePath);
         _terminal.Log($"Deleted: {fileName}");
 
         _currentFilePath = null;
-        _editor.Text = string.Empty;
+        if (_mode == AppMode.Scripts) _editor.Text = string.Empty;
+        else                          _designer.LoadFile(""); // resets to default
         _toolbar.CanModify = false;
         UpdateDirtyUi();
         _sidebar.Refresh();
@@ -299,8 +411,9 @@ public partial class MainWindow : Window
     private static string SanitizeFileName(string raw)
     {
         var trimmed = raw.Trim();
-        if (trimmed.EndsWith(".csx", StringComparison.OrdinalIgnoreCase))
-            trimmed = trimmed[..^4];
+        foreach (var e in new[] { ".csx", ".json" })
+            if (trimmed.EndsWith(e, StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed[..^e.Length];
         var invalid = Path.GetInvalidFileNameChars();
         if (trimmed.Any(c => invalid.Contains(c))) return string.Empty;
         return trimmed;

@@ -8,7 +8,9 @@ namespace TaskBlaster.Views;
 public partial class SidebarView : UserControl
 {
     private readonly ListBox _list;
+    private readonly TextBlock _header;
     private string? _folder;
+    private string _pattern = "*.csx";
 
     public event EventHandler<string>? ScriptSelected;
 
@@ -16,12 +18,26 @@ public partial class SidebarView : UserControl
     {
         InitializeComponent();
         _list = this.FindControl<ListBox>("ScriptList")!;
+        _header = this.FindControl<TextBlock>("HeaderLabel")!;
+    }
+
+    public string Header
+    {
+        get => _header.Text ?? string.Empty;
+        set => _header.Text = value;
     }
 
     public string? Folder
     {
         get => _folder;
         set { _folder = value; Refresh(); }
+    }
+
+    /// <summary>File-name glob used to filter the folder (e.g. "*.csx", "*.json").</summary>
+    public string Pattern
+    {
+        get => _pattern;
+        set { _pattern = value; Refresh(); }
     }
 
     public void Refresh()
@@ -33,7 +49,7 @@ public partial class SidebarView : UserControl
         }
 
         _list.ItemsSource = Directory
-            .EnumerateFiles(_folder, "*.csx", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(_folder, _pattern, SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileName)
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
             .ToList();

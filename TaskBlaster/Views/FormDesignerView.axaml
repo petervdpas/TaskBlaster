@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
+             x:Class="TaskBlaster.Views.FormDesignerView">
+    <Grid RowDefinitions="Auto,*" Margin="10">
+
+        <!-- Title row -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+            <TextBlock Grid.Column="0" Text="Title:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox   Grid.Column="1" Name="TitleBox" />
+        </Grid>
+
+        <!-- Fields list + property pane -->
+        <Grid Grid.Row="1" ColumnDefinitions="280,*" Margin="0,10,0,0">
+
+            <Border Grid.Column="0" BorderThickness="1" CornerRadius="4" Margin="0,0,8,0"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Text="Fields" FontWeight="SemiBold" Padding="8,6" />
+                    <ListBox   Grid.Row="1" Name="FieldList" SelectionChanged="OnFieldSelectionChanged" />
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="6">
+                        <Button Content="+" Click="OnAddField"    ToolTip.Tip="Add field" />
+                        <Button Content="–" Click="OnRemoveField" ToolTip.Tip="Remove" />
+                        <Button Content="↑" Click="OnMoveUp"      ToolTip.Tip="Move up" />
+                        <Button Content="↓" Click="OnMoveDown"    ToolTip.Tip="Move down" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" BorderThickness="1" CornerRadius="4" Padding="12"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Properties" FontWeight="SemiBold" />
+
+                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Key"       VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="0" Grid.Column="1" Name="KeyBox"    />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Label"     VerticalAlignment="Center" Margin="0,6,0,0" />
+                        <TextBox   Grid.Row="1" Grid.Column="1" Name="LabelBox"  Margin="0,6,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Type"      VerticalAlignment="Center" Margin="0,6,0,0" />
+                        <ComboBox  Grid.Row="2" Grid.Column="1" Name="TypeBox"   Margin="0,6,0,0" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="text" />
+                            <ComboBoxItem Content="textarea" />
+                            <ComboBoxItem Content="password" />
+                            <ComboBoxItem Content="email" />
+                            <ComboBoxItem Content="number" />
+                            <ComboBoxItem Content="switch" />
+                            <ComboBoxItem Content="select" />
+                            <ComboBoxItem Content="multiselect" />
+                            <ComboBoxItem Content="radio" />
+                            <ComboBoxItem Content="date" />
+                            <ComboBoxItem Content="time" />
+                            <ComboBoxItem Content="datetime" />
+                        </ComboBox>
+                        <CheckBox  Grid.Row="3" Grid.Column="1" Name="RequiredBox" Content="Required" Margin="0,8,0,0" />
+                    </Grid>
+
+                    <!-- Type-specific editor lives here (swapped by the factory). -->
+                    <ContentControl Name="TypeSpecificHost" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

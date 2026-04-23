@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="120"
+             x:Class="TaskBlaster.Views.FieldEditors.NumberPropertyEditor">
+    <Grid ColumnDefinitions="*,*,*">
+        <StackPanel Grid.Column="0" Margin="0,0,4,0">
+            <TextBlock Text="Min" />
+            <TextBox   Name="MinBox" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Margin="4,0">
+            <TextBlock Text="Max" />
+            <TextBox   Name="MaxBox" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Margin="4,0,0,0">
+            <TextBlock Text="Step" />
+            <TextBox   Name="StepBox" />
+        </StackPanel>
+    </Grid>
+</UserControl>
