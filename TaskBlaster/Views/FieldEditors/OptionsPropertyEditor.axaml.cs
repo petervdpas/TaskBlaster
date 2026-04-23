@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 
@@ -38,7 +39,10 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
         _valueBox.Text = "";
         _labelBox.Text = "";
         RefreshOptionList();
-        _suppress = false;
+        // Release suppression AFTER the queued TextChanged/SelectionChanged events
+        // have been processed. TextBox.TextChanged fires asynchronously, so a sync
+        // `_suppress = false` at the end of this method is too early.
+        Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
     }
 
     private void RefreshOptionList()
@@ -57,18 +61,24 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
     {
         if (_suppress || _field is null) return;
         var idx = _optionList.SelectedIndex;
-        _selected = idx >= 0 && idx < _field.Options.Count ? _field.Options[idx] : null;
+        var newSelected = idx >= 0 && idx < _field.Options.Count ? _field.Options[idx] : null;
+        if (ReferenceEquals(newSelected, _selected)) return;  // no-op short-circuit
+        _selected = newSelected;
         _suppress = true;
         _valueBox.Text = _selected?.Value ?? "";
         _labelBox.Text = _selected?.Label ?? "";
-        _suppress = false;
+        Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
     }
 
     private void CommitValue()
     {
         if (_suppress || _selected is null) return;
         _selected.Value = _valueBox.Text ?? "";
-        RefreshOptionList();
+        // Note: intentionally NOT calling RefreshOptionList here. Rebuilding
+        // ItemsSource on every keystroke causes ListBox to bounce its SelectedIndex
+        // (-1 then back), which re-fires SelectionChanged, which sets the text
+        // again, triggering an infinite cascade. The displayed "Value (Label)"
+        // in the list will be refreshed next time selection changes.
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -76,7 +86,6 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
     {
         if (_suppress || _selected is null) return;
         _selected.Label = _labelBox.Text;
-        RefreshOptionList();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
