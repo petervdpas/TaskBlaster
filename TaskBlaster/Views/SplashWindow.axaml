@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="320"
+        x:Class="TaskBlaster.Views.SplashWindow"
+        Width="640" Height="320"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        Topmost="True"
+        Cursor="Hand">
+    <Border CornerRadius="12"
+            BorderThickness="1"
+            BorderBrush="#3A3A55">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1E1E2E" Offset="0"/>
+                <GradientStop Color="#2B2B40" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Grid RowDefinitions="*,Auto" Margin="28,24,28,14">
+            <Grid Grid.Row="0" ColumnDefinitions="*,*">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock Text="TaskBlaster"
+                               FontSize="40"
+                               FontWeight="Bold"
+                               Foreground="#E6E6FA"/>
+                    <TextBlock Text=".csx script editor and runner"
+                               FontSize="13"
+                               Foreground="#9898B8"/>
+                    <TextBlock Name="VersionText"
+                               FontSize="14"
+                               Foreground="#C0C0D8"
+                               Margin="0,16,0,0"/>
+                    <TextBlock Text="by Peter van de Pas"
+                               FontSize="13"
+                               FontStyle="Italic"
+                               Foreground="#8888A0"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+                <Image Grid.Column="1"
+                       Source="avares://TaskBlaster/Images/spacegun.png"
+                       Stretch="Uniform"
+                       Margin="8"/>
+            </Grid>
+            <TextBlock Grid.Row="1"
+                       Text="click to continue"
+                       FontSize="11"
+                       Foreground="#6A6A88"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0"/>
+        </Grid>
+    </Border>
+</Window>

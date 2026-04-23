@@ -11,6 +11,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Images\taskblaster.ico" />
     <AvaloniaResource Include="Images\taskblaster.png" />
+    <AvaloniaResource Include="Images\spacegun.png" />
   </ItemGroup>
 
   <ItemGroup>
