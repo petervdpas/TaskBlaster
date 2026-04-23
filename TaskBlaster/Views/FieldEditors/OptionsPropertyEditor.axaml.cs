@@ -3,6 +3,7 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using TaskBlaster.Forms;
+using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Views.FieldEditors;
 

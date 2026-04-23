@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="TaskBlaster/TaskBlaster.csproj" />
+  <Project Path="TaskBlaster.Tests/TaskBlaster.Tests.csproj" />
 </Solution>

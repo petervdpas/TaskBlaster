@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Engine;
 
@@ -14,7 +15,7 @@ namespace TaskBlaster.Engine;
 /// In-process .csx runner built on Roslyn scripting.
 /// Captures Console.Out/Error and streams each line to the supplied callback.
 /// </summary>
-public sealed class ScriptBlaster
+public sealed class ScriptBlaster : IScriptBlaster
 {
     private static readonly string[] DefaultImports =
     {

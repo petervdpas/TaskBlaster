@@ -1,14 +1,18 @@
 using System;
-using System.IO;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using TaskBlaster.Forms;
+using TaskBlaster.Interfaces;
 using TaskBlaster.Views.FieldEditors;
 
 namespace TaskBlaster.Views;
 
+/// <summary>
+/// Thin view over an <see cref="IFormDocument"/>. Subscribes to the document's
+/// events and reflects its state; pushes user actions back to the document.
+/// Does NOT own form state — the document is the single source of truth.
+/// </summary>
 public partial class FormDesignerView : UserControl
 {
     private readonly TextBox _titleBox;
@@ -19,15 +23,10 @@ public partial class FormDesignerView : UserControl
     private readonly CheckBox _requiredBox;
     private readonly ContentControl _typeSpecificHost;
 
-    private FormEditor _form = FormEditor.CreateDefault();
-    private FieldEditor? _selectedField;
-    private FieldEditor? _boundField;          // last field actually bound — guards BindSelectedField
-    private string? _currentExtraType;         // last type rendered in the extras host — guards ShowExtraFor
+    private IFormDocument? _document;
     private IFieldPropertyEditor? _currentExtra;
-    private bool _suppressBinding;
-
-    public event EventHandler? DirtyChanged;
-    public bool IsDirty { get; private set; }
+    private string? _currentExtraType;
+    private bool _updatingFromDocument;
 
     public FormDesignerView()
     {
@@ -41,144 +40,121 @@ public partial class FormDesignerView : UserControl
         _requiredBox      = this.FindControl<CheckBox>("RequiredBox")!;
         _typeSpecificHost = this.FindControl<ContentControl>("TypeSpecificHost")!;
 
-        _titleBox.TextChanged         += (_, _) => { if (_suppressBinding) return; _form.Title = _titleBox.Text ?? ""; MarkDirty(); };
-        _keyBox.TextChanged           += (_, _) => { if (_suppressBinding || _selectedField is null) return; _selectedField.Key = _keyBox.Text ?? ""; RefreshFieldList(); MarkDirty(); };
-        _labelBox.TextChanged         += (_, _) => { if (_suppressBinding || _selectedField is null) return; _selectedField.Label = _labelBox.Text; MarkDirty(); };
-        _requiredBox.IsCheckedChanged += (_, _) => { if (_suppressBinding || _selectedField is null) return; _selectedField.Required = _requiredBox.IsChecked == true; MarkDirty(); };
+        _titleBox.TextChanged         += (_, _) => { if (_updatingFromDocument || _document is null) return; _document.Title = _titleBox.Text ?? ""; };
+        _keyBox.TextChanged           += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Key = _keyBox.Text ?? ""; _document.MarkFieldChanged(); RefreshFieldListKeepSelection(); };
+        _labelBox.TextChanged         += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Label = _labelBox.Text; _document.MarkFieldChanged(); };
+        _requiredBox.IsCheckedChanged += (_, _) => { if (_updatingFromDocument || _document?.SelectedField is null) return; _document.SelectedField.Required = _requiredBox.IsChecked == true; _document.MarkFieldChanged(); };
         _typeBox.SelectionChanged     += OnTypeBoxChanged;
     }
 
-    // === Public API ===
-
-    public void LoadFile(string path)
+    /// <summary>
+    /// Set the document this view is bound to. Wires up event subscriptions; pass
+    /// a new document (e.g. after loading a file) to reset the view.
+    /// </summary>
+    public IFormDocument? Document
     {
-        DebugLog.Write($"FormDesignerView.LoadFile({path}) BEGIN");
-        _form = File.Exists(path)
-            ? SafeFromJson(File.ReadAllText(path))
-            : FormEditor.CreateDefault();
-        DebugLog.Write($"  parsed form: title={_form.Title} fields={_form.Fields.Count}");
-        LoadFromEditor();
-        MarkClean();
-        DebugLog.Write("FormDesignerView.LoadFile END");
+        get => _document;
+        set
+        {
+            if (ReferenceEquals(_document, value)) return;
+
+            if (_document is not null)
+            {
+                _document.SelectionChanged -= OnDocSelectionChanged;
+                _document.FieldsChanged    -= OnDocFieldsChanged;
+            }
+
+            _document = value;
+
+            if (_document is not null)
+            {
+                _document.SelectionChanged += OnDocSelectionChanged;
+                _document.FieldsChanged    += OnDocFieldsChanged;
+            }
+
+            RefreshAll();
+        }
     }
 
-    public void SaveTo(string path)
+    // === Document → view updates ===
+
+    private void OnDocSelectionChanged(object? sender, EventArgs e) => BindSelectedField();
+    private void OnDocFieldsChanged(object? sender, EventArgs e)    => RefreshFieldList();
+
+    private void RefreshAll()
     {
-        File.WriteAllText(path, _form.ToJson());
-        MarkClean();
-    }
-
-    public string ToJson() => _form.ToJson();
-
-    public void MarkClean()
-    {
-        if (!IsDirty) return;
-        IsDirty = false;
-        DirtyChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static FormEditor SafeFromJson(string json)
-    {
-        try { return FormEditor.FromJson(json); }
-        catch { return FormEditor.CreateDefault(); }
-    }
-
-    // === Binding ===
-
-    private void LoadFromEditor()
-    {
-        DebugLog.Write("  LoadFromEditor BEGIN");
-        _suppressBinding = true;
-        _titleBox.Text = _form.Title;
-        DebugLog.Write("    RefreshFieldList");
+        _updatingFromDocument = true;
+        _titleBox.Text = _document?.Title ?? "";
+        _updatingFromDocument = false;
         RefreshFieldList();
-        if (_form.Fields.Count > 0)
-        {
-            DebugLog.Write("    select first field");
-            _selectedField = _form.Fields[0];
-            _fieldList.SelectedIndex = 0;
-            DebugLog.Write("    BindSelectedField");
-            BindSelectedField();
-        }
-        else
-        {
-            _selectedField = null;
-            ClearCommonFields();
-            ShowExtraFor(null);
-        }
-        _suppressBinding = false;
-        DebugLog.Write("  LoadFromEditor END");
-    }
-
-    private void MarkDirty()
-    {
-        if (IsDirty) return;
-        IsDirty = true;
-        DirtyChanged?.Invoke(this, EventArgs.Empty);
+        BindSelectedField();
     }
 
     private void RefreshFieldList()
     {
-        _fieldList.ItemsSource = _form.Fields
-            .Select(f => $"{f.Key}  [{f.Type}]")
-            .ToList();
-        if (_selectedField is not null)
+        _updatingFromDocument = true;
+        var fields = _document?.Fields ?? Array.Empty<FieldEditor>();
+        _fieldList.ItemsSource = fields.Select(f => $"{f.Key}  [{f.Type}]").ToList();
+
+        // Re-apply the selected index from the document (no event storm because _updatingFromDocument=true).
+        var sel = _document?.SelectedField;
+        if (sel is not null)
         {
-            var idx = _form.Fields.IndexOf(_selectedField);
-            if (idx >= 0) _fieldList.SelectedIndex = idx;
+            var idx = -1;
+            for (int i = 0; i < fields.Count; i++) if (ReferenceEquals(fields[i], sel)) { idx = i; break; }
+            _fieldList.SelectedIndex = idx;
         }
+        else
+        {
+            _fieldList.SelectedIndex = -1;
+        }
+        _updatingFromDocument = false;
     }
 
-    private void ClearCommonFields()
+    private void RefreshFieldListKeepSelection()
     {
-        var prev = _suppressBinding;
-        _suppressBinding = true;
-        _keyBox.Text = "";
-        _labelBox.Text = "";
-        _typeBox.SelectedIndex = -1;
-        _requiredBox.IsChecked = false;
-        _suppressBinding = prev;
+        // Used after a key-rename: field list display changed but the selected field object didn't.
+        RefreshFieldList();
     }
 
     private void BindSelectedField()
     {
-        // Short-circuit: already showing this exact field (prevents event cascade loops).
-        if (ReferenceEquals(_selectedField, _boundField)) return;
-        _boundField = _selectedField;
+        var field = _document?.SelectedField;
+        _updatingFromDocument = true;
 
-        DebugLog.Write($"BindSelectedField → {_selectedField?.Key ?? "null"}");
-
-        if (_selectedField is null)
+        if (field is null)
         {
-            ClearCommonFields();
+            _keyBox.Text = "";
+            _labelBox.Text = "";
+            _typeBox.SelectedIndex = -1;
+            _requiredBox.IsChecked = false;
             ShowExtraFor(null);
-            return;
+        }
+        else
+        {
+            _keyBox.Text = field.Key;
+            _labelBox.Text = field.Label ?? "";
+            _typeBox.SelectedIndex = FindTypeIndex(field.Type);
+            _requiredBox.IsChecked = field.Required;
+            ShowExtraFor(field);
         }
 
-        var prev = _suppressBinding;
-        _suppressBinding = true;
-        _keyBox.Text = _selectedField.Key;
-        _labelBox.Text = _selectedField.Label ?? "";
-        _typeBox.SelectedIndex = FindTypeIndex(_selectedField.Type);
-        _requiredBox.IsChecked = _selectedField.Required;
-        ShowExtraFor(_selectedField);
-        _suppressBinding = prev;
+        _updatingFromDocument = false;
     }
 
     private void ShowExtraFor(FieldEditor? field)
     {
         var targetType = field?.Type;
 
-        // Same type already hosted: just rebind values into the existing editor, don't rebuild.
+        // Same type? Just rebind values into the existing editor — no Content swap, no layout thrash.
         if (_currentExtraType == targetType)
         {
             if (_currentExtra is not null && field is not null) _currentExtra.Bind(field);
-            else if (field is null) { AssignContentSuppressed(null); _currentExtra = null; }
+            else if (field is null) { _typeSpecificHost.Content = null; _currentExtra = null; _currentExtraType = null; }
             return;
         }
 
         _currentExtraType = targetType;
-        DebugLog.Write($"  ShowExtraFor → {targetType ?? "null"}");
 
         if (_currentExtra is not null)
         {
@@ -188,7 +164,7 @@ public partial class FormDesignerView : UserControl
 
         if (field is null)
         {
-            AssignContentSuppressed(null);
+            _typeSpecificHost.Content = null;
             return;
         }
 
@@ -199,25 +175,14 @@ public partial class FormDesignerView : UserControl
             extra.Changed += OnExtraChanged;
             _currentExtra = extra;
         }
-        AssignContentSuppressed(editor);
+        _typeSpecificHost.Content = editor;
     }
 
-    /// <summary>
-    /// Assigning <see cref="ContentControl.Content"/> triggers a layout pass that can make
-    /// <c>FieldList</c> briefly flip its SelectedIndex (-1 then back to the previous value).
-    /// Suppress our own selection handler across that pass so it doesn't re-enter this code.
-    /// </summary>
-    private void AssignContentSuppressed(object? content)
+    private void OnExtraChanged(object? sender, EventArgs e)
     {
-        var prev = _suppressBinding;
-        _suppressBinding = true;
-        _typeSpecificHost.Content = content;
-        // Keep suppression active until Avalonia finishes the queued layout work,
-        // then restore. DispatcherPriority.Loaded runs after layout but before idle.
-        Dispatcher.UIThread.Post(() => _suppressBinding = prev, DispatcherPriority.Loaded);
+        if (_document is null) return;
+        _document.MarkFieldChanged();
     }
-
-    private void OnExtraChanged(object? sender, EventArgs e) => MarkDirty();
 
     private int FindTypeIndex(string type)
     {
@@ -230,81 +195,28 @@ public partial class FormDesignerView : UserControl
         return 0;
     }
 
-    // === Event handlers ===
+    // === View → document actions ===
 
     private void OnFieldSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_suppressBinding) return;
-        var idx = _fieldList.SelectedIndex;
-        var newField = idx >= 0 && idx < _form.Fields.Count ? _form.Fields[idx] : null;
-        if (ReferenceEquals(newField, _selectedField)) return; // no-op selection — short-circuit
-        DebugLog.Write($"OnFieldSelectionChanged idx={idx} → {newField?.Key ?? "null"}");
-        _selectedField = newField;
-        BindSelectedField();
+        if (_updatingFromDocument || _document is null) return;
+        _document.SelectFieldAt(_fieldList.SelectedIndex);
     }
 
     private void OnTypeBoxChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_suppressBinding || _selectedField is null) return;
+        if (_updatingFromDocument || _document?.SelectedField is null) return;
         if (_typeBox.SelectedItem is not ComboBoxItem c) return;
         var newType = c.Content?.ToString() ?? "text";
-        if (_selectedField.Type == newType) return;
-        _selectedField.Type = newType;
-        ShowExtraFor(_selectedField);
-        RefreshFieldList();
-        MarkDirty();
+        if (_document.SelectedField.Type == newType) return;
+        _document.SelectedField.Type = newType;
+        _document.MarkFieldChanged();
+        BindSelectedField();          // rebuild extras for the new type
+        RefreshFieldList();           // reflect [type] in the list label
     }
 
-    private void OnAddField(object? sender, RoutedEventArgs e)
-    {
-        var baseName = "field";
-        var n = _form.Fields.Count + 1;
-        string key;
-        do { key = $"{baseName}{n++}"; } while (_form.Fields.Any(f => f.Key == key));
-        var field = new FieldEditor { Key = key, Type = "text", Label = key };
-        _form.Fields.Add(field);
-        _selectedField = field;
-        RefreshFieldList();
-        BindSelectedField();
-        MarkDirty();
-    }
-
-    private void OnRemoveField(object? sender, RoutedEventArgs e)
-    {
-        if (_selectedField is null) return;
-        var idx = _form.Fields.IndexOf(_selectedField);
-        _form.Fields.Remove(_selectedField);
-        if (_form.Fields.Count > 0)
-        {
-            var newIdx = Math.Min(idx, _form.Fields.Count - 1);
-            _selectedField = _form.Fields[newIdx];
-        }
-        else
-        {
-            _selectedField = null;
-        }
-        RefreshFieldList();
-        BindSelectedField();
-        MarkDirty();
-    }
-
-    private void OnMoveUp(object? sender, RoutedEventArgs e)
-    {
-        if (_selectedField is null) return;
-        var idx = _form.Fields.IndexOf(_selectedField);
-        if (idx <= 0) return;
-        _form.Fields.Move(idx, idx - 1);
-        RefreshFieldList();
-        MarkDirty();
-    }
-
-    private void OnMoveDown(object? sender, RoutedEventArgs e)
-    {
-        if (_selectedField is null) return;
-        var idx = _form.Fields.IndexOf(_selectedField);
-        if (idx < 0 || idx >= _form.Fields.Count - 1) return;
-        _form.Fields.Move(idx, idx + 1);
-        RefreshFieldList();
-        MarkDirty();
-    }
+    private void OnAddField(object? sender, RoutedEventArgs e)    => _document?.AddField();
+    private void OnRemoveField(object? sender, RoutedEventArgs e) => _document?.RemoveSelected();
+    private void OnMoveUp(object? sender, RoutedEventArgs e)      => _document?.MoveUp();
+    private void OnMoveDown(object? sender, RoutedEventArgs e)    => _document?.MoveDown();
 }

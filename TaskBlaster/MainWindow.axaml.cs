@@ -12,6 +12,8 @@ using GuiBlast.Forms.Rendering;
 using GuiBlast.Forms.Result;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
+using TaskBlaster.Forms;
+using TaskBlaster.Interfaces;
 using TaskBlaster.Views;
 
 namespace TaskBlaster;
@@ -28,8 +30,10 @@ public partial class MainWindow : Window
     private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
 
-    private readonly ScriptBlaster _blaster = new();
+    private readonly IScriptBlaster _blaster = new ScriptBlaster();
+    private readonly IConfigStore _config = new ConfigStore();
     private CancellationTokenSource? _runCts;
+    private IFormDocument? _currentFormDoc;
 
     public MainWindow()
     {
@@ -45,11 +49,11 @@ public partial class MainWindow : Window
         _terminal  = this.FindControl<TerminalView>("Terminal")!;
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
 
-        Config.Load();
-        Directory.CreateDirectory(Config.ScriptsFolder);
-        Directory.CreateDirectory(Config.FormsFolder);
-        SeedMissingFromFolder("DemoScripts", Config.ScriptsFolder, "*.csx");
-        SeedMissingFromFolder("DemoForms",   Config.FormsFolder,   "*.json");
+        _config.Load();
+        Directory.CreateDirectory(_config.ScriptsFolder);
+        Directory.CreateDirectory(_config.FormsFolder);
+        SeedMissingFromFolder("DemoScripts", _config.ScriptsFolder, "*.csx");
+        SeedMissingFromFolder("DemoForms",   _config.FormsFolder,   "*.json");
 
         _sidebar.ScriptSelected += OnFileSelected;
 
@@ -65,7 +69,6 @@ public partial class MainWindow : Window
 
         _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
         _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
-        _designer.DirtyChanged += (_, _) => UpdateDirtyUi();
 
         ActualThemeVariantChanged += (_, _) => ApplyCurrentTheme();
 
@@ -78,8 +81,8 @@ public partial class MainWindow : Window
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.L, KeyModifiers.Control),        Command = new Command(_terminal.Clear) });
 
         SwitchMode(AppMode.Scripts);
-        _terminal.Log($"Scripts folder: {Config.ScriptsFolder}");
-        _terminal.Log($"Forms folder:   {Config.FormsFolder}");
+        _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
+        _terminal.Log($"Forms folder:   {_config.FormsFolder}");
     }
 
     protected override void OnOpened(EventArgs e)
@@ -136,7 +139,7 @@ public partial class MainWindow : Window
                 _terminal.Log("[switch] 5/7 sidebar pattern");
                 _sidebar.Pattern = "*.csx";
                 _terminal.Log("[switch] 6/7 sidebar folder");
-                _sidebar.Folder = Config.ScriptsFolder;
+                _sidebar.Folder = _config.ScriptsFolder;
                 _terminal.Log("[switch] 7/7 run label");
                 _toolbar.SetRunLabel("▶ Run");
                 break;
@@ -150,7 +153,7 @@ public partial class MainWindow : Window
                 _terminal.Log("[switch] 5/7 sidebar pattern");
                 _sidebar.Pattern = "*.json";
                 _terminal.Log("[switch] 6/7 sidebar folder");
-                _sidebar.Folder = Config.FormsFolder;
+                _sidebar.Folder = _config.FormsFolder;
                 _terminal.Log("[switch] 7/7 run label");
                 _toolbar.SetRunLabel("👁 Preview");
                 break;
@@ -160,37 +163,46 @@ public partial class MainWindow : Window
         DebugLog.Write($"SwitchMode → {mode} END (handler returned)");
     }
 
-    private string CurrentFolder => _mode == AppMode.Forms ? Config.FormsFolder : Config.ScriptsFolder;
+    private string CurrentFolder => _mode == AppMode.Forms ? _config.FormsFolder : _config.ScriptsFolder;
     private string CurrentExtension => _mode == AppMode.Forms ? ".json" : ".csx";
 
     // ==================== Sidebar selection ====================
 
     private void OnFileSelected(object? sender, string path)
     {
-        DebugLog.Write($"OnFileSelected path={path} mode={_mode}");
         _currentFilePath = path;
         _toolbar.CanModify = true;
 
         if (_mode == AppMode.Scripts)
         {
-            DebugLog.Write("  -> Editor.LoadFile");
             _editor.LoadFile(path);
             _terminal.Log($"Loaded: {Path.GetFileName(path)} ({_editor.Text.Length} chars)");
         }
         else
         {
-            DebugLog.Write("  -> Designer.LoadFile");
-            _designer.LoadFile(path);
-            DebugLog.Write("  -> Designer.LoadFile returned");
+            // Detach old document, build a fresh one from the file, attach to designer.
+            DetachCurrentFormDoc();
+            var doc = FormDocument.LoadFromFile(path);
+            doc.DirtyChanged += OnFormDocDirtyChanged;
+            _designer.Document = doc;
+            _currentFormDoc = doc;
             _terminal.Log($"Loaded form: {Path.GetFileName(path)}");
         }
         UpdateDirtyUi();
-        DebugLog.Write("OnFileSelected DONE");
     }
+
+    private void DetachCurrentFormDoc()
+    {
+        if (_currentFormDoc is null) return;
+        _currentFormDoc.DirtyChanged -= OnFormDocDirtyChanged;
+        _currentFormDoc = null;
+    }
+
+    private void OnFormDocDirtyChanged(object? sender, EventArgs e) => UpdateDirtyUi();
 
     // ==================== Dirty state ====================
 
-    private bool IsDirty => _mode == AppMode.Forms ? _designer.IsDirty : _editor.IsDirty;
+    private bool IsDirty => _mode == AppMode.Forms ? (_currentFormDoc?.IsDirty ?? false) : _editor.IsDirty;
 
     private void UpdateDirtyUi()
     {
@@ -204,8 +216,15 @@ public partial class MainWindow : Window
     private void SaveCurrent()
     {
         if (_currentFilePath is null) return;
-        if (_mode == AppMode.Scripts) _editor.SaveTo(_currentFilePath);
-        else                          _designer.SaveTo(_currentFilePath);
+        if (_mode == AppMode.Scripts)
+        {
+            _editor.SaveTo(_currentFilePath);
+        }
+        else
+        {
+            if (_currentFormDoc is null) return;
+            (_currentFormDoc as FormDocument)?.SaveToFile(_currentFilePath);
+        }
         _terminal.Log($"Saved: {Path.GetFileName(_currentFilePath)}");
         UpdateDirtyUi();
     }
@@ -265,7 +284,8 @@ public partial class MainWindow : Window
 
     private async Task PreviewFormAsync()
     {
-        var json = _designer.ToJson();
+        if (_currentFormDoc is null) { _terminal.Log("No form loaded."); return; }
+        var json = _currentFormDoc.Snapshot().ToJson();
         _terminal.Log("👁 Previewing form…");
         _statusBar.Status = "Previewing…";
         try
@@ -295,11 +315,11 @@ public partial class MainWindow : Window
 
     private async void OnConfigClicked(object? sender, EventArgs e)
     {
-        var chosen = await new ConfigDialog(Config.ScriptsFolder).ShowDialog<string?>(this);
+        var chosen = await new ConfigDialog(_config.ScriptsFolder).ShowDialog<string?>(this);
         if (chosen is null) return;
 
         var normalized = Path.GetFullPath(chosen);
-        if (string.Equals(normalized, Config.ScriptsFolder, StringComparison.Ordinal)) return;
+        if (string.Equals(normalized, _config.ScriptsFolder, StringComparison.Ordinal)) return;
 
         try { Directory.CreateDirectory(normalized); }
         catch (Exception ex)
@@ -308,8 +328,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        Config.ScriptsFolder = normalized;
-        Config.Save();
+        _config.ScriptsFolder = normalized;
+        _config.Save();
 
         _currentFilePath = null;
         _editor.Text = string.Empty;
@@ -401,8 +421,15 @@ public partial class MainWindow : Window
         _terminal.Log($"Deleted: {fileName}");
 
         _currentFilePath = null;
-        if (_mode == AppMode.Scripts) _editor.Text = string.Empty;
-        else                          _designer.LoadFile(""); // resets to default
+        if (_mode == AppMode.Scripts)
+        {
+            _editor.Text = string.Empty;
+        }
+        else
+        {
+            DetachCurrentFormDoc();
+            _designer.Document = null;
+        }
         _toolbar.CanModify = false;
         UpdateDirtyUi();
         _sidebar.Refresh();

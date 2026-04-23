@@ -1,7 +1,7 @@
 using System;
 using TaskBlaster.Forms;
 
-namespace TaskBlaster.Views.FieldEditors;
+namespace TaskBlaster.Interfaces;
 
 /// <summary>
 /// Property editor for a specific field type. Implementations are Avalonia

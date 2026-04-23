@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Controls;
 using TaskBlaster.Forms;
+using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Views.FieldEditors;
 
