@@ -1,6 +1,7 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.IO;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Forms;
@@ -17,8 +18,60 @@ class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static int Main(string[] args)
+    {
+        if (args.Length > 0 && args[0] == "--seed-demos")
+            return SeedDemos();
+
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        return 0;
+    }
+
+    /// <summary>
+    /// Dev-only helper: copy every file under the app's shipped
+    /// DemoScripts/ and DemoForms/ output directories into the user's
+    /// configured scripts and forms folders, overwriting existing files.
+    /// The regular first-run seeder in MainWindow only copies *missing*
+    /// files; this forces an update after the shipped demos change in
+    /// the repo.
+    ///
+    /// Usage: <c>dotnet run --project TaskBlaster -- --seed-demos</c>
+    /// </summary>
+    private static int SeedDemos()
+    {
+        var config = new ConfigStore();
+        config.Load();
+        Directory.CreateDirectory(config.ScriptsFolder);
+        Directory.CreateDirectory(config.FormsFolder);
+
+        var copied = 0;
+        copied += ForceCopyDemos("DemoScripts", config.ScriptsFolder, "*.csx");
+        copied += ForceCopyDemos("DemoForms",   config.FormsFolder,   "*.json");
+        Console.WriteLine($"Done. {copied} file(s) written.");
+        return 0;
+    }
+
+    private static int ForceCopyDemos(string sourceName, string targetFolder, string pattern)
+    {
+        var src = Path.Combine(AppContext.BaseDirectory, sourceName);
+        if (!Directory.Exists(src))
+        {
+            Console.Error.WriteLine($"skipping {sourceName}: source folder not found at {src}");
+            return 0;
+        }
+        Console.WriteLine($"{sourceName} -> {targetFolder}");
+        var count = 0;
+        foreach (var file in Directory.EnumerateFiles(src, pattern))
+        {
+            var name = Path.GetFileName(file);
+            var dst = Path.Combine(targetFolder, name);
+            var verb = File.Exists(dst) ? "updated" : "added  ";
+            File.Copy(file, dst, overwrite: true);
+            Console.WriteLine($"  {verb} {name}");
+            count++;
+        }
+        return count;
+    }
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()

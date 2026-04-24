@@ -1,0 +1,30 @@
+{
+  "title": "Deploy",
+  "size": { "width": 460, "height": 380 },
+  "fields": [
+    { "key": "service",  "type": "text",   "label": "Service",
+      "required": true, "placeholder": "billing-api" },
+    { "key": "target",   "type": "select", "label": "Target",
+      "options": [
+        { "value": "dev",  "label": "Dev" },
+        { "value": "test", "label": "Test" },
+        { "value": "prod", "label": "Production" }
+      ] },
+    { "key": "secret",   "type": "select", "label": "Connection secret",
+      "optionsFrom": { "source": "vault", "category": "Azure" } },
+    { "key": "version",  "type": "text",   "label": "Version",
+      "placeholder": "1.4.2" },
+    { "key": "skipTests","type": "switch", "label": "Skip smoke tests" },
+    { "key": "approver", "type": "text",   "label": "Approver",
+      "required": true,
+      "description": "Required for production deploys." }
+  ],
+  "visibility": [
+    { "field": "target", "eq": "prod", "show": [ "approver" ] },
+    { "field": "target", "neq": "prod", "hide": [ "approver" ] }
+  ],
+  "actions": [
+    { "id": "deploy", "label": "Deploy", "submit":  true },
+    { "id": "cancel", "label": "Cancel", "dismiss": true }
+  ]
+}
