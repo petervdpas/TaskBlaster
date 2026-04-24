@@ -1,42 +1,48 @@
 # TODO
 
-## Next session — MEDI DI rollout (planned 2026-04-25)
+## Next session — SecretBlast (planned)
 
-Move from the current hand-wired DI (just `IThemeService` threaded through constructors) to a proper `Microsoft.Extensions.DependencyInjection` container.
+Design discussion scheduled for 2026-04-24. Goal: a cross-platform encrypted
+vault for user secrets (connection strings, API keys, etc.) that deliberately
+avoids OS-default secret stores (DPAPI / Keychain / libsecret / kwallet).
 
-### Starting state
+Open questions to settle before a first cut:
 
-- `Program.cs` news up a `ThemeService` and hands it to `App` via `AppBuilder.Configure(() => new App(themes))`.
-- `App` → `SplashWindow` → `MainWindow` all take `IThemeService` via constructor.
-- The other services (`IConfigStore`, `IScriptBlaster`, `IPromptService`) are still `new`'d inside `MainWindow`'s constructor.
+- Scope — new `SecretBlast` nuget, or an add-on inside UtilBlast / AzureBlast?
+- Key derivation — master password → Argon2id? Or KDF from an external
+  key file the user places out-of-band?
+- At-rest format — single JSON file encrypted with AES-GCM? One-file-per-secret
+  for simpler diffs / Git-trackable vaults?
+- Unlock model — unlock per TaskBlaster session, per script, or per secret?
+- TaskBlaster integration — swap AzureBlast named-connection config to pull
+  secrets from SecretBlast instead of plaintext JSON.
+- Threat model — what exactly are we defending against that DPAPI/Keychain
+  don't already cover? (Cross-platform portability, not trusting the OS
+  account boundary, auditable vault format, …)
 
-### Scope
+## Done
 
-- [ ] Add `Microsoft.Extensions.DependencyInjection` `PackageReference` to `TaskBlaster/TaskBlaster.csproj`.
-- [ ] In `Program.BuildAvaloniaApp`, build a `ServiceCollection` and register:
-  - `IThemeService` → `ThemeService` (singleton)
-  - `IConfigStore` → `ConfigStore` (singleton)
-  - `IScriptBlaster` → `ScriptBlaster` (singleton or transient — pick when wiring)
-  - `IPromptService` → `AvaloniaPromptService` (needs owning `Window`, see wrinkle below)
-  - `IFormDocument` → factory for `FormDocument` (transient; one per loaded form)
-- [ ] Resolve `App` (and through it `SplashWindow` / `MainWindow`) from the provider instead of `new`.
-- [ ] Drop `new ScriptBlaster()` / `new ConfigStore()` / `new AvaloniaPromptService(this)` from `MainWindow`'s ctor; take them via constructor injection.
+### 2026-04-24 — MEDI DI rollout
 
-### Wrinkle — `IPromptService` owner-window
+Migrated from hand-wired DI (only `IThemeService` threaded through constructors)
+to `Microsoft.Extensions.DependencyInjection`.
 
-`AvaloniaPromptService` needs the `Window` it shows dialogs over (currently `this` from inside `MainWindow`). Options:
+- Added `Microsoft.Extensions.DependencyInjection` 10.0.7 package reference.
+- `Program.BuildAvaloniaApp` now builds a `ServiceCollection`, registers
+  singletons for `IThemeService`, `IConfigStore`, `IScriptBlaster`,
+  `IPromptServiceFactory`, `IFormDocumentFactory`, and transients for `App`,
+  `SplashWindow`, `MainWindow`. `App` is resolved from the provider.
+- `App` and `SplashWindow` take `IServiceProvider` and resolve the next
+  window from it — no more `new SplashWindow(themes)` / `new MainWindow(themes)`.
+- `MainWindow` takes all its services via constructor injection; the
+  `new ScriptBlaster()` / `new ConfigStore()` / `new AvaloniaPromptService(this)`
+  field initializers are gone.
+- Owner-window wrinkle solved via **option (2)**: `IPromptServiceFactory`
+  registered as a singleton; `MainWindow` calls `Create(this)` in its ctor.
+- `FormDocument.LoadFromFile` is now reached through `IFormDocumentFactory`,
+  which also wraps `SaveToFile` so the cast in `MainWindow` is gone.
+- 114/114 tests still pass.
 
-1. Register as a factory that depends on `MainWindow` — but `MainWindow` is also resolved from the container, which creates a cycle.
-2. Create `IPromptService` late in `MainWindow`'s ctor from a small `IPromptServiceFactory` registered in the container. Cleaner.
-3. Expose an `IDialogHost` singleton that `MainWindow` sets itself on, and have `AvaloniaPromptService` pull the current host from it. Decouples the prompt service from any specific window, useful later for prompts launched from non-main windows.
-
-Pick when we get there; (2) is the smallest change.
-
-### Not in scope (yet)
-
-- View-models / MVVM refactor
-- `Microsoft.Extensions.Hosting` (builder, lifetime, config, logging wiring)
-- Keyed services
-- Scoped lifetimes / disposable scopes
-
-Bring these in as/when we need them, not preemptively.
+Still explicitly out of scope (pull in when we actually need them):
+view-models / MVVM, `Microsoft.Extensions.Hosting`, keyed services,
+scoped lifetimes.

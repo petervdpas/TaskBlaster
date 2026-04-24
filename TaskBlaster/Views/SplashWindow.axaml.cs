@@ -4,23 +4,24 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Platform;
+using Microsoft.Extensions.DependencyInjection;
 using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Views;
 
 public partial class SplashWindow : Window
 {
-    private readonly IThemeService _themes;
+    private readonly IServiceProvider _services;
     private bool _dismissed;
 
     // Required by Avalonia's XAML runtime loader; not used at runtime.
     public SplashWindow() => throw new InvalidOperationException(
-        "SplashWindow must be constructed with an IThemeService.");
+        "SplashWindow must be constructed via the DI container.");
 
-    public SplashWindow(IThemeService themes)
+    public SplashWindow(IServiceProvider services)
     {
         InitializeComponent();
-        _themes = themes;
+        _services = services;
         VersionText.Text = $"Version {AppInfo.Version}";
     }
 
@@ -43,10 +44,8 @@ public partial class SplashWindow : Window
 
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var main = new MainWindow(_themes)
-            {
-                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TaskBlaster/Images/taskblaster.ico")))
-            };
+            var main = _services.GetRequiredService<MainWindow>();
+            main.Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TaskBlaster/Images/taskblaster.ico")));
             desktop.MainWindow = main;
             main.Show();
         }

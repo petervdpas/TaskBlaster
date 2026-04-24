@@ -30,23 +30,32 @@ public partial class MainWindow : Window
     private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
 
-    private readonly IScriptBlaster _blaster = new ScriptBlaster();
-    private readonly IConfigStore _config = new ConfigStore();
+    private readonly IScriptBlaster _blaster;
+    private readonly IConfigStore _config;
     private readonly IPromptService _prompts;
     private readonly IThemeService _themes;
+    private readonly IFormDocumentFactory _formDocFactory;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
     // Required by Avalonia's XAML runtime loader; not used at runtime.
     public MainWindow() => throw new InvalidOperationException(
-        "MainWindow must be constructed with an IThemeService.");
+        "MainWindow must be constructed via the DI container.");
 
-    public MainWindow(IThemeService themes)
+    public MainWindow(
+        IThemeService themes,
+        IConfigStore config,
+        IScriptBlaster blaster,
+        IPromptServiceFactory promptFactory,
+        IFormDocumentFactory formDocFactory)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
         _themes = themes;
-        _prompts = new AvaloniaPromptService(this);
+        _config = config;
+        _blaster = blaster;
+        _formDocFactory = formDocFactory;
+        _prompts = promptFactory.Create(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
         _sidebar   = this.FindControl<SidebarView>("Sidebar")!;
@@ -173,7 +182,7 @@ public partial class MainWindow : Window
         {
             // Detach old document, build a fresh one from the file, attach to designer.
             DetachCurrentFormDoc();
-            var doc = FormDocument.LoadFromFile(path);
+            var doc = _formDocFactory.LoadFromFile(path);
             doc.DirtyChanged += OnFormDocDirtyChanged;
             _designer.Document = doc;
             _currentFormDoc = doc;
@@ -214,7 +223,7 @@ public partial class MainWindow : Window
         else
         {
             if (_currentFormDoc is null) return;
-            (_currentFormDoc as FormDocument)?.SaveToFile(_currentFilePath);
+            _formDocFactory.SaveToFile(_currentFormDoc, _currentFilePath);
         }
         _terminal.Log($"Saved: {Path.GetFileName(_currentFilePath)}");
         UpdateDirtyUi();

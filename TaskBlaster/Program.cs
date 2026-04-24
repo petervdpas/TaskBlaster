@@ -1,7 +1,12 @@
 using Avalonia;
+using Microsoft.Extensions.DependencyInjection;
 using System;
+using TaskBlaster.Dialogs;
+using TaskBlaster.Engine;
+using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.UI;
+using TaskBlaster.Views;
 
 namespace TaskBlaster;
 
@@ -17,14 +22,31 @@ class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
     {
-        IThemeService themes = new ThemeService();
+        var provider = BuildServiceProvider();
 
-        return AppBuilder.Configure(() => new App(themes))
+        return AppBuilder.Configure(() => provider.GetRequiredService<App>())
             .UsePlatformDetect()
 #if DEBUG
             .WithDeveloperTools()
 #endif
             .WithInterFont()
             .LogToTrace();
+    }
+
+    private static IServiceProvider BuildServiceProvider()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<IConfigStore, ConfigStore>();
+        services.AddSingleton<IScriptBlaster, ScriptBlaster>();
+        services.AddSingleton<IPromptServiceFactory, AvaloniaPromptServiceFactory>();
+        services.AddSingleton<IFormDocumentFactory, FormDocumentFactory>();
+
+        services.AddSingleton<App>();
+        services.AddTransient<SplashWindow>();
+        services.AddTransient<MainWindow>();
+
+        return services.BuildServiceProvider();
     }
 }
