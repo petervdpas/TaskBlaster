@@ -40,6 +40,7 @@ public sealed class ScriptBlaster : IScriptBlaster
         string scriptText,
         string? scriptPath,
         Action<string> onOutput,
+        ScriptGlobals? globals,
         CancellationToken cancellationToken)
     {
         var originalOut = Console.Out;
@@ -57,11 +58,22 @@ public sealed class ScriptBlaster : IScriptBlaster
                 .WithLanguageVersion(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest);
 
             // Off-load to a thread-pool thread so the UI dispatcher stays free.
-            // Blocking calls (e.g. GuiBlast Prompts) need the UI thread to be pumping.
+            // Blocking calls (e.g. GuiBlast Prompts, Secrets.Resolve) need the UI
+            // thread to be pumping.
             await Task.Run(async () =>
             {
-                await CSharpScript.RunAsync(scriptText, options, cancellationToken: cancellationToken)
-                                  .ConfigureAwait(false);
+                if (globals is null)
+                {
+                    await CSharpScript.RunAsync(scriptText, options,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await CSharpScript.RunAsync(scriptText, options,
+                        globals: globals,
+                        globalsType: typeof(ScriptGlobals),
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
             }, cancellationToken).ConfigureAwait(false);
 
             writer.Flush();

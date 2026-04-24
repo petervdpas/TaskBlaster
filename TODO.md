@@ -2,27 +2,55 @@
 
 ## Next — post-Secrets-tab follow-ups
 
-The Secrets tab is live (SecretBlast 1.0.0 wired in, 139 tests green).
-Still open:
+The Secrets tab is live (SecretBlast 1.0.0 wired in). Scripts can now
+pull values out of the vault via the `Secrets` global (see the Done
+section below). Still open:
 
-1. **AzureBlast resolver adapter.** Wire
-   `Func<string, CancellationToken, Task<string>>` to call
-   `IVaultService.ResolveAsync(category, key)`. AzureBlast stays pure — no
-   SecretBlast dependency. `ResolveAsync` already exists; just plumb the
-   delegate on first named-connection use and trigger the unlock flow if the
-   vault is locked.
-2. **Migrate named-connection config.** Today: plaintext JSON. Target:
+1. **Migrate named-connection config.** Today: plaintext JSON. Target:
    `{ name → { category, key } }` pointing into the vault. One-shot migration
-   helper so existing users don't lose connections.
-3. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
+   helper so existing users don't lose connections. The resolver shape
+   (`Func<category, key, ct, Task<string>>`) is already what
+   `Secrets.Resolver` hands out, so AzureBlast / NetBlast stay free of any
+   SecretBlast dependency.
+2. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
    — consider gating the DataGrid value column behind a per-row reveal too,
    or a "reveal for 30 s" pattern.
-4. **Category rename.** UI-only today — user has to edit each secret. A
+3. **Category rename.** UI-only today — user has to edit each secret. A
    bulk-rename (right-click category → rename) would rewrite envelopes under
    the hood and leave filenames untouched.
-5. **Search / filter box** on the Secrets DataGrid.
+4. **Search / filter box** on the Secrets DataGrid.
 
 ## Done
+
+### 2026-04-25 — Script-side vault access (`Secrets` global)
+
+`.csx` scripts can now resolve vault entries directly:
+
+```csharp
+var token = Secrets.Resolve("api", "token");          // sync
+var conn  = await Secrets.ResolveAsync("azure", "prod-sql"); // async
+// Delegate form for libraries (AzureBlast / planned NetBlast / …):
+var db = new SomeClient(Secrets.Resolver, "prod-sql");
+```
+
+- New `TaskBlaster.Engine.ScriptGlobals` is passed to Roslyn as the
+  script-globals object; its public `Secrets` property (a
+  `ScriptSecrets`) surfaces as a top-level identifier inside every
+  script.
+- `ScriptSecrets.Resolver` is a `Func<category, key, ct, Task<string>>`
+  shaped for any third-party library that takes a named-connection
+  resolver — no SecretBlast / TaskBlaster coupling on the library side.
+- `IScriptBlaster.RunAsync` gained a `ScriptGlobals?` parameter; when
+  non-null Roslyn is called with `globalsType: typeof(ScriptGlobals)`.
+- If a script hits `Secrets.Resolve` against a locked vault,
+  `MainWindow.EnsureVaultUnlockedAsync` hops to the UI thread and
+  reuses the normal create/unlock dialog flow. Cancelling the prompt
+  surfaces as a runtime `InvalidOperationException` inside the script.
+- Demo: `DemoScripts/secret-resolve.csx`.
+- Tests: 4 new (`ScriptSecretsTests`), 164 green. Script-touching
+  tests moved into a shared `[Collection("ScriptBlaster")]` because
+  `ScriptBlaster` swaps `Console.Out` globally and parallel tests were
+  stomping on each other's captured output.
 
 ### 2026-04-24 — SecretBlast integration (Secrets tab)
 

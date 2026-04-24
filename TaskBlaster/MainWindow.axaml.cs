@@ -80,6 +80,7 @@ public partial class MainWindow : Window
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
         _secrets.UnlockRequested += OnVaultUnlockRequested;
+        _designer.Initialize(_vaultService, EnsureVaultUnlockedAsync);
 
         _sidebar.ScriptSelected += OnFileSelected;
 
@@ -285,10 +286,18 @@ public partial class MainWindow : Window
         BlastResult result;
         try
         {
+            var globals = new ScriptGlobals(
+                new ScriptSecrets(_vaultService, EnsureVaultUnlockedAsync));
+
             result = await _blaster.RunAsync(
                 scriptText,
                 path,
-                line => Dispatcher.UIThread.Post(() => _terminal.Log(line)),
+                // Invoke (blocking) rather than Post so each line is on the
+                // terminal before the script moves on — otherwise the trailing
+                // "✓ finished" log can race ahead of queued output lines and
+                // appear above them.
+                line => Dispatcher.UIThread.Invoke(() => _terminal.Log(line)),
+                globals,
                 _runCts.Token);
         }
         finally
@@ -315,7 +324,15 @@ public partial class MainWindow : Window
         _statusBar.Status = "Previewing…";
         try
         {
-            var result = await DynamicForm.ShowJsonAsync(json);
+            // Resolve any vault-backed options before GuiBlast sees the JSON.
+            // If the form doesn't use dynamic options, FormJsonExpander returns
+            // the input unchanged; unlocking is only needed when there IS work.
+            if (FormNeedsVault(json) && !_vaultService.IsUnlocked)
+                await EnsureVaultUnlockedAsync(CancellationToken.None);
+
+            var expanded = await Forms.FormJsonExpander.ExpandAsync(json, _vaultService);
+
+            var result = await DynamicForm.ShowJsonAsync(expanded);
             _terminal.Log($"Form {(result.Submitted ? "submitted" : "cancelled")}.");
             if (result.Submitted) _terminal.Log(result.ToJson(indented: true));
         }
@@ -329,11 +346,29 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Cheap check for whether expansion will need a live vault.</summary>
+    private static bool FormNeedsVault(string json)
+        => json.Contains("\"optionsFrom\"", StringComparison.Ordinal);
+
     private void OnStopClicked(object? sender, EventArgs e) => _runCts?.Cancel();
 
     // ==================== Vault unlock / create ====================
 
     private async void OnVaultUnlockRequested(object? sender, EventArgs e) => await UnlockOrCreateVaultAsync();
+
+    /// <summary>
+    /// Called from a script-thread when a <c>Secrets.Resolve</c> hits a
+    /// locked vault. Hops to the UI thread and reuses the normal
+    /// create/unlock flow so the script gets the same password UX the
+    /// Secrets tab does. Returns when the vault is unlocked, or when the
+    /// user cancels — <see cref="ScriptSecrets"/> then surfaces the
+    /// still-locked state as an <see cref="InvalidOperationException"/>.
+    /// </summary>
+    private Task EnsureVaultUnlockedAsync(CancellationToken ct)
+    {
+        if (_vaultService.IsUnlocked) return Task.CompletedTask;
+        return Dispatcher.UIThread.InvokeAsync(UnlockOrCreateVaultAsync);
+    }
 
     private async Task UnlockOrCreateVaultAsync()
     {

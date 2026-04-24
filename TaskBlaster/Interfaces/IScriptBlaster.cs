@@ -11,9 +11,16 @@ namespace TaskBlaster.Interfaces;
 /// </summary>
 public interface IScriptBlaster
 {
+    /// <summary>
+    /// Run <paramref name="scriptText"/>. When <paramref name="globals"/> is
+    /// non-null its public members are exposed as top-level identifiers
+    /// inside the script (Roslyn globals). Pass null to run without any
+    /// injected bindings — useful for tests and stub callers.
+    /// </summary>
     Task<BlastResult> RunAsync(
         string scriptText,
         string? scriptPath,
         Action<string> onOutput,
+        ScriptGlobals? globals,
         CancellationToken cancellationToken);
 }

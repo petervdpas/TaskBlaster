@@ -2,10 +2,32 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="280"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="420"
              x:Class="TaskBlaster.Views.FieldEditors.OptionsPropertyEditor">
     <StackPanel Spacing="6">
         <TextBlock Text="Options" FontWeight="SemiBold" />
+
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="Source:" VerticalAlignment="Center" />
+            <RadioButton Name="StaticRadio" GroupName="OptSrc"
+                         Content="Static" IsChecked="True"
+                         IsCheckedChanged="OnStaticSelected" />
+            <RadioButton Name="VaultRadio"  GroupName="OptSrc"
+                         Content="From vault"
+                         IsCheckedChanged="OnVaultSelected" />
+        </StackPanel>
+
+        <!-- Category picker: only shown in vault mode. Drives what's allowed in the Value dropdown below. -->
+        <StackPanel Name="CategoryPanel" Spacing="4" IsVisible="False">
+            <TextBlock Text="Category" />
+            <ComboBox  Name="CategoryCombo" HorizontalAlignment="Stretch"
+                       SelectionChanged="OnCategorySelectionChanged" />
+            <TextBlock Name="VaultHint"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Options list with +/- works for both modes. -->
         <Border BorderThickness="1" CornerRadius="3"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
             <StackPanel>
@@ -16,10 +38,15 @@
                 </StackPanel>
             </StackPanel>
         </Border>
+
+        <!-- Value + Label. Value shows a TextBox (Static) or a ComboBox of vault keys (From vault). -->
         <Grid ColumnDefinitions="*,*">
             <StackPanel Grid.Column="0" Margin="0,0,4,0">
                 <TextBlock Text="Value" />
-                <TextBox   Name="OptionValueBox" />
+                <TextBox  Name="OptionValueBox" />
+                <ComboBox Name="OptionValueCombo" IsVisible="False"
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="OnValueComboSelectionChanged" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="4,0,0,0">
                 <TextBlock Text="Label" />

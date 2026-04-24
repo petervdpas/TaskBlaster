@@ -6,13 +6,14 @@ using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Tests;
 
+[Collection("ScriptBlaster")]
 public class ScriptBlasterTests
 {
     private static async Task<(BlastResult result, List<string> output)> RunAsync(string script, CancellationToken ct = default)
     {
         IScriptBlaster blaster = new ScriptBlaster();
         var output = new List<string>();
-        var result = await blaster.RunAsync(script, scriptPath: null, output.Add, ct);
+        var result = await blaster.RunAsync(script, scriptPath: null, output.Add, globals: null, ct);
         return (result, output);
     }
 

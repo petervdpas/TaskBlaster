@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -32,8 +34,23 @@ public partial class FormDesignerView : UserControl
     private IFieldPropertyEditor? _currentExtra;
     private string? _currentExtraType;
     private bool _updatingFromDocument;
+    private IVaultService? _vault;
+    private Func<CancellationToken, Task>? _ensureUnlocked;
 
     public event EventHandler? FormSettingsClicked;
+
+    /// <summary>
+    /// Hands the designer an <see cref="IVaultService"/> plus the
+    /// owner-supplied unlock callback. Option-bearing editors
+    /// (select/multiselect/radio) use the callback to pop the password
+    /// prompt in place when the user picks "From vault" against a locked
+    /// vault. Safe to call once after the view is constructed.
+    /// </summary>
+    public void Initialize(IVaultService vault, Func<CancellationToken, Task> ensureUnlocked)
+    {
+        _vault = vault;
+        _ensureUnlocked = ensureUnlocked;
+    }
 
     public FormDesignerView()
     {
@@ -188,7 +205,7 @@ public partial class FormDesignerView : UserControl
             return;
         }
 
-        var editor = FieldPropertyEditorFactory.Create(field.Type);
+        var editor = FieldPropertyEditorFactory.Create(field.Type, _vault, _ensureUnlocked);
         if (editor is IFieldPropertyEditor extra)
         {
             extra.Bind(field);

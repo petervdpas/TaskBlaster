@@ -117,6 +117,7 @@ public sealed class FormEditor
         public string? Pattern { get; set; }
         public bool? Email { get; set; }
         public List<OptionDto>? Options { get; set; }
+        public OptionsFromDto? OptionsFrom { get; set; }
         public string? Description { get; set; }
         public string[]? Tags { get; set; }
     }
@@ -126,6 +127,20 @@ public sealed class FormEditor
         public string? Value { get; set; }
         public string? Label { get; set; }
         public string[]? Tags { get; set; }
+    }
+
+    /// <summary>
+    /// Points a select-style field's options at a dynamic source. When
+    /// present, <see cref="FormJsonExpander"/> replaces it with a
+    /// materialised <see cref="FieldDto.Options"/> array before GuiBlast
+    /// ever sees the JSON. Today only <c>source = "vault"</c> is
+    /// understood; the string-typed field leaves room for future
+    /// sources (file, env, command, …) without a breaking change.
+    /// </summary>
+    internal sealed class OptionsFromDto
+    {
+        public string? Source { get; set; }
+        public string? Category { get; set; }
     }
 
     internal sealed class VisibilityDto
@@ -163,6 +178,15 @@ public sealed class FieldEditor
     public bool Email { get; set; }
     public string? Description { get; set; }
     public ObservableCollection<OptionEditor> Options { get; } = new();
+
+    /// <summary>
+    /// When non-null, the static <see cref="Options"/> list is ignored at
+    /// render time and the expander materialises the options from this
+    /// source (e.g. vault category keys). Only meaningful on
+    /// option-bearing field types (see <see cref="SupportsOptions"/>).
+    /// </summary>
+    public OptionsSourceEditor? OptionsSource { get; set; }
+
     public ObservableCollection<string> Tags { get; } = new();
 
     internal static FieldEditor FromDto(FormEditor.FieldDto dto)
@@ -189,6 +213,12 @@ public sealed class FieldEditor
                 if (o.Tags is not null) foreach (var t in o.Tags) opt.Tags.Add(t);
                 f.Options.Add(opt);
             }
+        if (dto.OptionsFrom is not null && !string.IsNullOrWhiteSpace(dto.OptionsFrom.Source))
+            f.OptionsSource = new OptionsSourceEditor
+            {
+                Source   = dto.OptionsFrom.Source!,
+                Category = dto.OptionsFrom.Category ?? "",
+            };
         if (dto.Tags is not null)
             foreach (var t in dto.Tags) f.Tags.Add(t);
         return f;
@@ -212,16 +242,31 @@ public sealed class FieldEditor
             Description = string.IsNullOrEmpty(Description) ? null : Description,
             Tags = Tags.Count > 0 ? Tags.ToArray() : null,
         };
-        if (SupportsOptions(Type) && Options.Count > 0)
+        if (SupportsOptions(Type))
         {
-            dto.Options = new List<FormEditor.OptionDto>();
-            foreach (var o in Options)
-                dto.Options.Add(new FormEditor.OptionDto
+            if (OptionsSource is not null && !string.IsNullOrWhiteSpace(OptionsSource.Source))
+            {
+                dto.OptionsFrom = new FormEditor.OptionsFromDto
                 {
-                    Value = o.Value,
-                    Label = o.Label,
-                    Tags = o.Tags.Count > 0 ? o.Tags.ToArray() : null,
-                });
+                    Source   = OptionsSource.Source,
+                    Category = string.IsNullOrWhiteSpace(OptionsSource.Category) ? null : OptionsSource.Category,
+                };
+            }
+            // Options always persist when present — in vault mode they're the
+            // user-picked subset of category keys; in static mode they're
+            // free-form. Missing options + vault mode means "all keys in the
+            // category"; the expander fills that in at render time.
+            if (Options.Count > 0)
+            {
+                dto.Options = new List<FormEditor.OptionDto>();
+                foreach (var o in Options)
+                    dto.Options.Add(new FormEditor.OptionDto
+                    {
+                        Value = o.Value,
+                        Label = o.Label,
+                        Tags = o.Tags.Count > 0 ? o.Tags.ToArray() : null,
+                    });
+            }
         }
         return dto;
     }
@@ -237,6 +282,18 @@ public sealed class OptionEditor
     public string Value { get; set; } = "";
     public string? Label { get; set; }
     public ObservableCollection<string> Tags { get; } = new();
+}
+
+/// <summary>
+/// Dynamic-options binding for select-style fields. Companion to
+/// <see cref="FormEditor.OptionsFromDto"/>. Today only <c>Source =
+/// "vault"</c> is interpreted; a Category then names the vault
+/// category whose keys become the option list at render time.
+/// </summary>
+public sealed class OptionsSourceEditor
+{
+    public string Source { get; set; } = "vault";
+    public string Category { get; set; } = "";
 }
 
 public sealed class VisibilityRuleEditor
