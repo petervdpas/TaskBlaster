@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SecretBlast;
@@ -109,6 +110,9 @@ public sealed class VaultService : IVaultService, IDisposable
         var result = new List<SecretEntry>(ids.Count);
         foreach (var id in ids)
         {
+            // Reserved catalog record is not a user-facing secret.
+            if (id == CategoryCatalog.ReservedId) continue;
+
             var json = await vault.GetAsync(id, ct);
             SecretEnvelope env;
             try
@@ -123,6 +127,48 @@ public sealed class VaultService : IVaultService, IDisposable
             result.Add(ToEntry(id, env));
         }
         return result;
+    }
+
+    public async Task<IReadOnlyList<string>> GetCategoriesAsync(CancellationToken ct = default)
+    {
+        var vault = EnsureUnlocked();
+
+        CategoryCatalog? catalog = null;
+        try
+        {
+            var json = await vault.GetAsync(CategoryCatalog.ReservedId, ct);
+            catalog = CategoryCatalog.FromJson(json);
+        }
+        catch (SecretNotFoundException)
+        {
+            // No catalog persisted yet — fall through to the migration path.
+        }
+        catch (InvalidCategoryCatalogException)
+        {
+            // Corrupt catalog — treat as empty and rebuild from live secrets.
+        }
+
+        var persisted = catalog?.Categories ?? Array.Empty<string>();
+        var fromSecrets = (await ListAsync(ct))
+            .Select(e => e.Category)
+            .Where(c => !string.IsNullOrWhiteSpace(c));
+
+        var union = CategoryCatalog.Normalize(persisted.Concat(fromSecrets));
+
+        // First-read migration: if we just synthesised categories from secrets
+        // (no persisted catalog), save them so future reads are stable.
+        if (catalog is null && union.Count > 0)
+        {
+            await SetCategoriesAsync(union, ct);
+        }
+        return union;
+    }
+
+    public async Task SetCategoriesAsync(IEnumerable<string> categories, CancellationToken ct = default)
+    {
+        var vault = EnsureUnlocked();
+        var catalog = CategoryCatalog.Create(categories);
+        await vault.SetAsync(CategoryCatalog.ReservedId, catalog.ToJson(), ct);
     }
 
     public async Task<SecretEntry> AddAsync(string category, string key, string value, string? description = null, CancellationToken ct = default)
@@ -193,14 +239,27 @@ public sealed class VaultService : IVaultService, IDisposable
     {
         var vault = EnsureUnlocked();
 
-        // 1. Capture every envelope into memory. If decoding a record fails,
-        //    skip it — forward-compat — but surface the loss in the exception
-        //    message if the rewrite phase later dies.
+        // 1a. Capture every envelope into memory. If decoding a record fails,
+        //     skip it — forward-compat — but surface the loss in the exception
+        //     message if the rewrite phase later dies.
         var ids = await vault.ListAsync(ct);
         var snapshot = new List<(string category, string key, string value, string? description, DateTime createdUtc)>(ids.Count);
+        IReadOnlyList<string>? catalog = null;
         foreach (var id in ids)
         {
             var json = await vault.GetAsync(id, ct);
+
+            // 1b. Preserve the categories catalog through the rekey; it's a
+            //     user-visible setting, not a secret, and we don't want to
+            //     synthesise-from-secrets on the first unlock after a
+            //     password change.
+            if (id == CategoryCatalog.ReservedId)
+            {
+                try { catalog = CategoryCatalog.FromJson(json).Categories; }
+                catch (InvalidCategoryCatalogException) { /* drop corrupt catalog */ }
+                continue;
+            }
+
             SecretEnvelope env;
             try { env = SecretEnvelope.FromJson(json); }
             catch (InvalidSecretEnvelopeException) { continue; }
@@ -226,6 +285,7 @@ public sealed class VaultService : IVaultService, IDisposable
         try
         {
             await InitializeAsync(newPassword, ct);
+            if (catalog is not null) await SetCategoriesAsync(catalog, ct);
             foreach (var e in snapshot)
             {
                 await AddAsync(e.category, e.key, e.value, e.description, ct);

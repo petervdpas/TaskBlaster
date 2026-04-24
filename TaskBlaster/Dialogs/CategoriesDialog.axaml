@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TaskBlaster.Dialogs.CategoriesDialog"
+        Width="460" Height="420"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
+        Title="Categories">
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="16">
+        <TextBlock Grid.Row="0"
+                   Text="Manage the category list used by the New/Edit secret dialogs."
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10" />
+
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="1">
+            <ListBox Name="CategoriesList" SelectionChanged="OnSelectionChanged" />
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="0,10,0,0">
+            <Button Name="AddButton"    Content="➕ Add"    Click="OnAddClicked" />
+            <Button Name="RenameButton" Content="✏ Rename" IsEnabled="False" Click="OnRenameClicked" />
+            <Button Name="RemoveButton" Content="🗑 Remove" IsEnabled="False" Click="OnRemoveClicked" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,14,0,0">
+            <Button Name="CancelButton" Content="Cancel" Click="OnCancel" />
+            <Button Name="SaveButton"   Content="Save"   Click="OnSave" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

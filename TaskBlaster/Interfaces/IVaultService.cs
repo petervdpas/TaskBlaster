@@ -70,4 +70,16 @@ public interface IVaultService
     /// exception is rethrown.
     /// </summary>
     Task ChangePasswordAsync(string newPassword, CancellationToken ct = default);
+
+    /// <summary>
+    /// Load the user-configured category list. On first read — before the
+    /// user has ever opened the Categories dialog — the returned list is the
+    /// union of (any previously persisted catalog) and every category
+    /// actually used by an existing secret. That migration step means
+    /// pre-category-catalog vaults don't appear empty.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetCategoriesAsync(CancellationToken ct = default);
+
+    /// <summary>Persist a replacement category list.</summary>
+    Task SetCategoriesAsync(IEnumerable<string> categories, CancellationToken ct = default);
 }

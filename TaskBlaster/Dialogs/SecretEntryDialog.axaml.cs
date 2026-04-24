@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
@@ -14,7 +15,7 @@ public sealed record SecretEntryDialogResult(string Category, string Key, string
 
 public partial class SecretEntryDialog : Window
 {
-    private readonly AutoCompleteBox _category;
+    private readonly ComboBox _category;
     private readonly TextBox _key;
     private readonly TextBox _value;
     private readonly TextBox _description;
@@ -23,13 +24,13 @@ public partial class SecretEntryDialog : Window
     private readonly Button _reveal;
     private bool _valueRevealed;
 
-    public SecretEntryDialog() : this("New secret", null, System.Array.Empty<string>()) { }
+    public SecretEntryDialog() : this("New secret", existing: null, categories: Array.Empty<string>()) { }
 
-    public SecretEntryDialog(string title, SecretEntry? existing, IReadOnlyList<string> knownCategories)
+    public SecretEntryDialog(string title, SecretEntry? existing, IReadOnlyList<string> categories)
     {
         InitializeComponent();
         Title = title;
-        _category    = this.FindControl<AutoCompleteBox>("CategoryBox")!;
+        _category    = this.FindControl<ComboBox>("CategoryBox")!;
         _key         = this.FindControl<TextBox>("KeyBox")!;
         _value       = this.FindControl<TextBox>("ValueBox")!;
         _description = this.FindControl<TextBox>("DescriptionBox")!;
@@ -37,20 +38,43 @@ public partial class SecretEntryDialog : Window
         _metadata    = this.FindControl<TextBlock>("MetadataText")!;
         _reveal      = this.FindControl<Button>("ToggleRevealButton")!;
 
-        _category.ItemsSource = knownCategories
+        var items = categories
             .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct()
-            .OrderBy(c => c, System.StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // If we're editing a secret whose category isn't in the catalog any
+        // more, surface it in the dropdown so the user can keep it or pick
+        // something else explicitly.
+        if (existing is not null &&
+            !string.IsNullOrWhiteSpace(existing.Category) &&
+            !items.Contains(existing.Category, StringComparer.OrdinalIgnoreCase))
+        {
+            items.Insert(0, existing.Category);
+        }
+
+        _category.ItemsSource = items;
 
         if (existing is not null)
         {
-            _category.Text   = existing.Category;
-            _key.Text        = existing.Key;
-            _value.Text      = existing.Value;
+            _category.SelectedItem = items.FirstOrDefault(
+                c => string.Equals(c, existing.Category, StringComparison.OrdinalIgnoreCase));
+            _key.Text         = existing.Key;
+            _value.Text       = existing.Value;
             _description.Text = existing.Description ?? string.Empty;
             _metadata.IsVisible = true;
             _metadata.Text = $"Created {existing.CreatedUtc:yyyy-MM-dd HH:mm} UTC · Updated {existing.UpdatedUtc:yyyy-MM-dd HH:mm} UTC";
+        }
+        else if (items.Count == 1)
+        {
+            // Convenience: single-category vaults default to the only option.
+            _category.SelectedItem = items[0];
+        }
+
+        if (items.Count == 0)
+        {
+            ShowError("No categories defined. Close this dialog and click 📁 Categories… to add one first.");
         }
 
         Opened += (_, _) =>
@@ -70,13 +94,13 @@ public partial class SecretEntryDialog : Window
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
-        var category = (_category.Text ?? string.Empty).Trim();
-        var key      = (_key.Text      ?? string.Empty).Trim();
-        var value    =  _value.Text    ?? string.Empty;
+        var category = (_category.SelectedItem as string)?.Trim() ?? string.Empty;
+        var key      = (_key.Text ?? string.Empty).Trim();
+        var value    =  _value.Text ?? string.Empty;
         var desc     = (_description.Text ?? string.Empty).Trim();
 
-        if (category.Length == 0) { ShowError("Category is required."); return; }
-        if (key.Length      == 0) { ShowError("Key is required.");      return; }
+        if (category.Length == 0) { ShowError("Pick a category."); return; }
+        if (key.Length      == 0) { ShowError("Key is required."); return; }
 
         Close(new SecretEntryDialogResult(category, key, value, desc.Length == 0 ? null : desc));
     }

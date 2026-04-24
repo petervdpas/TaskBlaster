@@ -18,7 +18,9 @@ public partial class PasswordDialog : Window
     private readonly TextBox _confirm;
     private readonly StackPanel _confirmPanel;
     private readonly TextBlock _errorText;
+    private readonly Button _reveal;
     private readonly PasswordDialogMode _mode;
+    private bool _revealed;
 
     public PasswordDialog() : this("Password", "Enter password.", PasswordDialogMode.Unlock) { }
 
@@ -31,12 +33,26 @@ public partial class PasswordDialog : Window
         _confirm      = this.FindControl<TextBox>("ConfirmBox")!;
         _confirmPanel = this.FindControl<StackPanel>("ConfirmPanel")!;
         _errorText    = this.FindControl<TextBlock>("ErrorText")!;
+        _reveal       = this.FindControl<Button>("RevealButton")!;
         _mode = mode;
 
         _confirmPanel.IsVisible = mode == PasswordDialogMode.Create;
 
+        // Clear any stale error the moment the user edits either field so
+        // the UI doesn't lie about the current state.
+        _password.TextChanged += (_, _) => ClearError();
+        _confirm.TextChanged  += (_, _) => ClearError();
+
         Opened += (_, _) => _password.Focus();
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close((string?)null); };
+    }
+
+    private void OnToggleReveal(object? sender, RoutedEventArgs e)
+    {
+        _revealed = !_revealed;
+        _password.PasswordChar = _revealed ? default : '•';
+        _confirm.PasswordChar  = _revealed ? default : '•';
+        _reveal.Content = _revealed ? "🙈" : "👁";
     }
 
     private void OnOk(object? sender, RoutedEventArgs e)
@@ -67,5 +83,11 @@ public partial class PasswordDialog : Window
     {
         _errorText.Text = message;
         _errorText.IsVisible = true;
+    }
+
+    private void ClearError()
+    {
+        if (!_errorText.IsVisible) return;
+        _errorText.IsVisible = false;
     }
 }

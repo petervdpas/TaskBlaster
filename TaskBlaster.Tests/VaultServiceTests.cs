@@ -293,6 +293,99 @@ public sealed class VaultServiceTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(() => _service.ChangePasswordAsync("new"));
     }
 
+    // ---------- Categories catalog ----------
+
+    [Fact]
+    public async Task GetCategories_FreshVault_IsEmpty()
+    {
+        await _service.InitializeAsync("pw");
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Empty(cats);
+    }
+
+    [Fact]
+    public async Task SetCategories_ThenGet_ReturnsSortedNormalizedList()
+    {
+        await _service.InitializeAsync("pw");
+        await _service.SetCategoriesAsync(new[] { "github", "  azure  ", "GITHUB", "", "backup" });
+
+        var cats = await _service.GetCategoriesAsync();
+        // Normalize: trim, dedupe case-insensitively (first-seen casing wins), drop empties, sort.
+        Assert.Equal(new[] { "azure", "backup", "github" }, cats.ToArray());
+    }
+
+    [Fact]
+    public async Task ListAsync_DoesNotLeakCatalogAsSecret()
+    {
+        await _service.InitializeAsync("pw");
+        await _service.SetCategoriesAsync(new[] { "azure" });
+        await _service.AddAsync("azure", "prod-sql", "v");
+
+        var all = await _service.ListAsync();
+        Assert.Single(all);
+        Assert.Equal("azure", all[0].Category);
+        Assert.Equal("prod-sql", all[0].Key);
+    }
+
+    [Fact]
+    public async Task GetCategories_FirstRead_MigratesFromLiveSecrets()
+    {
+        // Simulate a pre-catalog vault by adding secrets before any catalog write.
+        await _service.InitializeAsync("pw");
+        await _service.AddAsync("azure",  "prod-sql", "v1");
+        await _service.AddAsync("github", "token",    "v2");
+
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Equal(new[] { "azure", "github" }, cats.ToArray());
+    }
+
+    [Fact]
+    public async Task GetCategories_FirstRead_PersistsMigration()
+    {
+        // After migration, a fresh lock/unlock round trip must return the same
+        // list *without* needing another migration (proves we wrote it).
+        await _service.InitializeAsync("pw");
+        await _service.AddAsync("azure", "prod-sql", "v");
+        _ = await _service.GetCategoriesAsync();   // migration
+        _service.Lock();
+        await _service.UnlockAsync("pw");
+
+        // If the write didn't take, deleting the only secret would leave
+        // GetCategoriesAsync returning []. After a real persist, the category
+        // survives removal of its last secret.
+        var onlyEntry = (await _service.ListAsync()).Single();
+        await _service.DeleteAsync(onlyEntry.Id);
+
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Contains("azure", cats);
+    }
+
+    [Fact]
+    public async Task ChangePassword_PreservesCategoryCatalog()
+    {
+        await _service.InitializeAsync("old");
+        await _service.SetCategoriesAsync(new[] { "azure", "github", "backup" });
+        await _service.AddAsync("azure", "prod", "v");
+
+        await _service.ChangePasswordAsync("new");
+
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Equal(new[] { "azure", "backup", "github" }, cats.ToArray());
+    }
+
+    [Fact]
+    public async Task Categories_SurviveLockUnlockCycle()
+    {
+        await _service.InitializeAsync("pw");
+        await _service.SetCategoriesAsync(new[] { "azure", "github" });
+
+        _service.Lock();
+        await _service.UnlockAsync("pw");
+
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Equal(new[] { "azure", "github" }, cats.ToArray());
+    }
+
     /// <summary>
     /// Minimal <see cref="IConfigStore"/> for tests — only <see cref="VaultFolder"/>
     /// matters for <see cref="VaultService"/>; the other paths are unused.

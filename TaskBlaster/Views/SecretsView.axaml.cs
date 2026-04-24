@@ -18,7 +18,7 @@ public partial class SecretsView : UserControl
 {
     private readonly Grid _lockedPanel;
     private readonly Grid _unlockedPanel;
-    private readonly ListBox _categories;
+    private readonly ListBox _categoriesListBox;
     private readonly DataGrid _grid;
     private readonly Button _editButton;
     private readonly Button _deleteButton;
@@ -32,6 +32,8 @@ public partial class SecretsView : UserControl
 
     /// <summary>All entries currently in the vault.</summary>
     private List<SecretEntry> _all = new();
+    /// <summary>User-configured categories (persisted in the vault catalog).</summary>
+    private List<string> _categories = new();
     private const string AllCategoriesLabel = "(All)";
 
     public event EventHandler? UnlockRequested;
@@ -39,10 +41,10 @@ public partial class SecretsView : UserControl
     public SecretsView()
     {
         InitializeComponent();
-        _lockedPanel   = this.FindControl<Grid>("LockedPanel")!;
-        _unlockedPanel = this.FindControl<Grid>("UnlockedPanel")!;
-        _categories    = this.FindControl<ListBox>("CategoriesList")!;
-        _grid          = this.FindControl<DataGrid>("EntriesGrid")!;
+        _lockedPanel       = this.FindControl<Grid>("LockedPanel")!;
+        _unlockedPanel     = this.FindControl<Grid>("UnlockedPanel")!;
+        _categoriesListBox = this.FindControl<ListBox>("CategoriesList")!;
+        _grid              = this.FindControl<DataGrid>("EntriesGrid")!;
         _editButton    = this.FindControl<Button>("EditButton")!;
         _deleteButton  = this.FindControl<Button>("DeleteButton")!;
         _copyButton    = this.FindControl<Button>("CopyButton")!;
@@ -80,7 +82,8 @@ public partial class SecretsView : UserControl
     private void OnVaultLocked()
     {
         _all = new();
-        _categories.ItemsSource = Array.Empty<string>();
+        _categories = new();
+        _categoriesListBox.ItemsSource = Array.Empty<string>();
         _grid.ItemsSource = Array.Empty<SecretRow>();
         UpdateActionState();
         ShowLocked("Vault locked. Unlock to view secrets.");
@@ -109,6 +112,7 @@ public partial class SecretsView : UserControl
     {
         if (_vault is null) return;
         _all = (await _vault.ListAsync()).ToList();
+        _categories = (await _vault.GetCategoriesAsync()).ToList();
         RefreshCategoryList();
         RefreshGrid();
         ShowUnlocked();
@@ -116,28 +120,31 @@ public partial class SecretsView : UserControl
 
     private void RefreshCategoryList()
     {
-        var currentSelection = _categories.SelectedItem as string;
+        var currentSelection = _categoriesListBox.SelectedItem as string;
 
-        var cats = _all
-            .Select(e => e.Category)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
+        // Union the user-configured catalog with any category actually in use
+        // on a secret (covers the "category referenced by a secret but not yet
+        // in the catalog" case — shouldn't happen in normal flow but keeps
+        // the sidebar honest).
+        var cats = _categories
+            .Concat(_all.Select(e => e.Category).Where(c => !string.IsNullOrWhiteSpace(c)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
             .ToList();
         var items = new List<string> { AllCategoriesLabel };
         items.AddRange(cats);
-        _categories.ItemsSource = items;
+        _categoriesListBox.ItemsSource = items;
 
         // Preserve selection if possible.
         if (!string.IsNullOrEmpty(currentSelection) && items.Contains(currentSelection))
-            _categories.SelectedItem = currentSelection;
+            _categoriesListBox.SelectedItem = currentSelection;
         else
-            _categories.SelectedItem = AllCategoriesLabel;
+            _categoriesListBox.SelectedItem = AllCategoriesLabel;
     }
 
     private void RefreshGrid()
     {
-        var selectedCat = _categories.SelectedItem as string ?? AllCategoriesLabel;
+        var selectedCat = _categoriesListBox.SelectedItem as string ?? AllCategoriesLabel;
         IEnumerable<SecretEntry> filtered = _all;
         if (!string.Equals(selectedCat, AllCategoriesLabel, StringComparison.Ordinal))
         {
@@ -175,8 +182,7 @@ public partial class SecretsView : UserControl
         var owner = TopLevel.GetTopLevel(this) as Window;
         if (owner is null) return;
 
-        var known = _all.Select(x => x.Category).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var result = await new SecretEntryDialog("New secret", existing: null, knownCategories: known)
+        var result = await new SecretEntryDialog("New secret", existing: null, categories: _categories)
             .ShowDialog<SecretEntryDialogResult?>(owner);
         if (result is null) return;
 
@@ -204,8 +210,7 @@ public partial class SecretsView : UserControl
         var owner = TopLevel.GetTopLevel(this) as Window;
         if (owner is null) return;
 
-        var known = _all.Select(x => x.Category).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var result = await new SecretEntryDialog("Edit secret", existing: row.Entry, knownCategories: known)
+        var result = await new SecretEntryDialog("Edit secret", existing: row.Entry, categories: _categories)
             .ShowDialog<SecretEntryDialogResult?>(owner);
         if (result is null) return;
 
@@ -256,6 +261,33 @@ public partial class SecretsView : UserControl
     {
         _vault?.Lock();
         // OnVaultLocked runs via the event handler and updates UI state.
+    }
+
+    private async void OnCategoriesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vault is null || _prompts is null) return;
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        if (owner is null) return;
+
+        // Count usages so the dialog can block remove and warn on rename.
+        var usage = _all
+            .GroupBy(entry => entry.Category, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        var result = await new CategoriesDialog(_categories, usage, _prompts)
+            .ShowDialog<CategoriesDialogResult?>(owner);
+        if (result is null) return;
+
+        try
+        {
+            await _vault.SetCategoriesAsync(result.Categories);
+            _log?.Invoke($"Categories updated ({result.Categories.Count} total).");
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            await _prompts.MessageAsync("Save failed", ex.Message);
+        }
     }
 
     private async void OnResetClicked(object? sender, RoutedEventArgs e)
