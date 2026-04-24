@@ -311,7 +311,12 @@ public partial class MainWindow : Window
         switch (result.Status)
         {
             case BlastStatus.Ok:        _terminal.Log($"✓ {name} finished.");           _statusBar.Status = "Ready";     break;
-            case BlastStatus.Cancelled: _terminal.Log($"⊘ {name} cancelled.");           _statusBar.Status = "Cancelled"; break;
+            case BlastStatus.Cancelled:
+                _terminal.Log(string.IsNullOrEmpty(result.Message)
+                    ? $"⊘ {name} cancelled."
+                    : $"⊘ {name} cancelled: {result.Message}");
+                _statusBar.Status = "Cancelled";
+                break;
             case BlastStatus.Error:     _terminal.Log($"✗ {name} failed: {result.Message}"); _statusBar.Status = "Error"; break;
         }
     }

@@ -92,25 +92,42 @@ public sealed class ScriptSecretsTests : IDisposable
     }
 
     [Fact]
-    public async Task Script_WhenVaultStaysLocked_Resolve_Throws()
+    public async Task Script_WhenVaultStaysLocked_AbortsAsCancelled_WithoutStackDump()
     {
-        // Vault never unlocked, and the ensureUnlocked callback is a no-op
-        // (simulating a user who cancelled the unlock prompt). The script
-        // should see a runtime exception, which ScriptBlaster reports as an
-        // Error result.
+        // User cancelled the unlock prompt (ensureUnlocked is a no-op and
+        // vault stays locked). Script should:
+        //   1. abort — Console.WriteLine("after") never runs,
+        //   2. report as Cancelled (⊘), not Error (✗),
+        //   3. surface only the clean message, no stack trace in output.
         var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
 
         var blaster = new ScriptBlaster();
         var output = new System.Collections.Generic.List<string>();
 
         var result = await blaster.RunAsync(
-            "var v = Secrets.Resolve(\"api\", \"token\"); Console.WriteLine(v);",
+            """
+            Console.WriteLine("before");
+            var v = Secrets.Resolve("api", "token");
+            Console.WriteLine("after");
+            """,
             scriptPath: null,
             output.Add,
             globals,
             CancellationToken.None);
 
-        Assert.Equal(BlastStatus.Error, result.Status);
+        Assert.Equal(BlastStatus.Cancelled, result.Status);
+        Assert.Equal("Vault is locked, cannot resolve secret.", result.Message);
+
+        // Abort — "after" line was never reached.
+        Assert.Contains("before", output);
+        Assert.DoesNotContain("after", output);
+
+        // No stack trace leaked to the terminal. Everything ScriptBlaster
+        // writes goes through onOutput — the exception's type name, stack
+        // frames, and "End of stack trace" marker must all be absent.
+        Assert.DoesNotContain(output, line => line.Contains("at TaskBlaster.Engine."));
+        Assert.DoesNotContain(output, line => line.Contains("VaultLockedException"));
+        Assert.DoesNotContain(output, line => line.Contains("End of stack trace"));
     }
 
     [Fact]

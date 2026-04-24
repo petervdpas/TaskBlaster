@@ -48,7 +48,7 @@ public sealed class ScriptSecrets
     {
         await _ensureUnlocked(ct).ConfigureAwait(false);
         if (!_vault.IsUnlocked)
-            throw new InvalidOperationException("Vault is locked — cannot resolve secret.");
+            throw new VaultLockedException("Vault is locked, cannot resolve secret.");
         return await _vault.ResolveAsync(category, key, ct).ConfigureAwait(false);
     }
 
@@ -76,7 +76,7 @@ public sealed class ScriptSecrets
     {
         await _ensureUnlocked(ct).ConfigureAwait(false);
         if (!_vault.IsUnlocked)
-            throw new InvalidOperationException("Vault is locked — cannot list categories.");
+            throw new VaultLockedException("Vault is locked, cannot list categories.");
         return await _vault.GetCategoriesAsync(ct).ConfigureAwait(false);
     }
 
@@ -94,7 +94,7 @@ public sealed class ScriptSecrets
     {
         await _ensureUnlocked(ct).ConfigureAwait(false);
         if (!_vault.IsUnlocked)
-            throw new InvalidOperationException("Vault is locked — cannot list keys.");
+            throw new VaultLockedException("Vault is locked, cannot list keys.");
 
         var wanted = (category ?? string.Empty).Trim();
         var all = await _vault.ListAsync(ct).ConfigureAwait(false);

@@ -353,7 +353,7 @@ public partial class SecretsView : UserControl
 
         var newPw = await _prompts.PasswordAsync(
             "Change master password",
-            "Choose a new master password. The current password is not required — the vault is already unlocked.",
+            "Choose a new master password. The current password is not required; the vault is already unlocked.",
             confirm: true);
         if (newPw is null) return;
 

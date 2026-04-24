@@ -81,7 +81,7 @@ public partial class CategoriesDialog : Window
 
         var usage = _usage.TryGetValue(current, out var n) ? n : 0;
         var prompt = usage > 0
-            ? $"Rename '{current}'.\n\n{usage} secret(s) use this category — renaming here only updates the picker list. Existing secrets keep the old category name until you edit them."
+            ? $"Rename '{current}'.\n\n{usage} secret(s) use this category. Renaming here only updates the picker list; existing secrets keep the old category name until you edit them."
             : $"Rename '{current}'.";
         var raw = await _prompts.InputAsync("Rename category", prompt, current);
         if (raw is null) return;
@@ -115,7 +115,7 @@ public partial class CategoriesDialog : Window
         {
             await _prompts.MessageAsync(
                 "Category in use",
-                $"Can't remove '{current}' — {n} secret(s) still use it. Edit those secrets to reassign, then remove the category.");
+                $"Can't remove '{current}': {n} secret(s) still use it. Edit those secrets to reassign, then remove the category.");
             return;
         }
 

@@ -91,6 +91,15 @@ public sealed class ScriptBlaster : IScriptBlaster
             writer.Flush();
             return BlastResult.Cancelled();
         }
+        catch (Exception ex) when (ex is IFriendlyScriptException)
+        {
+            writer.Flush();
+            // Known user-facing condition (e.g. user cancelled the vault
+            // unlock prompt). Treat as a graceful abort, not a crash:
+            // no stack trace, Cancelled status so the terminal renders
+            // ⊘ instead of ✗.
+            return BlastResult.Cancelled(ex.Message);
+        }
         catch (Exception ex)
         {
             writer.Flush();
