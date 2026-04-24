@@ -5,6 +5,7 @@ using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
+using TaskBlaster.Secrets;
 using TaskBlaster.UI;
 using TaskBlaster.Views;
 
@@ -42,6 +43,7 @@ class Program
         services.AddSingleton<IScriptBlaster, ScriptBlaster>();
         services.AddSingleton<IPromptServiceFactory, AvaloniaPromptServiceFactory>();
         services.AddSingleton<IFormDocumentFactory, FormDocumentFactory>();
+        services.AddSingleton<IVaultService, VaultService>();
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

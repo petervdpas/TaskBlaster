@@ -13,17 +13,20 @@
 
         <views:ToolbarView Grid.Row="0" Name="Toolbar" />
 
-        <Grid Grid.Row="1" ColumnDefinitions="240,4,*">
-            <views:SidebarView Grid.Column="0" Name="Sidebar" />
-            <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
-            <Grid Grid.Column="2" RowDefinitions="*,4,180">
-                <Panel Grid.Row="0">
-                    <views:EditorView          Name="Editor"     IsVisible="True"  />
-                    <views:FormDesignerView    Name="Designer"   IsVisible="False" />
-                </Panel>
-                <GridSplitter Grid.Row="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
-                <views:TerminalView Grid.Row="2" Name="Terminal" />
+        <Grid Grid.Row="1" RowDefinitions="*,4,180">
+            <Grid Grid.Row="0">
+                <Grid Name="ScriptsFormsWorkspace" ColumnDefinitions="240,4,*">
+                    <views:SidebarView Grid.Column="0" Name="Sidebar" />
+                    <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+                    <Panel Grid.Column="2">
+                        <views:EditorView       Name="Editor"   IsVisible="True"  />
+                        <views:FormDesignerView Name="Designer" IsVisible="False" />
+                    </Panel>
+                </Grid>
+                <views:SecretsView Name="Secrets" IsVisible="False" />
             </Grid>
+            <GridSplitter Grid.Row="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+            <views:TerminalView Grid.Row="2" Name="Terminal" />
         </Grid>
 
         <views:StatusBarView Grid.Row="2" Name="StatusBar" />

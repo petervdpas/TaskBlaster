@@ -9,6 +9,7 @@ public interface IConfigStore
 {
     string ScriptsFolder { get; set; }
     string FormsFolder   { get; set; }
+    string VaultFolder   { get; set; }
 
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();

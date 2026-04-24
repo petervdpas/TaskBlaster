@@ -25,4 +25,9 @@ public sealed class AvaloniaPromptService : IPromptService
 
     public Task MessageAsync(string title, string message)
         => new MessageDialog(title, message).ShowDialog(_owner);
+
+    public Task<string?> PasswordAsync(string title, string prompt, bool confirm = false)
+        => new PasswordDialog(title, prompt,
+                confirm ? PasswordDialogMode.Create : PasswordDialogMode.Unlock)
+            .ShowDialog<string?>(_owner);
 }

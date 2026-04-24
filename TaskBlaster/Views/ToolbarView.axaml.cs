@@ -5,7 +5,7 @@ using Avalonia.Interactivity;
 
 namespace TaskBlaster.Views;
 
-public enum AppMode { Scripts, Forms }
+public enum AppMode { Scripts, Forms, Secrets }
 
 public partial class ToolbarView : UserControl
 {
@@ -17,6 +17,7 @@ public partial class ToolbarView : UserControl
     private readonly Button _themeButton;
     private readonly ToggleButton _scriptsMode;
     private readonly ToggleButton _formsMode;
+    private readonly ToggleButton _secretsMode;
 
     private bool _suppressModeEvent;
 
@@ -41,6 +42,7 @@ public partial class ToolbarView : UserControl
         _themeButton  = this.FindControl<Button>("ThemeButton")!;
         _scriptsMode  = this.FindControl<ToggleButton>("ScriptsMode")!;
         _formsMode    = this.FindControl<ToggleButton>("FormsMode")!;
+        _secretsMode  = this.FindControl<ToggleButton>("SecretsMode")!;
     }
 
     public void SetThemeLabel(string label) => _themeButton.Content = label;
@@ -52,37 +54,37 @@ public partial class ToolbarView : UserControl
 
     public AppMode Mode
     {
-        get => _formsMode.IsChecked == true ? AppMode.Forms : AppMode.Scripts;
+        get
+        {
+            if (_secretsMode.IsChecked == true) return AppMode.Secrets;
+            if (_formsMode.IsChecked   == true) return AppMode.Forms;
+            return AppMode.Scripts;
+        }
         set
         {
             _suppressModeEvent = true;
             _scriptsMode.IsChecked = value == AppMode.Scripts;
             _formsMode.IsChecked   = value == AppMode.Forms;
+            _secretsMode.IsChecked = value == AppMode.Secrets;
             _suppressModeEvent = false;
         }
     }
 
     public void SetRunLabel(string label) => _runButton.Content = label;
 
-    private void OnScriptsModeClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_suppressModeEvent) return;
-        // Enforce mutual exclusion: force this one on, the other off.
-        _suppressModeEvent = true;
-        _scriptsMode.IsChecked = true;
-        _formsMode.IsChecked   = false;
-        _suppressModeEvent = false;
-        ModeChanged?.Invoke(this, AppMode.Scripts);
-    }
+    private void OnScriptsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Scripts);
+    private void OnFormsModeClicked  (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Forms);
+    private void OnSecretsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Secrets);
 
-    private void OnFormsModeClicked(object? sender, RoutedEventArgs e)
+    private void SwitchTo(AppMode mode)
     {
         if (_suppressModeEvent) return;
         _suppressModeEvent = true;
-        _scriptsMode.IsChecked = false;
-        _formsMode.IsChecked   = true;
+        _scriptsMode.IsChecked = mode == AppMode.Scripts;
+        _formsMode.IsChecked   = mode == AppMode.Forms;
+        _secretsMode.IsChecked = mode == AppMode.Secrets;
         _suppressModeEvent = false;
-        ModeChanged?.Invoke(this, AppMode.Forms);
+        ModeChanged?.Invoke(this, mode);
     }
 
     private void OnRunClicked(object? sender, RoutedEventArgs e)    => RunClicked?.Invoke(this, EventArgs.Empty);

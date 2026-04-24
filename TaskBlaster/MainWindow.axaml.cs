@@ -10,6 +10,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using GuiBlast.Forms.Rendering;
 using GuiBlast.Forms.Result;
+using SecretBlast;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Forms;
@@ -26,6 +27,8 @@ public partial class MainWindow : Window
     private readonly FormDesignerView _designer;
     private readonly TerminalView _terminal;
     private readonly StatusBarView _statusBar;
+    private readonly SecretsView _secrets;
+    private readonly Grid _scriptsFormsWorkspace;
 
     private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
@@ -35,6 +38,7 @@ public partial class MainWindow : Window
     private readonly IPromptService _prompts;
     private readonly IThemeService _themes;
     private readonly IFormDocumentFactory _formDocFactory;
+    private readonly IVaultService _vaultService;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -47,7 +51,8 @@ public partial class MainWindow : Window
         IConfigStore config,
         IScriptBlaster blaster,
         IPromptServiceFactory promptFactory,
-        IFormDocumentFactory formDocFactory)
+        IFormDocumentFactory formDocFactory,
+        IVaultService vaultService)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -55,6 +60,7 @@ public partial class MainWindow : Window
         _config = config;
         _blaster = blaster;
         _formDocFactory = formDocFactory;
+        _vaultService = vaultService;
         _prompts = promptFactory.Create(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
@@ -63,12 +69,17 @@ public partial class MainWindow : Window
         _designer  = this.FindControl<FormDesignerView>("Designer")!;
         _terminal  = this.FindControl<TerminalView>("Terminal")!;
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
+        _secrets   = this.FindControl<SecretsView>("Secrets")!;
+        _scriptsFormsWorkspace = this.FindControl<Grid>("ScriptsFormsWorkspace")!;
 
         _config.Load();
         Directory.CreateDirectory(_config.ScriptsFolder);
         Directory.CreateDirectory(_config.FormsFolder);
         SeedMissingFromFolder("DemoScripts", _config.ScriptsFolder, "*.csx");
         SeedMissingFromFolder("DemoForms",   _config.FormsFolder,   "*.json");
+
+        _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
+        _secrets.UnlockRequested += OnVaultUnlockRequested;
 
         _sidebar.ScriptSelected += OnFileSelected;
 
@@ -132,7 +143,7 @@ public partial class MainWindow : Window
 
     // ==================== Mode switching ====================
 
-    private void SwitchMode(AppMode mode)
+    private async void SwitchMode(AppMode mode)
     {
         _mode = mode;
         _toolbar.Mode = mode;
@@ -144,21 +155,35 @@ public partial class MainWindow : Window
         switch (mode)
         {
             case AppMode.Scripts:
+                _scriptsFormsWorkspace.IsVisible = true;
+                _secrets.IsVisible = false;
                 _editor.IsVisible = true;
                 _designer.IsVisible = false;
                 _sidebar.Header = "Scripts";
                 _sidebar.Pattern = "*.csx";
                 _sidebar.Folder = _config.ScriptsFolder;
                 _toolbar.SetRunLabel("▶ Run");
+                _toolbar.CanRun = true;
                 break;
 
             case AppMode.Forms:
+                _scriptsFormsWorkspace.IsVisible = true;
+                _secrets.IsVisible = false;
                 _editor.IsVisible = false;
                 _designer.IsVisible = true;
                 _sidebar.Header = "Forms";
                 _sidebar.Pattern = "*.json";
                 _sidebar.Folder = _config.FormsFolder;
                 _toolbar.SetRunLabel("👁 Preview");
+                _toolbar.CanRun = true;
+                break;
+
+            case AppMode.Secrets:
+                _scriptsFormsWorkspace.IsVisible = false;
+                _secrets.IsVisible = true;
+                // Scripts/Forms toolbar actions don't apply in secrets mode.
+                _toolbar.CanRun = false;
+                await _secrets.ActivateAsync();
                 break;
         }
     }
@@ -306,6 +331,69 @@ public partial class MainWindow : Window
 
     private void OnStopClicked(object? sender, EventArgs e) => _runCts?.Cancel();
 
+    // ==================== Vault unlock / create ====================
+
+    private async void OnVaultUnlockRequested(object? sender, EventArgs e) => await UnlockOrCreateVaultAsync();
+
+    private async Task UnlockOrCreateVaultAsync()
+    {
+        if (_vaultService.IsUnlocked)
+        {
+            if (_mode == AppMode.Secrets) await _secrets.ActivateAsync();
+            return;
+        }
+
+        if (!_vaultService.Exists)
+        {
+            var pw = await _prompts.PasswordAsync(
+                "Create vault",
+                $"No vault exists at:\n{_config.VaultFolder}\n\nChoose a master password for the new vault.",
+                confirm: true);
+            if (pw is null) return;
+
+            try
+            {
+                await _vaultService.InitializeAsync(pw);
+                _terminal.Log($"Created vault at {_config.VaultFolder}");
+            }
+            catch (Exception ex)
+            {
+                await _prompts.MessageAsync("Create failed", ex.Message);
+                return;
+            }
+        }
+        else
+        {
+            while (true)
+            {
+                var pw = await _prompts.PasswordAsync(
+                    "Unlock vault",
+                    $"Enter the master password for the vault at:\n{_config.VaultFolder}",
+                    confirm: false);
+                if (pw is null) return;
+
+                try
+                {
+                    await _vaultService.UnlockAsync(pw);
+                    _terminal.Log("Vault unlocked.");
+                    break;
+                }
+                catch (InvalidMasterPasswordException)
+                {
+                    await _prompts.MessageAsync("Unlock failed", "Incorrect master password. Try again.");
+                    // Loop — re-prompt.
+                }
+                catch (Exception ex)
+                {
+                    await _prompts.MessageAsync("Unlock failed", ex.Message);
+                    return;
+                }
+            }
+        }
+
+        if (_mode == AppMode.Secrets) await _secrets.ActivateAsync();
+    }
+
     private void OnThemeClicked(object? sender, EventArgs e)
     {
         var next = _themes.CurrentTheme == "Light" ? "Industrial" : "Light";
@@ -326,7 +414,7 @@ public partial class MainWindow : Window
 
     private async void OnConfigClicked(object? sender, EventArgs e)
     {
-        var result = await new ConfigDialog(_config.ScriptsFolder, _config.FormsFolder).ShowDialog<ConfigDialogResult?>(this);
+        var result = await new ConfigDialog(_config.ScriptsFolder, _config.FormsFolder, _config.VaultFolder).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(
@@ -337,7 +425,15 @@ public partial class MainWindow : Window
             result.FormsFolder, _config.FormsFolder, "Forms folder",
             path => _config.FormsFolder = path);
 
-        if (!scriptsChanged && !formsChanged) return;
+        var vaultChanged = await TryApplyFolder(
+            result.VaultFolder, _config.VaultFolder, "Vault folder",
+            path => _config.VaultFolder = path);
+
+        if (!scriptsChanged && !formsChanged && !vaultChanged) return;
+
+        // Changing the vault path invalidates the currently-unlocked vault;
+        // next access will hit a locked view and re-prompt.
+        if (vaultChanged) _vaultService.Lock();
 
         _config.Save();
 

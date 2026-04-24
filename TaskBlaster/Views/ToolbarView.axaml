@@ -8,6 +8,7 @@
         <StackPanel Orientation="Horizontal" Spacing="6">
             <ToggleButton Name="ScriptsMode" Content="📜 Scripts" IsChecked="True" Click="OnScriptsModeClicked" />
             <ToggleButton Name="FormsMode"   Content="📋 Forms"                     Click="OnFormsModeClicked" />
+            <ToggleButton Name="SecretsMode" Content="🔐 Secrets"                   Click="OnSecretsModeClicked" />
 
             <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="6,2" />
 

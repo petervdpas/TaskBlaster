@@ -1,31 +1,68 @@
 # TODO
 
-## Next — TaskBlaster ↔ SecretBlast integration
+## Next — post-Secrets-tab follow-ups
 
-SecretBlast v0.1 is implemented at `~/Projects/SecretBlast/` (27 tests green).
-Time to wire it into TaskBlaster.
+The Secrets tab is live (SecretBlast 1.0.0 wired in, 139 tests green).
+Still open:
 
-1. **Reference SecretBlast.** Add a `PackageReference` once SecretBlast is
-   published, or temporarily a `ProjectReference` against `~/Projects/SecretBlast`
-   for local iteration.
-2. **`ISecretVault` singleton in DI.** Register in `Program.BuildServiceProvider`.
-   The factory reads the vault path from `IConfigStore`.
-3. **`VaultFolder` setting.** Add to `IConfigStore` (default `~/.taskblaster/vault`)
-   and to the config dialog (single vault in v1, matches SecretBlast's decision).
-4. **Unlock dialog.** On first secret access in a session, pop a password
-   prompt via `IPromptService`. Wrong password → re-prompt; cancel → surface
-   to the caller.
-5. **AzureBlast resolver adapter.** Wire
+1. **AzureBlast resolver adapter.** Wire
    `Func<string, CancellationToken, Task<string>>` to call
-   `ISecretVault.GetAsync`, triggering the unlock dialog on the first call.
-   AzureBlast stays pure — no SecretBlast dependency.
-6. **Migrate named-connection config.** Today: plaintext JSON. Target:
-   `{ name → { vaultRef, secretName } }`. Write a small one-shot migration
+   `IVaultService.ResolveAsync(category, key)`. AzureBlast stays pure — no
+   SecretBlast dependency. `ResolveAsync` already exists; just plumb the
+   delegate on first named-connection use and trigger the unlock flow if the
+   vault is locked.
+2. **Migrate named-connection config.** Today: plaintext JSON. Target:
+   `{ name → { category, key } }` pointing into the vault. One-shot migration
    helper so existing users don't lose connections.
-7. **Vault-create flow.** First-run UX: if the configured vault path doesn't
-   exist, offer to create it with a new master password.
+3. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
+   — consider gating the DataGrid value column behind a per-row reveal too,
+   or a "reveal for 30 s" pattern.
+4. **Category rename.** UI-only today — user has to edit each secret. A
+   bulk-rename (right-click category → rename) would rewrite envelopes under
+   the hood and leave filenames untouched.
+5. **Search / filter box** on the Secrets DataGrid.
 
 ## Done
+
+### 2026-04-24 — SecretBlast integration (Secrets tab)
+
+SecretBlast 1.0.0 NuGet package is wired into TaskBlaster and live behind a
+new 🔐 Secrets toolbar mode.
+
+- **Envelope format.** Each SecretBlast secret is stored under an opaque
+  32-char hex id; the *value* is a JSON envelope with `schemaVersion`,
+  `category`, `key`, `value`, `description`, `createdUtc`, `updatedUtc`.
+  Category and key names are encrypted at rest; nothing on disk leaks the
+  organisational structure. Codec in `TaskBlaster/Secrets/SecretEnvelope.cs`,
+  ids in `SecretId`.
+- **`IVaultService`.** Stateful wrapper over `ISecretVault` that hides the
+  envelope marshalling and exposes `category/key/value` CRUD plus
+  `ResolveAsync(category, key)` for integrations. Registered as a singleton.
+  Production KDF is 256 MiB / 3 / 4 (Argon2id); tests override to 1 MiB / 1 / 1
+  so the suite stays under a second.
+- **VaultFolder config.** New `IConfigStore.VaultFolder` property (default
+  `~/.taskblaster/vault`), wired through `ConfigDialog` with a third folder
+  row. Legacy configs without the field still load cleanly.
+- **Unlock / create flow.** First time the user clicks 🔐 Secrets → Unlock,
+  `MainWindow` detects whether `vault.json` exists at the configured path,
+  then pops either a two-field `PasswordDialog` (create) or single-field
+  (unlock, with retry on wrong password). `IPromptService` grew a
+  `PasswordAsync(title, prompt, confirm)` method so the flow stays testable
+  via `FakePromptService`.
+- **Secrets UI.** `SecretsView` — category list on the left, a DataGrid
+  on the right with Category / Key / Description / Updated columns. Toolbar
+  actions inside the view: ➕ Add / ✏ Edit / 🗑 Delete / 📋 Copy value / 🔒 Lock.
+  Add + Edit go through `SecretEntryDialog` with a 👁 value-reveal toggle
+  and existing-category autocomplete. `Avalonia.Controls.DataGrid` 12.0.0
+  package added and its Fluent style pulled into `App.axaml`.
+- **139 tests green** — 11 new for the envelope codec, 13 for `VaultService`
+  (round-trip, lock/unlock, rename keeps id, opaque filenames, resolve
+  case-insensitive), 1 new for legacy-config load.
+
+Still explicitly out of scope for this session: named-connection migration
+for AzureBlast callers, bulk category rename, search box on the grid.
+
+## Older
 
 ### 2026-04-24 — SecretBlast v0.1 implementation
 
