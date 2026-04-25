@@ -51,8 +51,9 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
 * Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
 * [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.0.2 — common utilities
-* [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.0.2 — SQL / Service Bus / Key Vault
-* [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.0.0 — form specs and modal prompts
+* [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.0 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
+* [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.0 — form specs and modal prompts
+* [NetworkBlaster](https://www.nuget.org/packages/NetworkBlaster) 1.0.2 — REST / OData / SOAP, vault-aware via the same resolver shape
 * [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.0 — encrypted local vault
 
 ## Quick start
@@ -67,7 +68,7 @@ On first launch TaskBlaster creates `~/.taskblaster/` and seeds it with the bund
 
 ## Writing scripts
 
-Scripts are plain `.csx` files. TaskBlaster preimports the usual BCL namespaces (`System`, `System.IO`, `System.Linq`, `System.Text`, `System.Collections.Generic`, `System.Threading`, `System.Threading.Tasks`) and force-loads the Blast assemblies so you can `using GuiBlast;` / `using AzureBlast;` without a `#r`.
+Scripts are plain `.csx` files. TaskBlaster preimports the usual BCL namespaces (`System`, `System.IO`, `System.Linq`, `System.Text`, `System.Collections.Generic`, `System.Threading`, `System.Threading.Tasks`) and force-loads the Blast assemblies so you can `using GuiBlast;` / `using AzureBlast;` / `using NetworkBlaster;` without a `#r`.
 
 ### Top-level identifiers
 
@@ -181,7 +182,9 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/quick-task-demo.csx`   | Load `DemoForms/quick-task.json` from disk and show it. |
 | `DemoScripts/secret-resolve.csx`    | Pick a key from a vault category, print its value.   |
 | `DemoScripts/vault-report.csx`      | Inventory of vault categories and key counts.        |
-| `DemoScripts/azure-sql-template.csx`| Template for an AzureBlast SQL query.                |
+| `DemoScripts/azure-sql-template.csx`| Template for an AzureBlast SQL query (inline + vault-backed). |
+| `DemoScripts/network-demo.csx`      | Anonymous httpbin GET via NetworkBlaster.            |
+| `DemoScripts/network-odata-demo.csx`| Typed LINQ-flavored OData against the public Northwind service. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |
