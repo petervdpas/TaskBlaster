@@ -56,9 +56,12 @@ public sealed class ScriptSecrets
     /// Delegate form of <see cref="ResolveAsync"/>, shaped for libraries
     /// that accept a named-connection resolver:
     /// <code>
-    /// // Hypothetical AzureBlast / NetBlast call sites:
-    /// var db  = new MssqlDatabase(Secrets.Resolver, "prod-sql");
-    /// var api = new NetClient(Secrets.Resolver, "github-token");
+    /// // AzureBlast 2.1+ — two-step (build, then SetupAsync):
+    /// var db = new MssqlDatabase();
+    /// await db.SetupAsync(Secrets.Resolver, "prod-sql");
+    ///
+    /// // NetworkBlaster 1.0+ — one-step (resolver baked into ctor):
+    /// var api = new NetClient(Secrets.Resolver, "github");
     /// </code>
     /// </summary>
     public Func<string, string, CancellationToken, Task<string>> Resolver => ResolveAsync;

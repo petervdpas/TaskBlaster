@@ -8,10 +8,13 @@ section below). Still open:
 
 1. **Migrate named-connection config.** Today: plaintext JSON. Target:
    `{ name → { category, key } }` pointing into the vault. One-shot migration
-   helper so existing users don't lose connections. The resolver shape
-   (`Func<category, key, ct, Task<string>>`) is already what
-   `Secrets.Resolver` hands out, so AzureBlast / NetBlast stay free of any
-   SecretBlast dependency.
+   helper so existing users don't lose connections. **Building blocks
+   landed 2026-04-26**: NetworkBlaster 1.0.2 and AzureBlast 2.1.0 both
+   accept a `Func<category, key, ct, Task<string>>` resolver and pull
+   connection details from the vault on demand. What's left: a UI flow
+   that lets users define a named connection by picking `(category, key)`
+   pairs and writes the config so AzureBlast/NetworkBlaster pick them up
+   via `Secrets.Resolver`.
 2. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
    — consider gating the DataGrid value column behind a per-row reveal too,
    or a "reveal for 30 s" pattern.
@@ -22,15 +25,49 @@ section below). Still open:
 
 ## Roadmap (separate repos)
 
-- **NetworkBlaster** — future Blast nuget for REST/HTTP integrations, a
-  "programmable Postman" sibling to AzureBlast. Lives in its own repo
-  (analogous to `~/Projects/AzureBlast`, `~/Projects/GuiBlast`, etc.).
-  Will consume the existing `Func<category, key, ct, Task<string>>`
-  resolver shape so it stays free of any SecretBlast / TaskBlaster
-  dependency, e.g. `new NetClient(Secrets.Resolver, "github-token")`.
-  Not a TaskBlaster-internal concern; nothing lands in this repo for it.
+*(empty — all currently-planned siblings have shipped: NetworkBlaster 1.0.2,
+AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.0.)*
 
 ## Done
+
+### 2026-04-26 — NetworkBlaster + AzureBlast resolver path wired in
+
+Two siblings landed on the same day; both consume `Secrets.Resolver`
+(shape `Func<category, key, ct, Task<string>>`) so the vault stays the
+single source of connection truth.
+
+- **NetworkBlaster 1.0.2** (in `~/Projects/NetworkBlaster/`): brand-new
+  Blast nuget for REST/HTTP/SOAP/OData. The 0.1 → 1.0 arc landed 2026-04-25;
+  1.0.2 followed up with a small ergonomic fix (relaxed the `NetClient`
+  resolver parameter from a custom `SecretResolver` delegate to plain
+  `Func<string, string, CancellationToken, Task<string>>`) so
+  `Secrets.Resolver` flows in directly without `.Invoke` or wrapper
+  lambdas. 246 tests, 0 warnings under Release.
+- **AzureBlast 2.1.0** (in `~/Projects/AzureBlast/`): purely-additive
+  resolver path. Each component grew an async overload —
+  `MssqlDatabase.SetupAsync(resolver, name)`,
+  `AzureServiceBus.SetupAsync(...)`,
+  `AzureTableStorage.InitializeAsync(...)`,
+  `AzureKeyVault.InitializeKeyVaultAsync(...)` — that pulls connection
+  values via the resolver. `AzureBlastOptions` gained `Resolver` plus
+  `SqlConnectionName` / `ServiceBusConnectionName` /
+  `TableConnectionName` / `KeyVaultConnectionName`; `AddAzureBlast`
+  picks the resolver path when those names are set, falls back to the
+  existing string path otherwise. Mix-and-match supported. 17 new
+  resolver tests, all green.
+- **TaskBlaster.csproj**: bumped `AzureBlast` 2.0.2 → 2.1.0; added
+  `NetworkBlaster 1.0.2`.
+- **`Engine/ScriptBlaster.cs`**: force-loads `NetworkBlaster.NetClient`
+  alongside the other Blast assemblies so Roslyn picks it up via
+  `AppDomain.GetAssemblies()`.
+- **Demo scripts**:
+  - `DemoScripts/network-demo.csx` — anonymous httpbin call plus a
+    commented vault-backed (`new NetClient(Secrets.Resolver, "github")`)
+    follow-up.
+  - `DemoScripts/network-odata-demo.csx` — typed LINQ-flavored OData
+    against the public Northwind service, demonstrating
+    `FirstPageAsync()` + `IAsyncEnumerable<T>` auto-paging.
+- 176/176 TaskBlaster tests still green.
 
 ### 2026-04-25 — Resizable forms (GuiBlast 2.1.0 + designer toggle)
 
