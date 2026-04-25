@@ -112,7 +112,9 @@ For richer inputs build a JSON form in code with `DynamicForm.ShowJsonAsync` (se
 
 ## Forms
 
-A form is a JSON document describing fields, layout, visibility, and action buttons. Pair `MyScript.csx` with `MyScript.json` next to it and TaskBlaster shows the form before invoking the script. Build forms by hand or via the visual designer.
+A form is a JSON document describing fields, layout, visibility, and action buttons. Forms live in their own folder (default `~/.taskblaster/forms/`) and are previewed standalone from the **Forms** tab; the visual designer round-trips the same JSON.
+
+To use a form *from* a script, either build the JSON inline (see `inline-form.csx`) or load a form file from disk (see `quick-task-demo.csx`) and pass it to `DynamicForm.ShowJsonAsync`. TaskBlaster does not auto-pair scripts and forms by filename.
 
 ### Vault-backed select options
 
@@ -176,6 +178,7 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/confirm-demo.csx`      | `Prompts.Confirm` modal.                             |
 | `DemoScripts/env-report.csx`        | Runtime / loaded-Blast-assemblies report.            |
 | `DemoScripts/inline-form.csx`       | A full GuiBlast form built and shown from code.      |
+| `DemoScripts/quick-task-demo.csx`   | Load `DemoForms/quick-task.json` from disk and show it. |
 | `DemoScripts/secret-resolve.csx`    | Pick a key from a vault category, print its value.   |
 | `DemoScripts/vault-report.csx`      | Inventory of vault categories and key counts.        |
 | `DemoScripts/azure-sql-template.csx`| Template for an AzureBlast SQL query.                |
