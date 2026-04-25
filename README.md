@@ -12,7 +12,7 @@ It exists to solve a recurring, awkward problem: you need a one-off (or rarely-r
 * A **full GUI app** is overkill for a 40-line chore.
 * A **shared script dumping ground** has no input validation, no UI, and no safety net.
 
-TaskBlaster takes a middle path: you write a plain `.csx` file, optionally pair it with a JSON form describing its inputs, and TaskBlaster handles the rest — rendering the form, validating input, running the script under Roslyn, and streaming output into the built-in terminal.
+TaskBlaster takes a middle path: you write a plain `.csx` file, optionally pair it with a JSON form describing its inputs, and TaskBlaster handles the rest — rendering the form, validating input, running the script under Roslyn, streaming output into the built-in terminal, and resolving any secrets the script asks for out of an encrypted local vault.
 
 ---
 
@@ -20,8 +20,9 @@ TaskBlaster takes a middle path: you write a plain `.csx` file, optionally pair 
 
 1. **Write a script.** Drop a `.csx` file into your scripts folder. It can `#r` NuGets and `using` any namespace, just like `dotnet-script`.
 2. **Describe its inputs (optional).** Pair the script with a GuiBlast JSON form — text fields, dropdowns, checkboxes, conditional visibility, button actions. Build it by hand or use the built-in **visual form designer**.
-3. **Run it.** TaskBlaster prompts the user with the form, injects the answers, executes the script via Roslyn scripting, and streams stdout/stderr live to the terminal panel.
-4. **Connect to Azure without secrets in code.** Scripts can call into [AzureBlast](https://www.nuget.org/packages/AzureBlast) to talk to Azure SQL, Service Bus, and Key Vault using named connections configured in TaskBlaster — no connection strings checked into git.
+3. **Store credentials in the local vault.** Add API tokens, connection strings, or anything else into the **Secrets** tab. Everything is encrypted at rest with Argon2id + AES-GCM via [SecretBlast](https://www.nuget.org/packages/SecretBlast).
+4. **Run it.** TaskBlaster prompts the user with the form, injects the answers, executes the script via Roslyn, and streams stdout/stderr live to the terminal panel. Scripts pull secrets from the vault on demand via the `Secrets` global; the user is prompted to unlock if the vault is locked.
+5. **Connect to Azure without secrets in code.** Scripts can call into [AzureBlast](https://www.nuget.org/packages/AzureBlast) to talk to Azure SQL, Service Bus, and Key Vault, handing it the vault resolver instead of a hard-coded connection string.
 
 This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .NET 10 + Avalonia 12 and the **Blast** library family.
 
@@ -34,21 +35,25 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 
 ## Features
 
-* Integrated `.csx` editor with syntax highlighting (AvaloniaEdit + TextMate)
+* Integrated `.csx` editor with syntax highlighting (AvaloniaEdit + TextMate grammars)
 * Roslyn-based script host with live stdout/stderr streaming into a terminal panel
 * **Visual form designer** for GuiBlast JSON forms — field list, per-type property editor, visibility rules, action buttons, live preview
-* Named Azure connections (SQL, Service Bus, Key Vault) — no secrets in scripts
-* Configurable scripts folder, editor font size, and appearance
-* Demo scripts and forms shipped out of the box
+* **Encrypted secrets vault** (Argon2id + AES-GCM), surfaced as a `Secrets` global inside scripts
+* **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
+* Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
+* Configurable scripts folder, forms folder, vault folder, editor font size, and theme
+* Demo scripts and forms shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
 
 ## Stack
 
 * .NET 10
-* Avalonia 12
+* Avalonia 12, Avalonia.Controls.DataGrid, AvaloniaEdit + TextMateSharp.Grammars
+* Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
+* Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
 * [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.0.2 — common utilities
 * [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.0.2 — SQL / Service Bus / Key Vault
 * [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.0.0 — form specs and modal prompts
-* Roslyn Scripting (Microsoft.CodeAnalysis.CSharp.Scripting) for `.csx` execution
+* [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.0 — encrypted local vault
 
 ## Quick start
 
@@ -57,6 +62,126 @@ git clone https://github.com/petervdpas/TaskBlaster.git
 cd TaskBlaster
 dotnet run --project TaskBlaster
 ```
+
+On first launch TaskBlaster creates `~/.taskblaster/` and seeds it with the bundled demo scripts and forms.
+
+## Writing scripts
+
+Scripts are plain `.csx` files. TaskBlaster preimports the usual BCL namespaces (`System`, `System.IO`, `System.Linq`, `System.Text`, `System.Collections.Generic`, `System.Threading`, `System.Threading.Tasks`) and force-loads the Blast assemblies so you can `using GuiBlast;` / `using AzureBlast;` without a `#r`.
+
+### Top-level identifiers
+
+A `ScriptGlobals` object is handed to Roslyn on every run, surfacing one top-level identifier today:
+
+| Identifier | Type            | Purpose                                 |
+| ---------- | --------------- | --------------------------------------- |
+| `Secrets`  | `ScriptSecrets` | Vault accessor (categories, keys, resolve) |
+
+```csharp
+// Sync — fine, scripts run off the UI thread.
+var token = Secrets.Resolve("api", "github-token");
+
+// Async form, with cancellation.
+var conn  = await Secrets.ResolveAsync("azure", "prod-sql");
+
+// Inventory (values are never returned by these).
+var cats = Secrets.Categories();
+var keys = Secrets.Keys("Azure");
+
+// Delegate shape for libraries that take a named-connection resolver:
+//   var db = new SomeClient(Secrets.Resolver, "prod-sql");
+Func<string, string, CancellationToken, Task<string>> r = Secrets.Resolver;
+```
+
+If the vault is locked the first vault call pops the unlock dialog. Cancelling that prompt aborts the script as `Cancelled` rather than throwing a stack trace into the terminal.
+
+### Prompts
+
+`GuiBlast.Prompts` provides quick modal prompts when you don't want a full form file:
+
+```csharp
+using GuiBlast;
+
+var name = Prompts.Input("Hello", "Your name?");
+if (Prompts.Confirm("Proceed?", "Continue?")) {
+    Console.WriteLine($"Hi {name}");
+}
+```
+
+For richer inputs build a JSON form in code with `DynamicForm.ShowJsonAsync` (see `DemoScripts/inline-form.csx`).
+
+## Forms
+
+A form is a JSON document describing fields, layout, visibility, and action buttons. Pair `MyScript.csx` with `MyScript.json` next to it and TaskBlaster shows the form before invoking the script. Build forms by hand or via the visual designer.
+
+### Vault-backed select options
+
+Any `select` field can declare its options as vault keys in a category. The expander materialises them at form-load time; GuiBlast itself never sees the vault.
+
+```jsonc
+{
+  "key": "secret",
+  "type": "select",
+  "label": "Connection secret",
+  "optionsFrom": { "source": "vault", "category": "Azure" }
+}
+```
+
+If `options[]` is empty the expander populates it from the vault. If you've already picked a subset in the designer those are kept verbatim and the `optionsFrom` hint is stripped on its way to GuiBlast. Forms with no hints round-trip through the expander unchanged.
+
+See `DemoForms/deploy.json` for a worked example with a vault-backed select and conditional visibility.
+
+## Vault
+
+The **Secrets** tab manages an encrypted local vault. Each entry has a `category`, `key`, `value`, and optional description; on disk, every secret is stored under an opaque GUID with the (category, key, value, description, timestamps) packed into a JSON envelope that's encrypted as a single SecretBlast value. Filenames leak nothing about the structure.
+
+* **KDF:** Argon2id, 256 MiB / 3 iterations / 4 lanes for production; tests override to a fast profile.
+* **Cipher:** AES-GCM (12-byte nonces, 16-byte tags), with a per-secret AAD bound to the vault id and entry name so swapping `*.secret` files in from another vault fails authentication loudly.
+* **Auto-lock:** 15 min idle by default.
+* **Password change:** rewrites the whole vault under the new key with an atomic-rename rollback path.
+
+Scripts read from the vault via the `Secrets` global; values never leave SecretBlast except as a returned string in the script's own memory.
+
+## Data layout
+
+```
+~/.taskblaster/
+├── config.json     # scripts/forms/vault folder paths and editor prefs
+├── scripts/        # your .csx scripts
+├── forms/          # your .json form specs
+└── vault/
+    ├── vault.json  # SecretBlast header (KDF params, canary, vault id)
+    └── secrets/    # *.secret files, opaque GUID-named
+```
+
+All three folders are configurable from the **Settings** dialog.
+
+## Refreshing the bundled demos (developer)
+
+The first-run seeder only copies *missing* files into your scripts and forms folders, so updates to the shipped demos in the repo don't reach an existing install. While iterating on the demos you can force-overwrite with:
+
+```bash
+dotnet run --project TaskBlaster -- --seed-demos
+```
+
+This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build output into the configured target folders, overwriting existing files. It's a developer convenience, not a user feature.
+
+### Bundled demos
+
+| File                                | What it shows                                        |
+| ----------------------------------- | ---------------------------------------------------- |
+| `DemoScripts/hello.csx`             | Smallest possible script.                            |
+| `DemoScripts/sum-numbers.csx`       | Arithmetic / output streaming.                       |
+| `DemoScripts/input-demo.csx`        | `Prompts.Input` modal.                               |
+| `DemoScripts/confirm-demo.csx`      | `Prompts.Confirm` modal.                             |
+| `DemoScripts/env-report.csx`        | Runtime / loaded-Blast-assemblies report.            |
+| `DemoScripts/inline-form.csx`       | A full GuiBlast form built and shown from code.      |
+| `DemoScripts/secret-resolve.csx`    | Pick a key from a vault category, print its value.   |
+| `DemoScripts/vault-report.csx`      | Inventory of vault categories and key counts.        |
+| `DemoScripts/azure-sql-template.csx`| Template for an AzureBlast SQL query.                |
+| `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
+| `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
+| `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |
 
 ## Downloads
 
