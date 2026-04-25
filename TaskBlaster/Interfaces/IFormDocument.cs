@@ -20,6 +20,13 @@ public interface IFormDocument
     /// <summary>Optional desired height of the rendered form (device-independent pixels). Null → auto.</summary>
     double? Height { get; set; }
 
+    /// <summary>
+    /// Whether the rendered form dialog can be resized by the user.
+    /// Persisted as <c>"resizable": true</c> at the form-JSON root and
+    /// honoured by GuiBlast 2.1.0+. Older GuiBlast runtimes ignore it.
+    /// </summary>
+    bool Resizable { get; set; }
+
     /// <summary>Snapshot of the fields in display order.</summary>
     IReadOnlyList<FieldEditor> Fields { get; }
 

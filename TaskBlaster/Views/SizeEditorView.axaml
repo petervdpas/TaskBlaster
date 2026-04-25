@@ -18,6 +18,10 @@
                 <TextBox   Grid.Column="4" Grid.Row="1" Name="HeightBox" PlaceholderText="auto" />
             </Grid>
 
+            <CheckBox Name="ResizableBox" Content="Allow user to resize" Margin="0,4,0,0" />
+            <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                       Text="When on, the rendered dialog can be resized by dragging its edges. Honoured by GuiBlast 2.1.0 and later." />
+
             <TextBlock Name="ErrorText"
                        Foreground="{DynamicResource DangerBrush}"
                        FontSize="11"

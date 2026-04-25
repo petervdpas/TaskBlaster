@@ -11,6 +11,7 @@ public partial class SizeEditorView : UserControl
 {
     private readonly TextBox _widthBox;
     private readonly TextBox _heightBox;
+    private readonly CheckBox _resizableBox;
     private readonly TextBlock _errorText;
 
     private IFormDocument? _document;
@@ -19,12 +20,14 @@ public partial class SizeEditorView : UserControl
     public SizeEditorView()
     {
         InitializeComponent();
-        _widthBox  = this.FindControl<TextBox>("WidthBox")!;
-        _heightBox = this.FindControl<TextBox>("HeightBox")!;
-        _errorText = this.FindControl<TextBlock>("ErrorText")!;
+        _widthBox     = this.FindControl<TextBox>("WidthBox")!;
+        _heightBox    = this.FindControl<TextBox>("HeightBox")!;
+        _resizableBox = this.FindControl<CheckBox>("ResizableBox")!;
+        _errorText    = this.FindControl<TextBlock>("ErrorText")!;
 
-        _widthBox.TextChanged  += (_, _) => Commit(_widthBox,  isWidth: true);
-        _heightBox.TextChanged += (_, _) => Commit(_heightBox, isWidth: false);
+        _widthBox.TextChanged       += (_, _) => Commit(_widthBox,  isWidth: true);
+        _heightBox.TextChanged      += (_, _) => Commit(_heightBox, isWidth: false);
+        _resizableBox.IsCheckedChanged += (_, _) => CommitResizable();
     }
 
     public IFormDocument? Document
@@ -41,10 +44,17 @@ public partial class SizeEditorView : UserControl
     private void LoadFromDocument()
     {
         _suppress = true;
-        _widthBox.Text  = _document?.Width  is { } w ? w.ToString(CultureInfo.InvariantCulture) : string.Empty;
-        _heightBox.Text = _document?.Height is { } h ? h.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        _widthBox.Text     = _document?.Width  is { } w ? w.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        _heightBox.Text    = _document?.Height is { } h ? h.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        _resizableBox.IsChecked = _document?.Resizable ?? false;
         ClearError();
         Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
+    }
+
+    private void CommitResizable()
+    {
+        if (_suppress || _document is null) return;
+        _document.Resizable = _resizableBox.IsChecked == true;
     }
 
     private void Commit(TextBox box, bool isWidth)
@@ -76,6 +86,8 @@ public partial class SizeEditorView : UserControl
         if (_document is null) return;
         _document.Width = null;
         _document.Height = null;
+        // Reset to auto only clears the size; Resizable is a deliberate
+        // user choice, leave it alone.
         LoadFromDocument();
     }
 

@@ -15,6 +15,16 @@ public sealed class FormEditor
     public string Title { get; set; } = "Untitled";
     public double? Width { get; set; }
     public double? Height { get; set; }
+
+    /// <summary>
+    /// Whether the rendered GuiBlast dialog can be resized by the user.
+    /// Persisted as <c>"resizable": true</c> at the form root (omitted
+    /// when false). GuiBlast 2.1.0+ reads <c>FormSpec.Resizable</c> off
+    /// the deserialized spec and feeds it into <c>UiHelpers.NewDialog</c>;
+    /// older runtimes ignore the unknown property.
+    /// </summary>
+    public bool Resizable { get; set; }
+
     public ObservableCollection<FieldEditor> Fields { get; } = new();
     public ObservableCollection<VisibilityRuleEditor> Visibility { get; } = new();
     public ObservableCollection<ActionEditor> Actions { get; } = new();
@@ -37,6 +47,7 @@ public sealed class FormEditor
             Title = dto.Title ?? "Untitled",
             Width = dto.Size?.Width,
             Height = dto.Size?.Height,
+            Resizable = dto.Resizable ?? false,
         };
         if (dto.Fields is not null)
             foreach (var f in dto.Fields) editor.Fields.Add(FieldEditor.FromDto(f));
@@ -61,6 +72,7 @@ public sealed class FormEditor
             Size = (Width is not null || Height is not null)
                 ? new SizeDto { Width = Width, Height = Height }
                 : null,
+            Resizable = Resizable ? true : null,
             Fields = new List<FieldDto>(),
             Visibility = Visibility.Count > 0 ? new List<VisibilityDto>() : null,
             Actions = new List<ActionDto>(),
@@ -92,6 +104,7 @@ public sealed class FormEditor
     {
         public string? Title { get; set; }
         public SizeDto? Size { get; set; }
+        public bool? Resizable { get; set; }
         public List<FieldDto>? Fields { get; set; }
         public List<VisibilityDto>? Visibility { get; set; }
         public List<ActionDto>? Actions { get; set; }

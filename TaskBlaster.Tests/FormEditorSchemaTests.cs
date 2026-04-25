@@ -99,6 +99,48 @@ public class FormEditorSchemaTests
     }
 
     [Fact]
+    public void Resizable_RoundTrips_WhenTrue()
+    {
+        var form = FormEditor.CreateDefault();
+        form.Resizable = true;
+
+        var json = form.ToJson();
+        Assert.Contains("\"resizable\": true", json);
+
+        var rt = FormEditor.FromJson(json);
+        Assert.True(rt.Resizable);
+    }
+
+    [Fact]
+    public void Resizable_IsOmitted_WhenFalse()
+    {
+        var form = FormEditor.CreateDefault();
+        // default Resizable is false
+        var json = form.ToJson();
+
+        Assert.DoesNotContain("resizable", json);
+
+        var rt = FormEditor.FromJson(json);
+        Assert.False(rt.Resizable);
+    }
+
+    [Fact]
+    public void FromJson_ParsesResizable_True()
+    {
+        var json = """
+        {
+          "title": "T",
+          "resizable": true,
+          "fields": [{ "key": "a", "type": "text" }]
+        }
+        """;
+
+        var form = FormEditor.FromJson(json);
+
+        Assert.True(form.Resizable);
+    }
+
+    [Fact]
     public void FromJson_ParsesFieldPatternAndEmail()
     {
         var json = """

@@ -62,6 +62,17 @@ public sealed class FormDocument : IFormDocument
         }
     }
 
+    public bool Resizable
+    {
+        get => _form.Resizable;
+        set
+        {
+            if (_form.Resizable == value) return;
+            _form.Resizable = value;
+            MarkDirty();
+        }
+    }
+
     public IReadOnlyList<FieldEditor> Fields => _fields;
 
     public FieldEditor? SelectedField => _selected;
