@@ -13,6 +13,8 @@ namespace TaskBlaster.Tests;
 
 public sealed class FormJsonExpanderTests : IDisposable
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private readonly string _root;
     private readonly TestConfigStore _config;
     private readonly VaultService _vault;
@@ -44,7 +46,7 @@ public sealed class FormJsonExpanderTests : IDisposable
                   "options": [ {"value":"A","label":"A"}, {"value":"B","label":"B"} ] } ] }
             """;
 
-        var expanded = await FormJsonExpander.ExpandAsync(json, _vault);
+        var expanded = await FormJsonExpander.ExpandAsync(json, _vault, Ct);
 
         // Byte-identical means the expander skipped the rewrite entirely.
         Assert.Equal(json, expanded);
@@ -53,10 +55,10 @@ public sealed class FormJsonExpanderTests : IDisposable
     [Fact]
     public async Task VaultHint_IsReplacedWithMaterialisedOptions()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("Azure", "test",     "v1");
-        await _vault.AddAsync("Azure", "prod-sql", "v2");
-        await _vault.AddAsync("Github", "pat",     "v3"); // must NOT appear
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("Azure", "test",     "v1", ct: Ct);
+        await _vault.AddAsync("Azure", "prod-sql", "v2", ct: Ct);
+        await _vault.AddAsync("Github", "pat",     "v3", ct: Ct); // must NOT appear
 
         const string json = """
             { "fields": [
@@ -64,7 +66,7 @@ public sealed class FormJsonExpanderTests : IDisposable
                   "optionsFrom": { "source": "vault", "category": "Azure" } } ] }
             """;
 
-        var expanded = await FormJsonExpander.ExpandAsync(json, _vault);
+        var expanded = await FormJsonExpander.ExpandAsync(json, _vault, Ct);
 
         var root = JsonNode.Parse(expanded)!.AsObject();
         var field = root["fields"]!.AsArray()[0]!.AsObject();
@@ -88,10 +90,10 @@ public sealed class FormJsonExpanderTests : IDisposable
         // Designer saved both `optionsFrom` (tag) and `options` (user's subset).
         // Expander must keep the subset and strip the tag — it is NOT an
         // "auto-expand everything in the category" marker when options exist.
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("Azure", "test",     "v1");
-        await _vault.AddAsync("Azure", "prod-sql", "v2");
-        await _vault.AddAsync("Azure", "stage-db", "v3");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("Azure", "test",     "v1", ct: Ct);
+        await _vault.AddAsync("Azure", "prod-sql", "v2", ct: Ct);
+        await _vault.AddAsync("Azure", "stage-db", "v3", ct: Ct);
 
         const string json = """
             { "fields": [
@@ -100,7 +102,7 @@ public sealed class FormJsonExpanderTests : IDisposable
                   "options": [ { "value": "test", "label": "Test DB" } ] } ] }
             """;
 
-        var expanded = await FormJsonExpander.ExpandAsync(json, _vault);
+        var expanded = await FormJsonExpander.ExpandAsync(json, _vault, Ct);
         var field = JsonNode.Parse(expanded)!.AsObject()["fields"]!.AsArray()[0]!.AsObject();
 
         Assert.Null(field["optionsFrom"]);
@@ -113,7 +115,7 @@ public sealed class FormJsonExpanderTests : IDisposable
     [Fact]
     public async Task VaultHint_CategoryMissing_ThrowsClearly()
     {
-        await _vault.InitializeAsync("pw");
+        await _vault.InitializeAsync("pw", Ct);
 
         const string json = """
             { "fields": [
@@ -122,7 +124,7 @@ public sealed class FormJsonExpanderTests : IDisposable
             """;
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => FormJsonExpander.ExpandAsync(json, _vault));
+            () => FormJsonExpander.ExpandAsync(json, _vault, Ct));
         Assert.Contains("category", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -136,7 +138,7 @@ public sealed class FormJsonExpanderTests : IDisposable
             """;
 
         await Assert.ThrowsAsync<NotSupportedException>(
-            () => FormJsonExpander.ExpandAsync(json, _vault));
+            () => FormJsonExpander.ExpandAsync(json, _vault, Ct));
     }
 
     [Fact]
@@ -144,7 +146,7 @@ public sealed class FormJsonExpanderTests : IDisposable
     {
         // Garbage in, garbage out — don't pretend to parse.
         const string json = "[]";
-        var expanded = await FormJsonExpander.ExpandAsync(json, _vault);
+        var expanded = await FormJsonExpander.ExpandAsync(json, _vault, Ct);
         Assert.Equal(json, expanded);
     }
 

@@ -16,6 +16,8 @@ namespace TaskBlaster.Tests;
 /// </summary>
 public sealed class ConnectionsResolverTests
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     [Fact]
     public async Task Plaintext_ReturnsLiteral_WithoutHittingVault()
     {
@@ -33,7 +35,7 @@ public sealed class ConnectionsResolverTests
         };
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("github", "baseUrl");
+        var got = await resolver.ResolveAsync("github", "baseUrl", Ct);
 
         Assert.Equal("https://api.github.com", got);
         Assert.Equal(0, vaultCalls);
@@ -56,7 +58,7 @@ public sealed class ConnectionsResolverTests
         };
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("github", "token");
+        var got = await resolver.ResolveAsync("github", "token", Ct);
 
         Assert.Equal("ghp_xyz", got);
         Assert.Equal(("github-secrets", "pat"), seen);
@@ -88,7 +90,7 @@ public sealed class ConnectionsResolverTests
         };
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("formidable", "baseUrl");
+        var got = await resolver.ResolveAsync("formidable", "baseUrl", Ct);
 
         Assert.Equal("http://localhost:8383/api/", got);
         Assert.Contains(("Azure", "apple"), seen);
@@ -115,7 +117,7 @@ public sealed class ConnectionsResolverTests
         };
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("formidable", "token");
+        var got = await resolver.ResolveAsync("formidable", "token", Ct);
 
         Assert.Equal(string.Empty, got);
         Assert.Equal(0, vaultCalls);
@@ -133,7 +135,7 @@ public sealed class ConnectionsResolverTests
             Task.FromResult($"{cat}/{key}");
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("azure", "prod-sql");
+        var got = await resolver.ResolveAsync("azure", "prod-sql", Ct);
 
         Assert.Equal("azure/prod-sql", got);
     }

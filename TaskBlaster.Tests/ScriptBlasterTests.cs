@@ -9,6 +9,8 @@ namespace TaskBlaster.Tests;
 [Collection("ScriptBlaster")]
 public class ScriptBlasterTests
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private static async Task<(BlastResult result, List<string> output)> RunAsync(string script, CancellationToken ct = default)
     {
         IScriptBlaster blaster = new ScriptBlaster();
@@ -20,7 +22,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_HelloWorld_Ok_AndCapturesOutput()
     {
-        var (result, output) = await RunAsync("Console.WriteLine(\"hello\");");
+        var (result, output) = await RunAsync("Console.WriteLine(\"hello\");", Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Contains("hello", output);
@@ -33,7 +35,7 @@ public class ScriptBlasterTests
             Console.WriteLine("one");
             Console.WriteLine("two");
             Console.WriteLine("three");
-            """);
+            """, Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Equal(new[] { "one", "two", "three" }, output);
@@ -43,7 +45,7 @@ public class ScriptBlasterTests
     public async Task RunAsync_WriteWithoutNewline_Flushed()
     {
         // Console.Write (no newline) — the LineBufferingWriter.Flush at finish should emit it.
-        var (result, output) = await RunAsync("Console.Write(\"partial\");");
+        var (result, output) = await RunAsync("Console.Write(\"partial\");", Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Contains("partial", output);
@@ -52,7 +54,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_CompilationError_ReturnsError()
     {
-        var (result, _) = await RunAsync("this is not C# code @@@@");
+        var (result, _) = await RunAsync("this is not C# code @@@@", Ct);
 
         Assert.Equal(BlastStatus.Error, result.Status);
     }
@@ -60,7 +62,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_CompilationError_LogsDiagnostics()
     {
-        var (_, output) = await RunAsync("Console.WriteLine(unknownVariable);");
+        var (_, output) = await RunAsync("Console.WriteLine(unknownVariable);", Ct);
 
         // The diagnostic should mention the undefined variable somewhere.
         Assert.Contains(output, line => line.Contains("unknownVariable") || line.Contains("CS0103"));
@@ -69,7 +71,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_RuntimeException_ReturnsError()
     {
-        var (result, output) = await RunAsync("throw new System.InvalidOperationException(\"boom\");");
+        var (result, output) = await RunAsync("throw new System.InvalidOperationException(\"boom\");", Ct);
 
         Assert.Equal(BlastStatus.Error, result.Status);
         // Friendly summary is the exception message; full stack rides along
@@ -94,7 +96,7 @@ public class ScriptBlasterTests
     public async Task RunAsync_CanReferenceBlastNugets_UtilBlast()
     {
         // ScriptBlaster force-loads the Blast assemblies; scripts should see them.
-        var (result, output) = await RunAsync("Console.WriteLine(typeof(UtilBlast.UtilBlastFactory).Name);");
+        var (result, output) = await RunAsync("Console.WriteLine(typeof(UtilBlast.UtilBlastFactory).Name);", Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Contains("UtilBlastFactory", output);
@@ -103,7 +105,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_CanReferenceBlastNugets_GuiBlast()
     {
-        var (result, output) = await RunAsync("Console.WriteLine(typeof(GuiBlast.Prompts).Name);");
+        var (result, output) = await RunAsync("Console.WriteLine(typeof(GuiBlast.Prompts).Name);", Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Contains("Prompts", output);
@@ -112,7 +114,7 @@ public class ScriptBlasterTests
     [Fact]
     public async Task RunAsync_CanReferenceBlastNugets_AzureBlast()
     {
-        var (result, output) = await RunAsync("Console.WriteLine(typeof(AzureBlast.MssqlDatabase).Name);");
+        var (result, output) = await RunAsync("Console.WriteLine(typeof(AzureBlast.MssqlDatabase).Name);", Ct);
 
         Assert.Equal(BlastStatus.Ok, result.Status);
         Assert.Contains("MssqlDatabase", output);

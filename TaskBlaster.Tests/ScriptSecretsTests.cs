@@ -19,6 +19,8 @@ namespace TaskBlaster.Tests;
 [Collection("ScriptBlaster")]
 public sealed class ScriptSecretsTests : IDisposable
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private readonly string _root;
     private readonly TestConfigStore _config;
     private readonly VaultService _vault;
@@ -44,8 +46,8 @@ public sealed class ScriptSecretsTests : IDisposable
     [Fact]
     public async Task Script_CanResolveSecret_ViaGlobals()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("api", "token", "super-secret");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("api", "token", "super-secret", ct: Ct);
 
         var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
 
@@ -69,8 +71,8 @@ public sealed class ScriptSecretsTests : IDisposable
         // Emulates how AzureBlast / NetBlast will consume Secrets.Resolver:
         // the library takes a Func<category, key, ct, Task<string>> and
         // never sees the vault directly.
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("github", "pat", "ghp_xxx");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("github", "pat", "ghp_xxx", ct: Ct);
 
         var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
 
@@ -133,14 +135,14 @@ public sealed class ScriptSecretsTests : IDisposable
     [Fact]
     public async Task Keys_ReturnsKeysInCategory_WithoutValues()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("Azure", "test", "v1");
-        await _vault.AddAsync("Azure", "prod-sql", "v2");
-        await _vault.AddAsync("Github", "pat", "v3");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("Azure", "test", "v1", ct: Ct);
+        await _vault.AddAsync("Azure", "prod-sql", "v2", ct: Ct);
+        await _vault.AddAsync("Github", "pat", "v3", ct: Ct);
 
         var secrets = new ScriptSecrets(_vault, _ => Task.CompletedTask);
 
-        var keys = await secrets.KeysAsync("Azure");
+        var keys = await secrets.KeysAsync("Azure", Ct);
 
         Assert.Equal(new[] { "prod-sql", "test" }, keys.OrderBy(k => k).ToArray());
         // Spot check: the values never made it into the list.
@@ -151,25 +153,25 @@ public sealed class ScriptSecretsTests : IDisposable
     [Fact]
     public async Task Keys_IsCaseInsensitive_OnCategory()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("Azure", "test", "v1");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("Azure", "test", "v1", ct: Ct);
 
         var secrets = new ScriptSecrets(_vault, _ => Task.CompletedTask);
 
-        Assert.Single(await secrets.KeysAsync("azure"));
-        Assert.Single(await secrets.KeysAsync("AZURE"));
+        Assert.Single(await secrets.KeysAsync("azure", Ct));
+        Assert.Single(await secrets.KeysAsync("AZURE", Ct));
     }
 
     [Fact]
     public async Task Categories_ReturnsPersistedCategoryCatalog()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("Azure", "test", "v");
-        await _vault.AddAsync("Github", "pat", "v");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("Azure", "test", "v", ct: Ct);
+        await _vault.AddAsync("Github", "pat", "v", ct: Ct);
 
         var secrets = new ScriptSecrets(_vault, _ => Task.CompletedTask);
 
-        var cats = await secrets.CategoriesAsync();
+        var cats = await secrets.CategoriesAsync(Ct);
 
         Assert.Contains("Azure", cats);
         Assert.Contains("Github", cats);
@@ -181,8 +183,8 @@ public sealed class ScriptSecretsTests : IDisposable
         // Vault starts locked; the ensureUnlocked callback unlocks it
         // on-demand, the way MainWindow will when a script hits a locked
         // vault mid-run.
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("api", "token", "unlocked-value");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("api", "token", "unlocked-value", ct: Ct);
         _vault.Lock();
 
         var unlockCalls = 0;
@@ -192,7 +194,7 @@ public sealed class ScriptSecretsTests : IDisposable
             await _vault.UnlockAsync("pw", ct);
         });
 
-        var value = await secrets.ResolveAsync("api", "token");
+        var value = await secrets.ResolveAsync("api", "token", Ct);
 
         Assert.Equal("unlocked-value", value);
         Assert.Equal(1, unlockCalls);

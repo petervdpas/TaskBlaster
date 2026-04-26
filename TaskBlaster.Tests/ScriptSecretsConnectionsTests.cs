@@ -21,6 +21,8 @@ namespace TaskBlaster.Tests;
 [Collection("ScriptBlaster")]
 public sealed class ScriptSecretsConnectionsTests : IDisposable
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private readonly string _root;
     private readonly TestConfigStore _config;
     private readonly VaultService _vault;
@@ -50,7 +52,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
     [Fact]
     public async Task Connections_ReturnsRegisteredNames()
     {
-        await _vault.InitializeAsync("pw");
+        await _vault.InitializeAsync("pw", Ct);
         _connections.Save(new Connection("github", new Dictionary<string, ConnectionField>
         {
             ["baseUrl"] = ConnectionField.Plaintext("https://api.github.com"),
@@ -75,7 +77,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["timeout"] = ConnectionField.Plaintext("30"),
         }));
 
-        var conn = await _secrets.GetConnectionAsync("github");
+        var conn = await _secrets.GetConnectionAsync("github", Ct);
         Assert.Equal("github", conn.Name);
         Assert.Equal("https://api.github.com", conn["baseUrl"]);
         Assert.Equal("30", conn["timeout"]);
@@ -84,8 +86,8 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
     [Fact]
     public async Task GetConnection_MixedFields_DereferencesVaultEntries()
     {
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz", ct: Ct);
 
         _connections.Save(new Connection("github", new Dictionary<string, ConnectionField>
         {
@@ -93,7 +95,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["token"]   = ConnectionField.OfVault("github-secrets", "pat"),
         }));
 
-        var conn = await _secrets.GetConnectionAsync("github");
+        var conn = await _secrets.GetConnectionAsync("github", Ct);
         Assert.Equal("https://api.github.com", conn["baseUrl"]);
         Assert.Equal("ghp_xyz", conn["token"]);
     }
@@ -112,7 +114,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["baseUrl"] = ConnectionField.Plaintext("https://api.github.com"),
         }));
 
-        ConnectionSnapshot conn = (ConnectionSnapshot)await _secrets.GetConnectionAsync("github");
+        ConnectionSnapshot conn = (ConnectionSnapshot)await _secrets.GetConnectionAsync("github", Ct);
         Assert.True(conn.Has("baseUrl"));
         Assert.False(conn.Has("token"));
         Assert.Equal("https://api.github.com", conn.GetOrDefault("baseUrl", "fallback"));
@@ -125,8 +127,8 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
         // The script-style call: `var conn = ...; conn.baseUrl;`. Returned as
         // dynamic so the DLR routes member access through ConnectionSnapshot's
         // TryGetMember.
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz", ct: Ct);
 
         _connections.Save(new Connection("github", new Dictionary<string, ConnectionField>
         {
@@ -134,7 +136,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["token"]   = ConnectionField.OfVault("github-secrets", "pat"),
         }));
 
-        dynamic conn = await _secrets.GetConnectionAsync("github");
+        dynamic conn = await _secrets.GetConnectionAsync("github", Ct);
         string url   = conn.baseUrl;
         string token = conn.token;
         Assert.Equal("https://api.github.com", url);
@@ -149,7 +151,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["BaseUrl"] = ConnectionField.Plaintext("https://api.github.com"),
         }));
 
-        dynamic conn = await _secrets.GetConnectionAsync("github");
+        dynamic conn = await _secrets.GetConnectionAsync("github", Ct);
         string url = conn.baseurl; // lowercase, falls through case-insensitive
         Assert.Equal("https://api.github.com", url);
     }
@@ -161,8 +163,8 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
         // gets serialized to JSON then deserialized into T, so records
         // with positional ctors and classes with init/settable properties
         // both bind by case-insensitive name match.
-        await _vault.InitializeAsync("pw");
-        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz");
+        await _vault.InitializeAsync("pw", Ct);
+        await _vault.AddAsync("github-secrets", "pat", "ghp_xyz", ct: Ct);
 
         _connections.Save(new Connection("github", new Dictionary<string, ConnectionField>
         {
@@ -170,7 +172,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["token"]   = ConnectionField.OfVault("github-secrets", "pat"),
         }));
 
-        var typed = await _secrets.GetConnectionAsync<GithubConn>("github");
+        var typed = await _secrets.GetConnectionAsync<GithubConn>("github", Ct);
         Assert.Equal("https://api.github.com", typed.BaseUrl);
         Assert.Equal("ghp_xyz", typed.Token);
     }
@@ -186,7 +188,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
             ["timeout"] = ConnectionField.Plaintext("30"),
         }));
 
-        var typed = await _secrets.GetConnectionAsync<ApiConn>("api");
+        var typed = await _secrets.GetConnectionAsync<ApiConn>("api", Ct);
         Assert.Equal("https://x", typed.BaseUrl);
         Assert.Equal(30, typed.Timeout);
     }
