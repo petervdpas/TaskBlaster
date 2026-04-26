@@ -15,12 +15,16 @@ section below). Still open:
    that lets users define a named connection by picking `(category, key)`
    pairs and writes the config so AzureBlast/NetworkBlast pick them up
    via `Secrets.Resolver`.
-2. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
-   — consider gating the DataGrid value column behind a per-row reveal too,
-   or a "reveal for 30 s" pattern.
-3. **Category rename.** UI-only today — user has to edit each secret. A
-   bulk-rename (right-click category → rename) would rewrite envelopes under
-   the hood and leave filenames untouched.
+2. **Value-column reveal (open question).** The grid currently shows
+   Category / Key / Description / Updated only; the value lives behind 📋 Copy
+   and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
+   gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
+   close this item.
+3. **Category rename rewrites envelopes.** Picker-list rename shipped in
+   `CategoriesDialog`; the dialog itself notes existing secrets keep the old
+   category name until you edit them one by one. The remaining work is a
+   bulk rewrite of envelope `category` fields (filenames untouched, ids
+   preserved) so renaming actually moves the secrets.
 4. **Search / filter box** on the Secrets DataGrid.
 
 ## Roadmap (separate repos)
