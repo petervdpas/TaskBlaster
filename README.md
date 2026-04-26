@@ -167,7 +167,11 @@ The **🔗 Connections** tab manages a `connections.json` file that maps a conne
 }
 ```
 
-The library convention (per `NetworkBlast` and `AzureBlast 2.1+`): the connection name is the resolver "category", and field keys are the well-known names the library asks for. NetworkBlast wants `baseUrl` + `token`; AzureBlast SQL wants `server` / `database` / `user` / `password`. Plaintext fields skip the vault entirely; vault-ref fields trigger the unlock prompt the first time one is read.
+The library convention (per `NetworkBlast` and `AzureBlast 2.1+`): the connection name is the resolver "category", and field keys are the well-known names the library asks for. NetworkBlast wants `baseUrl` + `token`; AzureBlast SQL wants `server` / `database` / `user` / `password`. Resolver semantics:
+
+* A declared connection is **authoritative for its name** — only fields it declares are honored; asking for an undeclared key returns an empty string without ever calling the vault.
+* If the connection contains **any** `fromVault` field, the resolver primes the vault as soon as the connection is consulted, so the unlock prompt fires up-front rather than deferred until a specific vault-backed field happens to be read. A pure-plaintext connection (every field a `value`) never touches the vault.
+* If a name has no entry in `connections.json` at all, lookups fall through to the raw vault resolver — all-vault scripts that predate the connections layer keep working unchanged.
 
 Three ways scripts use a connection:
 

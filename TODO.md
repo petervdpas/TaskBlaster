@@ -29,25 +29,6 @@ section below). Still open:
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
 5. **Search / filter box** on the Secrets DataGrid.
-6. **Toolbar: split into two strips, ribbon-style.** Today the toolbar
-   is a single horizontal row of eleven controls (four mode toggles,
-   Run/Stop, New/Save/Rename/Delete, Settings); half are disabled in
-   Secrets/Connections mode and the strip is one feature away from
-   wrapping. Plan:
-   - **Top strip:** mode toggles (Scripts / Forms / Secrets / Connections)
-     plus Settings. Current button size — these are navigation, they
-     anchor the page.
-   - **Bottom strip:** action buttons (Run/Stop/New/Save/Rename/Delete).
-     Smaller buttons (smaller font / tighter padding) so the visual
-     hierarchy reads "where am I" above "what am I doing here".
-   - **Make the bottom strip contextual** instead of greying out: Run
-     only in Scripts (▶ Run) / Forms (👁 Preview); file ops only in
-     Scripts/Forms; bottom strip hidden entirely in Secrets/Connections
-     where none of those actions apply. Kills the current
-     "half-disabled toolbar" feel.
-   - Cost: ~28 px more chrome even when the bottom strip is empty
-     (or hide the bottom strip when empty to claw it back). Both
-     acceptable; pick at implement time.
 
 ## Roadmap (separate repos)
 
@@ -55,6 +36,84 @@ section below). Still open:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-27 — Ribbon toolbar + connection priming + friendlier failure UX
+
+A grab-bag day: the long-pending two-strip toolbar landed, the
+ConnectionsResolver got tighter semantics so a connection declares its
+own intent toward the vault, and runtime errors now render as a
+collapsible red entry instead of a stack-trace dump.
+
+Toolbar:
+
+- **Two-strip ribbon.** `ToolbarView` is now a navigation header
+  (mode toggles + Settings) on top, and a contextual `ContentPresenter`
+  bottom strip whose contents change per mode. Bottom strip hidden in
+  modes that don't need it.
+- **Per-mode action surfaces** (`Views/ScriptFormActionsView.axaml`,
+  `Views/SecretsActionsView.axaml`, `Views/ConnectionsActionsView.axaml`).
+  Each is a small `UserControl` owning its events and enable-state.
+  `MainWindow` swaps `Toolbar.ActionsContent` per mode; `SecretsView`
+  and `ConnectionsView` expose their action panel as a `ToolbarActions`
+  property and wire its events to existing in-view handlers.
+- **Run/Preview gated on file selection.** Was unconditionally enabled
+  on mode change; now stays disabled until a script/form is picked,
+  greys back out when the file is deleted or the folder changes.
+- **GridSplitter restyle.** Application-level `GridSplitter.niceV` /
+  `niceH` classes give all four splitters a 6 px hit area with a 2 px
+  centered bar, theme-aware accent (`AccentBrush`, swaps with the
+  active theme) on `:pointerover`. Adjacent panel borders
+  (`SidebarView`, `TerminalView`, `SecretsView` categories pane,
+  `ConnectionsView` list pane) removed because they were doubling-up
+  with the splitter line.
+
+ConnectionsResolver semantics tightened:
+
+- A declared connection is now **authoritative for its name**. Asking
+  for a key it doesn't declare returns `string.Empty` without
+  consulting the vault — a pure-plaintext connection (e.g. `formidable`
+  with only `baseUrl`) no longer triggers a stray unlock prompt for an
+  optional well-known key like `token`.
+- **Connection-level vault priming.** If the connection has *any*
+  `fromVault` field, the resolver primes the vault by resolving one of
+  those refs the first time the connection is consulted, so the unlock
+  prompt fires up-front instead of being deferred until a specific
+  vault-backed field happens to be read. The intent signal is the
+  connection's contents — no per-connection flag needed.
+- Resolver tests grew two cases (priming touches vault on plaintext
+  access; declared-connection + undeclared key returns empty without
+  hitting vault). 6/6 in `ConnectionsResolverTests`, 203/203 overall.
+
+Runtime-failure UX:
+
+- **`BlastResult` grew a `Details` field.** `ScriptBlaster.RunAsync`
+  now classifies common operational exceptions
+  (`HttpRequestException` / `SocketException`, `TimeoutException`,
+  `IOException` / `FileNotFoundException`, `UnauthorizedAccessException`)
+  into a one-line summary like `Network: Connection refused (localhost:8383)`
+  and packages the full `Exception.ToString()` in `Details`. Unknown
+  exceptions still get the unmodified stack so genuine bugs surface
+  in full.
+- **`ErrorItem` in the terminal.** `MainWindow` calls
+  `Terminal.LogError(summary, details)` on `BlastStatus.Error`; the
+  terminal renders an Avalonia `Expander` with a red monospace header,
+  a 📋 Copy button pinned in the header (always visible), and the
+  full stack in a self-contained scroll region (`MaxHeight=240`,
+  inner horizontal scroll) so long lines don't push the outer
+  terminal's horizontal scroll and drag the header off-screen.
+- The corresponding `RunAsync_RuntimeException_ReturnsError` test was
+  updated to assert against `result.Message` / `result.Details` (the
+  exception no longer streams to live `onOutput`).
+
+Form designer fix:
+
+- **Live label updates in `OptionsPropertyEditor`.** The options
+  ListBox was bound to a frozen `List<string>` projection, so editing
+  Value / Label at the bottom didn't update the displayed row text
+  until a save / reload. Switched to a member-mutating
+  `ObservableCollection<string>` and added `UpdateDisplayForSelected`
+  calls from `CommitValueFromTextBox`, `CommitLabel`, and
+  `OnValueComboSelectionChanged`.
 
 ### 2026-04-26 (cont. 3) — Multipart named connections
 
