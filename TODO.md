@@ -29,10 +29,72 @@ section below). Still open:
 
 ## Roadmap (separate repos)
 
-*(empty — all currently-planned siblings have shipped: NetworkBlast 1.0.2,
-AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.0.)*
+*(empty; all currently-planned siblings have shipped: NetworkBlast 1.0.2,
+AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-26 (cont.) — Form Settings polish + vault unlock fixes
+
+Round of designer-UX cleanup followed by chasing the intermittent
+"right password rejected" report.
+
+- **Actions + Visibility editors → `DataGrid`.** Both views were
+  hand-rolling rows in an `ItemsControl` with column definitions
+  duplicated between header and rows; headers were drifting because
+  `ItemsPresenter` introduces a small horizontal offset. Replaced with
+  `DataGrid` + `DataGridTemplateColumn`s so the grid owns column
+  alignment. Per-cell controls keep the always-editable feel via
+  OneWay bindings + `TextChanged` / `IsCheckedChanged` /
+  `SelectionChanged` handlers that look up the row's editor via
+  `DataContext`.
+- **`VisibilityRuleEditor.IsNeq` / `IsHide` mode flags.** The previous
+  code inferred mode from "is `Neq` non-null?" / "is `Hide` non-empty?",
+  which failed for new rules where both sides were empty (combo would
+  show "not equal" but writes still went to `Eq`). Added explicit mode
+  bits with `Value` / `TargetsCsv` accessors that route writes
+  correctly; `FromDto` initialises the bits from whichever side of the
+  toggle is populated, so loaded JSON behaves as before.
+- **Form Settings tabs.** Added an explainer line under the Actions
+  header. Fixed the Size tab so Width/Height labels sit *above* their
+  inputs (they shared a row with auto-width columns before, putting
+  them left of the boxes). Removed the `Dispatcher.Post(...
+  DispatcherPriority.Loaded)` suppress flag in `SizeEditorView` that
+  was eating the first toggle of "Allow user to resize" if the user
+  clicked before the deferred reset ran; replaced with
+  doc-equality guards in each `Commit*` method.
+- **Status-bar dot + dividers.** Replaced the implicit
+  filename-bullet dirty signal with an explicit `●` indicator in the
+  right-hand status segments (left of the existing Ready/Running…
+  status). Three states: `DangerBrush` (red) when dirty, `SuccessBrush`
+  (green) when saved, muted when no file is open. Added a `Color.Success`
+  to both themes plus a `SuccessBrush` semantic brush in `Base.axaml`.
+  Switched all status-bar dividers from `SystemControlForegroundBaseMediumLowBrush`
+  (no override; rendered invisible against our backgrounds) to
+  `BorderBrush` so they actually show.
+- **Vault unlock: NFC normalisation in SecretBlast.**
+  `Argon2Kdf.DeriveAsync` now runs `password.Normalize(NormalizationForm.FormC)`
+  before UTF-8 encoding so callers who type the same characters via
+  different input methods (composed vs decomposed) derive the same key.
+  ASCII passwords unaffected. Shipped as **SecretBlast 1.0.2**;
+  TaskBlaster bumped to match.
+- **Vault unlock: serialise concurrent attempts.** `VaultService` grew
+  a `SemaphoreSlim(1, 1)` `_stateGate` that wraps `InitializeAsync`
+  and `UnlockAsync`. Parallel clicks (or a click plus a script-triggered
+  unlock) used to run `SecretVault.Open` twice with `_vault` still null
+  on the second one, then both `AttachVault`-ed in some order with the
+  loser's instance leaked but still wired to the `Locked` event. Late
+  callers now also early-return when the vault is already open at the
+  same path so the queued retry doesn't redo Argon2.
+- **Vault unlock: "Verifying password…" busy state.**
+  `SecretsView.SetVerifying(bool)` swaps the locked-panel hint and
+  disables the Unlock + Reset buttons while `UnlockAsync` /
+  `InitializeAsync` are running. Wired in `MainWindow.UnlockOrCreateVaultAsync`
+  around both calls. Argon2 at 256 MiB / 3 / 4 takes 1-3 seconds; with
+  no feedback the user couldn't tell the dialog had accepted the
+  password and was re-clicking, spawning parallel chains.
+- 176/176 TaskBlaster tests still green; 149/149 SecretBlast tests
+  still green.
 
 ### 2026-04-26 — UtilBlast 1.1 + SqliteBlast 1.0 wired in
 

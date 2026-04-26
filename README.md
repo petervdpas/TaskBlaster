@@ -55,7 +55,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.0 — form specs and modal prompts
 * [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.0 — REST / OData / SOAP, vault-aware via the same resolver shape
 * [SqliteBlast](https://www.nuget.org/packages/SqliteBlast) 1.0.0 — local SQLite for staging/caching/migrations, vault-aware path
-* [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.0 — encrypted local vault
+* [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.2 — encrypted local vault
 
 ## Quick start
 
