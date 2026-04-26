@@ -50,7 +50,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Avalonia 12, Avalonia.Controls.DataGrid, AvaloniaEdit + TextMateSharp.Grammars
 * Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
 * Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
-* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.1.0 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath
+* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.2.0 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output
 * [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.0 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
 * [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.0 — form specs and modal prompts
 * [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.0 — REST / OData / SOAP, vault-aware via the same resolver shape
@@ -188,6 +188,7 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/network-odata-demo.csx`| Typed LINQ-flavored OData against the public Northwind service. |
 | `DemoScripts/sqlite-demo.csx`       | Local SQLite store via SqliteBlast — insert / query / transaction. |
 | `DemoScripts/json-csv-demo.csx`     | UtilBlast 1.1 JSON ⇆ CSV bridge + JObject helpers.   |
+| `DemoScripts/blast-display-demo.csx`| UtilBlast 1.2 `Blast` display DSL — heading / status / table / kv. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |

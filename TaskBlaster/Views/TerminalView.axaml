@@ -16,14 +16,13 @@
                           Click="OnClearClicked"
                           ToolTip.Tip="Clear output" />
             </Grid>
-            <TextBox Grid.Row="1" Name="Output"
-                     IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="NoWrap"
-                     FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
-                     FontSize="12"
-                     BorderThickness="0"
-                     Background="Transparent" />
+            <ScrollViewer Grid.Row="1"
+                          Name="OutputScroll"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="10,4,10,8">
+                <ItemsControl Name="OutputItems" />
+            </ScrollViewer>
         </Grid>
     </Border>
 </UserControl>
