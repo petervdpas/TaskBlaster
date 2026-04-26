@@ -63,29 +63,62 @@ public sealed class ConnectionsResolverTests
     }
 
     [Fact]
-    public async Task MissingField_FallsThroughToVaultResolver_WithOriginalCategoryKey()
+    public async Task ConnectionWithVaultRef_PrimesVault_EvenWhenAskingForPlaintextKey()
     {
-        // Connection exists but doesn't define the asked-for field — fall
-        // through so the library's well-known key still resolves against
-        // the vault if a (category, key) entry happens to exist there.
+        // The presence of any fromVault field in a connection means the
+        // user has accepted that this connection will use the vault. To
+        // avoid surprise prompts deep inside a script, the resolver
+        // touches the vault up-front the first time the connection is
+        // consulted, regardless of which key was asked for. NetworkBlast
+        // only asks for "baseUrl" + (optional) "token" - without
+        // priming, a vault-backed field that nobody reads would never
+        // unlock the vault.
         var store = new InMemoryConnectionStore();
-        store.Save(new Connection("github", new Dictionary<string, ConnectionField>
+        store.Save(new Connection("formidable", new Dictionary<string, ConnectionField>
         {
-            ["baseUrl"] = ConnectionField.Plaintext("https://api.github.com"),
+            ["baseUrl"] = ConnectionField.Plaintext("http://localhost:8383/api/"),
+            ["field"]   = ConnectionField.OfVault("Azure", "apple"),
         }));
 
-        (string Category, string Key)? seen = null;
+        var seen = new List<(string Category, string Key)>();
         Func<string, string, CancellationToken, Task<string>> vault = (cat, key, _) =>
         {
-            seen = (cat, key);
+            seen.Add((cat, key));
+            return Task.FromResult("vault-value");
+        };
+
+        var resolver = new ConnectionsResolver(store, vault);
+        var got = await resolver.ResolveAsync("formidable", "baseUrl");
+
+        Assert.Equal("http://localhost:8383/api/", got);
+        Assert.Contains(("Azure", "apple"), seen);
+    }
+
+    [Fact]
+    public async Task MissingField_OnDeclaredConnection_ReturnsEmpty_WithoutHittingVault()
+    {
+        // A declared connection is authoritative for its name. Asking for
+        // a key it doesn't declare returns "" rather than falling through
+        // to the vault, so a pure-plaintext connection never triggers an
+        // unlock prompt for an undeclared optional key.
+        var store = new InMemoryConnectionStore();
+        store.Save(new Connection("formidable", new Dictionary<string, ConnectionField>
+        {
+            ["baseUrl"] = ConnectionField.Plaintext("http://localhost:8383/api/"),
+        }));
+
+        var vaultCalls = 0;
+        Func<string, string, CancellationToken, Task<string>> vault = (_, _, _) =>
+        {
+            vaultCalls++;
             return Task.FromResult("from-vault");
         };
 
         var resolver = new ConnectionsResolver(store, vault);
-        var got = await resolver.ResolveAsync("github", "token");
+        var got = await resolver.ResolveAsync("formidable", "token");
 
-        Assert.Equal("from-vault", got);
-        Assert.Equal(("github", "token"), seen);
+        Assert.Equal(string.Empty, got);
+        Assert.Equal(0, vaultCalls);
     }
 
     [Fact]
