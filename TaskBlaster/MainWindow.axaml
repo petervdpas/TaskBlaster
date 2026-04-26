@@ -25,6 +25,7 @@
                     </Panel>
                 </Grid>
                 <views:SecretsView Name="Secrets" IsVisible="False" />
+                <views:ConnectionsView Name="Connections" IsVisible="False" />
             </Grid>
             <GridSplitter Grid.Row="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
             <views:TerminalView Grid.Row="2" Name="Terminal" />

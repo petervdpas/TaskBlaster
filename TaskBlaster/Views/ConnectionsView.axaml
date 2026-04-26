@@ -1,0 +1,116 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:conns="clr-namespace:TaskBlaster.Connections"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
+             x:Class="TaskBlaster.Views.ConnectionsView">
+    <Grid ColumnDefinitions="220,4,*">
+        <Border Grid.Column="0" BorderThickness="0,0,1,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="Connections" FontWeight="SemiBold" Padding="10,8" />
+                <ListBox  Grid.Row="1" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="10,8">
+                    <Button Name="AddConnectionButton" Content="➕ Add"      Click="OnAddConnectionClicked" />
+                    <Button Name="DeleteConnectionButton" Content="🗑 Delete" IsEnabled="False" Click="OnDeleteConnectionClicked" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
+            <Border Grid.Row="0" Padding="12,8" BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
+                <TextBlock Name="ConnectionHeader"
+                           Text="Pick a connection on the left, or add a new one."
+                           FontWeight="SemiBold" />
+            </Border>
+
+            <TextBlock Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                       Padding="12,8,12,4"
+                       Text="A connection is a named bag of fields. Per the library convention the connection name is the resolver category and each field key matches what the library asks for (e.g. baseUrl, token, server). Plaintext fields skip the vault entirely; FromVault fields point at an encrypted (category, key) pair." />
+
+            <DataGrid Grid.Row="2" Name="FieldsGrid"
+                      x:DataType="conns:ConnectionFieldEditor"
+                      AutoGenerateColumns="False"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      CanUserReorderColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      IsReadOnly="True"
+                      Margin="12,4,12,0">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Field" Width="160" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="conns:ConnectionFieldEditor">
+                                <TextBox Text="{Binding Name, Mode=OneWay}"
+                                         TextChanged="OnFieldNameChanged"
+                                         ToolTip.Tip="Field key the library asks for (e.g. baseUrl, token)"
+                                         Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Mode" Width="120" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="conns:ConnectionFieldEditor">
+                                <ComboBox SelectionChanged="OnModeChanged"
+                                          AttachedToVisualTree="OnModeAttached"
+                                          ToolTip.Tip="Plaintext stores the literal value here; From vault points at an encrypted (category, key)"
+                                          Margin="2"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="Plaintext" />
+                                    <ComboBoxItem Content="From vault" />
+                                </ComboBox>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Header="Value" Width="*" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="conns:ConnectionFieldEditor">
+                                <Grid Margin="2">
+                                    <TextBox Text="{Binding PlaintextValue, Mode=OneWay}"
+                                             IsVisible="{Binding IsPlaintext}"
+                                             TextChanged="OnPlaintextChanged"
+                                             ToolTip.Tip="Stored as plaintext in connections.json" />
+                                    <Grid IsVisible="{Binding IsFromVault}" ColumnDefinitions="*,4,*">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding VaultCategory, Mode=OneWay}"
+                                                 TextChanged="OnVaultCategoryChanged"
+                                                 PlaceholderText="category"
+                                                 ToolTip.Tip="Vault category the secret lives under" />
+                                        <TextBox Grid.Column="2"
+                                                 Text="{Binding VaultKey, Mode=OneWay}"
+                                                 TextChanged="OnVaultKeyChanged"
+                                                 PlaceholderText="key"
+                                                 ToolTip.Tip="Vault key inside that category" />
+                                    </Grid>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <DataGridTemplateColumn Width="48" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="conns:ConnectionFieldEditor">
+                                <Button Content="×" Padding="8,2"
+                                        Click="OnRemoveFieldClicked"
+                                        ToolTip.Tip="Remove field"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" Margin="12,8">
+                <Button Name="AddFieldButton" Content="➕ Add field" IsEnabled="False" Click="OnAddFieldClicked" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

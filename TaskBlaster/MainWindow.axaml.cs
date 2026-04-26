@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private readonly TerminalView _terminal;
     private readonly StatusBarView _statusBar;
     private readonly SecretsView _secrets;
+    private readonly ConnectionsView _connections;
     private readonly Grid _scriptsFormsWorkspace;
 
     private AppMode _mode = AppMode.Scripts;
@@ -72,7 +73,8 @@ public partial class MainWindow : Window
         _designer  = this.FindControl<FormDesignerView>("Designer")!;
         _terminal  = this.FindControl<TerminalView>("Terminal")!;
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
-        _secrets   = this.FindControl<SecretsView>("Secrets")!;
+        _secrets     = this.FindControl<SecretsView>("Secrets")!;
+        _connections = this.FindControl<ConnectionsView>("Connections")!;
         _scriptsFormsWorkspace = this.FindControl<Grid>("ScriptsFormsWorkspace")!;
 
         _config.Load();
@@ -82,6 +84,7 @@ public partial class MainWindow : Window
         SeedMissingFromFolder("DemoForms",   _config.FormsFolder,   "*.json");
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
+        _connections.Initialize(_connectionStore, _prompts, line => _terminal.Log(line));
         _secrets.UnlockRequested += OnVaultUnlockRequested;
         _designer.Initialize(_vaultService, EnsureVaultUnlockedAsync);
 
@@ -159,6 +162,7 @@ public partial class MainWindow : Window
             case AppMode.Scripts:
                 _scriptsFormsWorkspace.IsVisible = true;
                 _secrets.IsVisible = false;
+                _connections.IsVisible = false;
                 _editor.IsVisible = true;
                 _designer.IsVisible = false;
                 _sidebar.Header = "Scripts";
@@ -171,6 +175,7 @@ public partial class MainWindow : Window
             case AppMode.Forms:
                 _scriptsFormsWorkspace.IsVisible = true;
                 _secrets.IsVisible = false;
+                _connections.IsVisible = false;
                 _editor.IsVisible = false;
                 _designer.IsVisible = true;
                 _sidebar.Header = "Forms";
@@ -183,9 +188,18 @@ public partial class MainWindow : Window
             case AppMode.Secrets:
                 _scriptsFormsWorkspace.IsVisible = false;
                 _secrets.IsVisible = true;
+                _connections.IsVisible = false;
                 // Scripts/Forms toolbar actions don't apply in secrets mode.
                 _toolbar.CanRun = false;
                 await _secrets.ActivateAsync();
+                break;
+
+            case AppMode.Connections:
+                _scriptsFormsWorkspace.IsVisible = false;
+                _secrets.IsVisible = false;
+                _connections.IsVisible = true;
+                _toolbar.CanRun = false;
+                _connections.Reload();
                 break;
         }
     }

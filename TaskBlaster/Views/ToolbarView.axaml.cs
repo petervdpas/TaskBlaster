@@ -5,7 +5,7 @@ using Avalonia.Interactivity;
 
 namespace TaskBlaster.Views;
 
-public enum AppMode { Scripts, Forms, Secrets }
+public enum AppMode { Scripts, Forms, Secrets, Connections }
 
 public partial class ToolbarView : UserControl
 {
@@ -17,6 +17,7 @@ public partial class ToolbarView : UserControl
     private readonly ToggleButton _scriptsMode;
     private readonly ToggleButton _formsMode;
     private readonly ToggleButton _secretsMode;
+    private readonly ToggleButton _connectionsMode;
 
     private bool _suppressModeEvent;
 
@@ -37,9 +38,10 @@ public partial class ToolbarView : UserControl
         _saveButton   = this.FindControl<Button>("SaveButton")!;
         _renameButton = this.FindControl<Button>("RenameButton")!;
         _deleteButton = this.FindControl<Button>("DeleteButton")!;
-        _scriptsMode  = this.FindControl<ToggleButton>("ScriptsMode")!;
-        _formsMode    = this.FindControl<ToggleButton>("FormsMode")!;
-        _secretsMode  = this.FindControl<ToggleButton>("SecretsMode")!;
+        _scriptsMode     = this.FindControl<ToggleButton>("ScriptsMode")!;
+        _formsMode       = this.FindControl<ToggleButton>("FormsMode")!;
+        _secretsMode     = this.FindControl<ToggleButton>("SecretsMode")!;
+        _connectionsMode = this.FindControl<ToggleButton>("ConnectionsMode")!;
     }
 
     public bool CanRun    { get => _runButton.IsEnabled;    set => _runButton.IsEnabled    = value; }
@@ -51,33 +53,37 @@ public partial class ToolbarView : UserControl
     {
         get
         {
-            if (_secretsMode.IsChecked == true) return AppMode.Secrets;
-            if (_formsMode.IsChecked   == true) return AppMode.Forms;
+            if (_connectionsMode.IsChecked == true) return AppMode.Connections;
+            if (_secretsMode.IsChecked     == true) return AppMode.Secrets;
+            if (_formsMode.IsChecked       == true) return AppMode.Forms;
             return AppMode.Scripts;
         }
         set
         {
             _suppressModeEvent = true;
-            _scriptsMode.IsChecked = value == AppMode.Scripts;
-            _formsMode.IsChecked   = value == AppMode.Forms;
-            _secretsMode.IsChecked = value == AppMode.Secrets;
+            _scriptsMode.IsChecked     = value == AppMode.Scripts;
+            _formsMode.IsChecked       = value == AppMode.Forms;
+            _secretsMode.IsChecked     = value == AppMode.Secrets;
+            _connectionsMode.IsChecked = value == AppMode.Connections;
             _suppressModeEvent = false;
         }
     }
 
     public void SetRunLabel(string label) => _runButton.Content = label;
 
-    private void OnScriptsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Scripts);
-    private void OnFormsModeClicked  (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Forms);
-    private void OnSecretsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Secrets);
+    private void OnScriptsModeClicked    (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Scripts);
+    private void OnFormsModeClicked      (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Forms);
+    private void OnSecretsModeClicked    (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Secrets);
+    private void OnConnectionsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Connections);
 
     private void SwitchTo(AppMode mode)
     {
         if (_suppressModeEvent) return;
         _suppressModeEvent = true;
-        _scriptsMode.IsChecked = mode == AppMode.Scripts;
-        _formsMode.IsChecked   = mode == AppMode.Forms;
-        _secretsMode.IsChecked = mode == AppMode.Secrets;
+        _scriptsMode.IsChecked     = mode == AppMode.Scripts;
+        _formsMode.IsChecked       = mode == AppMode.Forms;
+        _secretsMode.IsChecked     = mode == AppMode.Secrets;
+        _connectionsMode.IsChecked = mode == AppMode.Connections;
         _suppressModeEvent = false;
         ModeChanged?.Invoke(this, mode);
     }

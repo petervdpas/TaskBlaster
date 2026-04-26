@@ -466,6 +466,7 @@ public sealed class VaultServiceTests : IDisposable
         public string ScriptsFolder { get; set; } = "";
         public string FormsFolder   { get; set; } = "";
         public string VaultFolder   { get; set; }
+        public string Theme         { get; set; } = "Industrial";
         public void Load() { }
         public void Save() { }
     }
