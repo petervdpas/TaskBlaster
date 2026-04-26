@@ -12,10 +12,16 @@ using TaskBlaster.Secrets;
 namespace TaskBlaster.Dialogs;
 
 /// <summary>
-/// Result returned by <see cref="CategoriesDialog"/> — the new list to persist.
-/// Null means the user cancelled and no change should be written.
+/// Result returned by <see cref="CategoriesDialog"/>.
+/// <see cref="Categories"/> is the new picker list to persist;
+/// <see cref="Renames"/> are the rename ops to apply to existing secrets
+/// (oldName, newName) so envelopes follow the rename rather than getting
+/// orphaned under a deleted picker entry. Null result means the user
+/// cancelled and nothing should change.
 /// </summary>
-public sealed record CategoriesDialogResult(IReadOnlyList<string> Categories);
+public sealed record CategoriesDialogResult(
+    IReadOnlyList<string> Categories,
+    IReadOnlyList<(string OldName, string NewName)> Renames);
 
 public partial class CategoriesDialog : Window
 {
@@ -27,6 +33,16 @@ public partial class CategoriesDialog : Window
     /// <summary>Map: category name (case-insensitive) → count of secrets using it.</summary>
     private readonly Dictionary<string, int> _usage;
     private readonly IPromptService _prompts;
+
+    /// <summary>
+    /// Display-name → original-name map. Original is the name the category
+    /// had when the dialog opened; null means "freshly added in this session"
+    /// (no envelope rewrite needed). Renames just shuffle keys: lookup the
+    /// original under the current display name, drop that entry, re-insert
+    /// under the new display name.
+    /// </summary>
+    private readonly Dictionary<string, string?> _displayToOriginal =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public CategoriesDialog() : this(Array.Empty<string>(), new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase), new NoopPromptService()) { }
 
@@ -41,7 +57,10 @@ public partial class CategoriesDialog : Window
         _usage = new Dictionary<string, int>(usage, StringComparer.OrdinalIgnoreCase);
 
         foreach (var c in CategoryCatalog.Normalize(current))
+        {
             _items.Add(c);
+            _displayToOriginal[c] = c;
+        }
         _list.ItemsSource = _items;
 
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close((CategoriesDialogResult?)null); };
@@ -71,6 +90,7 @@ public partial class CategoriesDialog : Window
         var idx = 0;
         while (idx < _items.Count && StringComparer.OrdinalIgnoreCase.Compare(_items[idx], trimmed) < 0) idx++;
         _items.Insert(idx, trimmed);
+        _displayToOriginal[trimmed] = null; // fresh add, no envelope rewrite
         _list.SelectedItem = trimmed;
     }
 
@@ -81,7 +101,7 @@ public partial class CategoriesDialog : Window
 
         var usage = _usage.TryGetValue(current, out var n) ? n : 0;
         var prompt = usage > 0
-            ? $"Rename '{current}'.\n\n{usage} secret(s) use this category. Renaming here only updates the picker list; existing secrets keep the old category name until you edit them."
+            ? $"Rename '{current}'.\n\n{usage} secret(s) currently use this category; they will be re-tagged to the new name when you save."
             : $"Rename '{current}'.";
         var raw = await _prompts.InputAsync("Rename category", prompt, current);
         if (raw is null) return;
@@ -103,6 +123,14 @@ public partial class CategoriesDialog : Window
         var insertAt = 0;
         while (insertAt < _items.Count && StringComparer.OrdinalIgnoreCase.Compare(_items[insertAt], trimmed) < 0) insertAt++;
         _items.Insert(insertAt, trimmed);
+
+        // Move the original-name pointer to the new display name. If chained
+        // renames bring us back to the original, the entry effectively vanishes
+        // from the rename ops (handled by Save's filter on original != display).
+        _displayToOriginal.TryGetValue(current, out var originalName);
+        _displayToOriginal.Remove(current);
+        _displayToOriginal[trimmed] = originalName;
+
         _list.SelectedItem = trimmed;
     }
 
@@ -120,11 +148,19 @@ public partial class CategoriesDialog : Window
         }
 
         _items.Remove(current);
+        _displayToOriginal.Remove(current);
     }
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
-        Close(new CategoriesDialogResult(_items.ToList()));
+        var renames = new List<(string OldName, string NewName)>();
+        foreach (var (display, original) in _displayToOriginal)
+        {
+            if (original is null) continue; // freshly added; no envelope rewrite
+            if (string.Equals(original, display, StringComparison.Ordinal)) continue;
+            renames.Add((original, display));
+        }
+        Close(new CategoriesDialogResult(_items.ToList(), renames));
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close((CategoriesDialogResult?)null);

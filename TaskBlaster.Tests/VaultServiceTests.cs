@@ -103,6 +103,76 @@ public sealed class VaultServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RenameCategory_RewritesMatchingEnvelopes_KeepsIds_AndIsCaseInsensitiveOnMatch()
+    {
+        await _service.InitializeAsync("pw");
+        var a = await _service.AddAsync("Azure",  "k1", "v1");
+        var b = await _service.AddAsync("azure",  "k2", "v2");
+        var c = await _service.AddAsync("github", "k3", "v3");
+
+        var rewritten = await _service.RenameCategoryAsync("azure", "Cloud");
+
+        Assert.Equal(2, rewritten);
+
+        var all = (await _service.ListAsync()).OrderBy(e => e.Key).ToList();
+        Assert.Equal("Cloud",  all[0].Category);
+        Assert.Equal("Cloud",  all[1].Category);
+        Assert.Equal("github", all[2].Category);
+
+        // Same ids → same on-disk filenames.
+        var byId = all.ToDictionary(e => e.Id);
+        Assert.True(byId.ContainsKey(a.Id));
+        Assert.True(byId.ContainsKey(b.Id));
+        Assert.True(byId.ContainsKey(c.Id));
+    }
+
+    [Fact]
+    public async Task RenameCategory_NoMatches_ReturnsZero_AndDoesNotTouchEnvelopes()
+    {
+        await _service.InitializeAsync("pw");
+        var e = await _service.AddAsync("github", "tok", "v");
+        var beforeUpdated = e.UpdatedUtc;
+
+        var rewritten = await _service.RenameCategoryAsync("nothere", "Cloud");
+        Assert.Equal(0, rewritten);
+
+        var all = await _service.ListAsync();
+        Assert.Single(all);
+        Assert.Equal("github", all[0].Category);
+        Assert.Equal(beforeUpdated, all[0].UpdatedUtc);
+    }
+
+    [Fact]
+    public async Task RenameCategory_SameNameNoOp_ReturnsZero()
+    {
+        await _service.InitializeAsync("pw");
+        await _service.AddAsync("Azure", "k", "v");
+
+        var rewritten = await _service.RenameCategoryAsync("Azure", "Azure");
+        Assert.Equal(0, rewritten);
+    }
+
+    [Fact]
+    public async Task RenameCategory_LeavesCatalogUntouched_SoCallerStillCommitsIt()
+    {
+        // RenameCategoryAsync only rewrites secret envelopes; the picker-list
+        // catalog is the caller's responsibility (paired with SetCategoriesAsync).
+        // After a rename without a follow-up SetCategoriesAsync, the union view
+        // surfaces BOTH the stale catalog entry and the new category that
+        // secrets actually use, which is the signal that the caller still
+        // needs to commit the new list.
+        await _service.InitializeAsync("pw");
+        await _service.SetCategoriesAsync(new[] { "Azure", "github" });
+        await _service.AddAsync("Azure", "k", "v");
+
+        await _service.RenameCategoryAsync("Azure", "Cloud");
+
+        var cats = await _service.GetCategoriesAsync();
+        Assert.Contains("Azure", cats); // catalog still has the old name
+        Assert.Contains("Cloud", cats); // secrets now use the new name
+    }
+
+    [Fact]
     public async Task Delete_RemovesEntry()
     {
         await _service.InitializeAsync("pw");

@@ -20,12 +20,7 @@ section below). Still open:
    and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
-3. **Category rename rewrites envelopes.** Picker-list rename shipped in
-   `CategoriesDialog`; the dialog itself notes existing secrets keep the old
-   category name until you edit them one by one. The remaining work is a
-   bulk rewrite of envelope `category` fields (filenames untouched, ids
-   preserved) so renaming actually moves the secrets.
-4. **Search / filter box** on the Secrets DataGrid.
+3. **Search / filter box** on the Secrets DataGrid.
 
 ## Roadmap (separate repos)
 
@@ -33,6 +28,34 @@ section below). Still open:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-26 (cont. 2) — Category rename moves the secrets
+
+`CategoriesDialog` rename now actually re-tags the affected secrets;
+previously it only updated the picker list and required a per-secret
+edit to follow.
+
+- **`IVaultService.RenameCategoryAsync(oldName, newName)`** added.
+  Walks the live envelopes, rewrites `category` on those that match
+  case-insensitively (`OrdinalIgnoreCase`), saves under the same id so
+  filenames stay opaque. Skips the catalog reserved id. Returns the
+  rewrite count. Idempotent: re-running after a partial failure is safe
+  because already-renamed secrets no longer match the old name.
+- **`CategoriesDialog`** tracks a display-name → original-name map so
+  add / rename / re-rename ops collapse into a clean list of
+  `(OldName, NewName)` pairs at Save time. Fresh adds map to `null`
+  (no envelope rewrite). The rename prompt now says "*N secret(s)
+  currently use this category; they will be re-tagged to the new name
+  when you save*" instead of the previous "edit them one by one"
+  caveat.
+- **`CategoriesDialogResult`** carries `Renames` alongside `Categories`.
+- **`SecretsView.OnCategoriesClicked`** rewrites envelopes first, then
+  flips the catalog list. The terminal log includes the re-tag count
+  when non-zero.
+- **4 new VaultService tests** covering: case-insensitive match across
+  multiple secrets with id preservation, no-op when no match, no-op
+  when old == new, and the contract that the catalog isn't touched
+  (caller pairs the rename with `SetCategoriesAsync`).
 
 ### 2026-04-26 (cont.) — Form Settings polish + vault unlock fixes
 

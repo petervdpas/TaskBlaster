@@ -312,8 +312,20 @@ public partial class SecretsView : UserControl
 
         try
         {
+            // Rewrite envelopes first so secrets carry the new category name
+            // before the catalog list flips. If the rewrite fails partway, the
+            // catalog stays in its old state and the user can retry safely
+            // (RenameCategoryAsync is idempotent: secrets already carrying the
+            // new name no longer match the old one).
+            var renamed = 0;
+            foreach (var (oldName, newName) in result.Renames)
+                renamed += await _vault.RenameCategoryAsync(oldName, newName);
+
             await _vault.SetCategoriesAsync(result.Categories);
-            _log?.Invoke($"Categories updated ({result.Categories.Count} total).");
+            if (renamed > 0)
+                _log?.Invoke($"Categories updated ({result.Categories.Count} total, {renamed} secret(s) re-tagged).");
+            else
+                _log?.Invoke($"Categories updated ({result.Categories.Count} total).");
             await ReloadAsync();
         }
         catch (Exception ex)

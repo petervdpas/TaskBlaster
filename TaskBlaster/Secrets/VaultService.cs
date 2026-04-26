@@ -197,6 +197,37 @@ public sealed class VaultService : IVaultService, IDisposable
         await vault.SetAsync(CategoryCatalog.ReservedId, catalog.ToJson(), ct);
     }
 
+    public async Task<int> RenameCategoryAsync(string oldName, string newName, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(oldName)) throw new ArgumentException("Old name is required.", nameof(oldName));
+        if (string.IsNullOrWhiteSpace(newName)) throw new ArgumentException("New name is required.", nameof(newName));
+
+        var vault = EnsureUnlocked();
+        var oldTrimmed = oldName.Trim();
+        var newTrimmed = newName.Trim();
+        if (string.Equals(oldTrimmed, newTrimmed, StringComparison.Ordinal)) return 0;
+
+        var ids = await vault.ListAsync(ct);
+        var rewritten = 0;
+        foreach (var id in ids)
+        {
+            if (id == CategoryCatalog.ReservedId) continue;
+
+            var json = await vault.GetAsync(id, ct);
+            SecretEnvelope env;
+            try { env = SecretEnvelope.FromJson(json); }
+            catch (InvalidSecretEnvelopeException) { continue; }
+
+            if (!string.Equals(env.Category, oldTrimmed, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var updated = env.With(category: newTrimmed);
+            await vault.SetAsync(id, updated.ToJson(), ct);
+            rewritten++;
+        }
+        return rewritten;
+    }
+
     public async Task<SecretEntry> AddAsync(string category, string key, string value, string? description = null, CancellationToken ct = default)
     {
         var vault = EnsureUnlocked();

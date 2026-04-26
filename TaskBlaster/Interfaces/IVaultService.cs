@@ -82,4 +82,13 @@ public interface IVaultService
 
     /// <summary>Persist a replacement category list.</summary>
     Task SetCategoriesAsync(IEnumerable<string> categories, CancellationToken ct = default);
+
+    /// <summary>
+    /// Rewrite every secret currently in <paramref name="oldName"/> (case-insensitive)
+    /// to use <paramref name="newName"/> instead. Filenames and ids are preserved;
+    /// only the encrypted envelope's category field is rewritten. Returns the number
+    /// of secrets actually rewritten. Does NOT touch the category catalog; callers
+    /// pair this with <see cref="SetCategoriesAsync"/>.
+    /// </summary>
+    Task<int> RenameCategoryAsync(string oldName, string newName, CancellationToken ct = default);
 }
