@@ -72,7 +72,11 @@ public class ScriptBlasterTests
         var (result, output) = await RunAsync("throw new System.InvalidOperationException(\"boom\");");
 
         Assert.Equal(BlastStatus.Error, result.Status);
-        Assert.Contains(output, line => line.Contains("boom"));
+        // Friendly summary is the exception message; full stack rides along
+        // in Details so the terminal can show it as a collapsible section.
+        Assert.Contains("boom", result.Message ?? string.Empty);
+        Assert.Contains("InvalidOperationException", result.Details ?? string.Empty);
+        Assert.Empty(output);
     }
 
     [Fact]
