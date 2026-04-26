@@ -60,7 +60,7 @@ public sealed class ScriptSecrets
     /// var db = new MssqlDatabase();
     /// await db.SetupAsync(Secrets.Resolver, "prod-sql");
     ///
-    /// // NetworkBlaster 1.0+ — one-step (resolver baked into ctor):
+    /// // NetworkBlast 1.0+ — one-step (resolver baked into ctor):
     /// var api = new NetClient(Secrets.Resolver, "github");
     /// </code>
     /// </summary>

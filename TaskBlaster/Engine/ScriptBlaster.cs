@@ -34,7 +34,7 @@ public sealed class ScriptBlaster : IScriptBlaster
         _ = typeof(UtilBlast.UtilBlastFactory).Assembly;
         _ = typeof(AzureBlast.MssqlDatabase).Assembly;
         _ = typeof(GuiBlast.Prompts).Assembly;
-        _ = typeof(NetworkBlaster.NetClient).Assembly;
+        _ = typeof(NetworkBlast.NetClient).Assembly;
     }
 
     public async Task<BlastResult> RunAsync(

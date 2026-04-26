@@ -52,7 +52,7 @@
     <PackageReference Include="UtilBlast" Version="1.0.2" />
     <PackageReference Include="AzureBlast" Version="2.1.0" />
     <PackageReference Include="GuiBlast" Version="2.1.0" />
-    <PackageReference Include="NetworkBlaster" Version="1.0.2" />
+    <PackageReference Include="NetworkBlast" Version="1.0.0" />
     <PackageReference Include="SecretBlast" Version="1.0.0" />
   </ItemGroup>
 

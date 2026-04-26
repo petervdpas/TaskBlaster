@@ -2,8 +2,8 @@
 // Typed OData v4 query against the public Northwind sample service.
 // Demonstrates the LINQ-flavoured chain plus auto-paging IAsyncEnumerable.
 
-using NetworkBlaster;
-using NetworkBlaster.OData;
+using NetworkBlast;
+using NetworkBlast.OData;
 
 var northwind = NetClient.Anonymous("https://services.odata.org/V4/Northwind/Northwind.svc/");
 

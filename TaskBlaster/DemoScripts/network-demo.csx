@@ -1,11 +1,11 @@
 // network-demo.csx
-// Pull JSON from a public API using NetworkBlaster. Two flavours:
+// Pull JSON from a public API using NetworkBlast. Two flavours:
 //   1) Anonymous client — works out of the box, no vault required.
 //   2) Vault-backed client — uses Secrets.Resolver. Add a vault entry
 //      under category "github" with key "baseUrl" = "https://api.github.com/"
 //      (and optionally key "token" for a higher rate limit) before running.
 
-using NetworkBlaster;
+using NetworkBlast;
 
 // 1) Anonymous — httpbin always returns whatever you send it.
 var test = NetClient.Anonymous("https://httpbin.org/");

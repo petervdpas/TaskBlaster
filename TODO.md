@@ -9,11 +9,11 @@ section below). Still open:
 1. **Migrate named-connection config.** Today: plaintext JSON. Target:
    `{ name → { category, key } }` pointing into the vault. One-shot migration
    helper so existing users don't lose connections. **Building blocks
-   landed 2026-04-26**: NetworkBlaster 1.0.2 and AzureBlast 2.1.0 both
+   landed 2026-04-26**: NetworkBlast 1.0.2 and AzureBlast 2.1.0 both
    accept a `Func<category, key, ct, Task<string>>` resolver and pull
    connection details from the vault on demand. What's left: a UI flow
    that lets users define a named connection by picking `(category, key)`
-   pairs and writes the config so AzureBlast/NetworkBlaster pick them up
+   pairs and writes the config so AzureBlast/NetworkBlast pick them up
    via `Secrets.Resolver`.
 2. **Name-reveal confirm.** The 👁 toggle in the secret-entry dialog is free
    — consider gating the DataGrid value column behind a per-row reveal too,
@@ -25,18 +25,18 @@ section below). Still open:
 
 ## Roadmap (separate repos)
 
-*(empty — all currently-planned siblings have shipped: NetworkBlaster 1.0.2,
+*(empty — all currently-planned siblings have shipped: NetworkBlast 1.0.2,
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.0.)*
 
 ## Done
 
-### 2026-04-26 — NetworkBlaster + AzureBlast resolver path wired in
+### 2026-04-26 — NetworkBlast + AzureBlast resolver path wired in
 
 Two siblings landed on the same day; both consume `Secrets.Resolver`
 (shape `Func<category, key, ct, Task<string>>`) so the vault stays the
 single source of connection truth.
 
-- **NetworkBlaster 1.0.2** (in `~/Projects/NetworkBlaster/`): brand-new
+- **NetworkBlast 1.0.2** (in `~/Projects/NetworkBlast/`): brand-new
   Blast nuget for REST/HTTP/SOAP/OData. The 0.1 → 1.0 arc landed 2026-04-25;
   1.0.2 followed up with a small ergonomic fix (relaxed the `NetClient`
   resolver parameter from a custom `SecretResolver` delegate to plain
@@ -56,8 +56,8 @@ single source of connection truth.
   existing string path otherwise. Mix-and-match supported. 17 new
   resolver tests, all green.
 - **TaskBlaster.csproj**: bumped `AzureBlast` 2.0.2 → 2.1.0; added
-  `NetworkBlaster 1.0.2`.
-- **`Engine/ScriptBlaster.cs`**: force-loads `NetworkBlaster.NetClient`
+  `NetworkBlast 1.0.2`.
+- **`Engine/ScriptBlaster.cs`**: force-loads `NetworkBlast.NetClient`
   alongside the other Blast assemblies so Roslyn picks it up via
   `AppDomain.GetAssemblies()`.
 - **Demo scripts**:
