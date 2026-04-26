@@ -29,6 +29,9 @@ public sealed record KvItem(
     string? Title,
     IReadOnlyList<KeyValuePair<string, string?>> Pairs) : TerminalItem;
 
+/// <summary>Script failure: a one-line summary plus an optional full stack/detail trace shown only when expanded.</summary>
+public sealed record ErrorItem(string Summary, string? Details) : TerminalItem;
+
 /// <summary>Status severity displayed alongside <see cref="StatusItem"/>.</summary>
 public enum TerminalStatusLevel
 {

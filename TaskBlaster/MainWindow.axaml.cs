@@ -338,7 +338,10 @@ public partial class MainWindow : Window
                     : $"⊘ {name} cancelled: {result.Message}");
                 _statusBar.Status = "Cancelled";
                 break;
-            case BlastStatus.Error:     _terminal.Log($"✗ {name} failed: {result.Message}"); _statusBar.Status = "Error"; break;
+            case BlastStatus.Error:
+                _terminal.LogError($"{name} failed: {result.Message}", result.Details);
+                _statusBar.Status = "Error";
+                break;
         }
     }
 

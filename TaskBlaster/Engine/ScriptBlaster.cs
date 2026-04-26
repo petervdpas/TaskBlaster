@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -105,14 +107,47 @@ public sealed class ScriptBlaster : IScriptBlaster
         catch (Exception ex)
         {
             writer.Flush();
-            onOutput(ex.ToString());
-            return BlastResult.Error(ex.Message);
+            // Friendly one-liner for the terminal header; full ToString() rides
+            // along as the expandable details so genuine bugs still have full
+            // diagnostics one click away.
+            var summary = FormatExpectedException(ex) ?? ex.Message;
+            return BlastResult.Error(summary, details: ex.ToString());
         }
         finally
         {
             Console.SetOut(originalOut);
             Console.SetError(originalErr);
         }
+    }
+
+    /// <summary>
+    /// Classifies common operational failures (network unreachable, timeout,
+    /// IO/permission errors) and returns a one-line summary instead of a
+    /// full stack trace. Returns <c>null</c> for everything else, leaving
+    /// the generic catch block to dump <see cref="Exception.ToString"/> so
+    /// genuine library bugs still surface with full diagnostics.
+    /// </summary>
+    private static string? FormatExpectedException(Exception ex)
+    {
+        for (var cur = ex; cur is not null; cur = cur.InnerException)
+        {
+            switch (cur)
+            {
+                case HttpRequestException:
+                case SocketException:
+                    return $"Network: {cur.Message}";
+                case TimeoutException:
+                    return $"Timeout: {cur.Message}";
+                case UnauthorizedAccessException:
+                    return $"Access denied: {cur.Message}";
+                case FileNotFoundException:
+                case DirectoryNotFoundException:
+                    return $"Not found: {cur.Message}";
+                case IOException:
+                    return $"IO: {cur.Message}";
+            }
+        }
+        return null;
     }
 
     private static IEnumerable<Assembly> GetLoadableAssemblies()

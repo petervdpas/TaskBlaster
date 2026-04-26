@@ -44,6 +44,18 @@ public partial class TerminalView : UserControl
         ScrollToEnd();
     }
 
+    /// <summary>
+    /// Append a script-failure entry: a red one-line summary that the user
+    /// can expand to see the full stack/details. Used by MainWindow when
+    /// <see cref="TaskBlaster.Engine.BlastResult"/> comes back with status
+    /// <c>Error</c>.
+    /// </summary>
+    public void LogError(string summary, string? details)
+    {
+        _items.Add(new ErrorItem(summary, details));
+        ScrollToEnd();
+    }
+
     public void Clear() => _items.Clear();
 
     private void OnClearClicked(object? sender, RoutedEventArgs e) => Clear();
@@ -60,8 +72,40 @@ public partial class TerminalView : UserControl
         StatusItem s    => BuildStatus(s),
         TableItem tab   => BuildTable(tab),
         KvItem kv       => BuildKv(kv),
+        ErrorItem e     => BuildError(e),
         _               => new TextBlock { Text = string.Empty },
     };
+
+    private static Control BuildError(ErrorItem e)
+    {
+        var header = new TextBlock
+        {
+            Text = $"✗ {e.Summary}",
+            Foreground = Brushes.IndianRed,
+            FontWeight = FontWeight.SemiBold,
+        };
+
+        if (string.IsNullOrEmpty(e.Details))
+            return new StackPanel { Margin = new Thickness(0, 2), Children = { header } };
+
+        var details = new SelectableTextBlock
+        {
+            Text = e.Details,
+            FontFamily = new FontFamily("Cascadia Code,Consolas,Menlo,Monospace"),
+            FontSize = 11,
+            TextWrapping = TextWrapping.NoWrap,
+            Foreground = Brushes.IndianRed,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+
+        return new Expander
+        {
+            Header = header,
+            Content = details,
+            IsExpanded = false,
+            Margin = new Thickness(0, 2),
+        };
+    }
 
     private static Control BuildText(TextItem t) =>
         new SelectableTextBlock
