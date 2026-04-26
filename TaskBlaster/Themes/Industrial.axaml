@@ -12,6 +12,7 @@
 
   <Color x:Key="Color.Accent">#FF9800</Color>
   <Color x:Key="Color.Danger">#C95C5C</Color>
+  <Color x:Key="Color.Success">#5CC97B</Color>
 
   <Color x:Key="SystemAccentColor">#FF9800</Color>
   <Color x:Key="SystemAccentColorLight1">#FFB74D</Color>

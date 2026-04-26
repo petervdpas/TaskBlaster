@@ -233,7 +233,8 @@ public partial class MainWindow : Window
     private void UpdateDirtyUi()
     {
         var name = _currentFilePath is null ? string.Empty : Path.GetFileName(_currentFilePath);
-        _statusBar.CurrentFile = IsDirty && !string.IsNullOrEmpty(name) ? name + " •" : name;
+        _statusBar.CurrentFile = name;
+        _statusBar.SetDirty(_currentFilePath is null ? null : IsDirty);
         _toolbar.CanSave = _currentFilePath is not null && IsDirty;
     }
 

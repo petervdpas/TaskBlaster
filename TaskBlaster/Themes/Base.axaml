@@ -13,6 +13,7 @@
 
   <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource Color.Accent}" />
   <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource Color.Danger}" />
+  <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource Color.Success}" />
 
   <!-- Override Fluent default brushes so built-in controls follow our palette -->
   <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush"
