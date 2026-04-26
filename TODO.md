@@ -29,6 +29,25 @@ section below). Still open:
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
 5. **Search / filter box** on the Secrets DataGrid.
+6. **Toolbar: split into two strips, ribbon-style.** Today the toolbar
+   is a single horizontal row of eleven controls (four mode toggles,
+   Run/Stop, New/Save/Rename/Delete, Settings); half are disabled in
+   Secrets/Connections mode and the strip is one feature away from
+   wrapping. Plan:
+   - **Top strip:** mode toggles (Scripts / Forms / Secrets / Connections)
+     plus Settings. Current button size — these are navigation, they
+     anchor the page.
+   - **Bottom strip:** action buttons (Run/Stop/New/Save/Rename/Delete).
+     Smaller buttons (smaller font / tighter padding) so the visual
+     hierarchy reads "where am I" above "what am I doing here".
+   - **Make the bottom strip contextual** instead of greying out: Run
+     only in Scripts (▶ Run) / Forms (👁 Preview); file ops only in
+     Scripts/Forms; bottom strip hidden entirely in Secrets/Connections
+     where none of those actions apply. Kills the current
+     "half-disabled toolbar" feel.
+   - Cost: ~28 px more chrome even when the bottom strip is empty
+     (or hide the bottom strip when empty to claw it back). Both
+     acceptable; pick at implement time.
 
 ## Roadmap (separate repos)
 
