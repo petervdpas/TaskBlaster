@@ -148,6 +148,7 @@ public partial class TerminalView : UserControl
             });
         }
 
+        ApplyAlternatingRows(dataGrid);
         outer.Children.Add(WrapInBorder(dataGrid));
         return outer;
     }
@@ -204,12 +205,27 @@ public partial class TerminalView : UserControl
             Width = DataGridLength.Auto,
         });
 
+        ApplyAlternatingRows(dataGrid);
         outer.Children.Add(WrapInBorder(dataGrid));
         return outer;
     }
 
+    /// <summary>Per-row striping via the <c>LoadingRow</c> event (Avalonia DataGrid has no built-in AlternatingRowBackground).</summary>
+    private static void ApplyAlternatingRows(DataGrid dataGrid)
+    {
+        dataGrid.LoadingRow += (_, e) =>
+        {
+            e.Row.Background = e.Row.GetIndex() % 2 == 1
+                ? AlternatingRowBrush
+                : Brushes.Transparent;
+        };
+    }
+
     private static readonly IBrush GridFrameBrush =
         new SolidColorBrush(Color.FromArgb(0x80, 0x80, 0x80, 0x80));
+
+    private static readonly IBrush AlternatingRowBrush =
+        new SolidColorBrush(Color.FromArgb(0x22, 0x80, 0x80, 0x80));
 
     /// <summary>Wraps a DataGrid in a Border so the outer frame is consistent regardless of the DataGrid's own template.</summary>
     private static Border WrapInBorder(Control inner) => new()
