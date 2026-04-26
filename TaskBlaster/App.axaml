@@ -7,6 +7,44 @@
         <FluentTheme />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+        <!-- Vertical splitter: column-resizing, 6px hit area, 2px visible line, hover-highlight. -->
+        <Style Selector="GridSplitter.niceV">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel Background="Transparent">
+                        <Rectangle Name="PART_Bar"
+                                   Width="2"
+                                   HorizontalAlignment="Center"
+                                   Fill="{TemplateBinding Background}" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="GridSplitter.niceV:pointerover /template/ Rectangle#PART_Bar">
+            <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+        </Style>
+
+        <!-- Horizontal splitter: row-resizing, same idea rotated. -->
+        <Style Selector="GridSplitter.niceH">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel Background="Transparent">
+                        <Rectangle Name="PART_Bar"
+                                   Height="2"
+                                   VerticalAlignment="Center"
+                                   Fill="{TemplateBinding Background}" />
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="GridSplitter.niceH:pointerover /template/ Rectangle#PART_Bar">
+            <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+        </Style>
     </Application.Styles>
 
     <Application.Resources>

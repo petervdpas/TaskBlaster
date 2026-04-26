@@ -5,16 +5,13 @@
              xmlns:conns="clr-namespace:TaskBlaster.Connections"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
              x:Class="TaskBlaster.Views.ConnectionsView">
-    <Grid ColumnDefinitions="220,4,*">
-        <Border Grid.Column="0" BorderThickness="0,0,1,0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
-            <Grid RowDefinitions="Auto,*">
-                <TextBlock Grid.Row="0" Text="Connections" FontWeight="SemiBold" Padding="10,8" />
-                <ListBox  Grid.Row="1" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
-            </Grid>
-        </Border>
+    <Grid ColumnDefinitions="220,6,*">
+        <Grid Grid.Column="0" RowDefinitions="Auto,*">
+            <TextBlock Grid.Row="0" Text="Connections" FontWeight="SemiBold" Padding="10,8" />
+            <ListBox  Grid.Row="1" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
+        </Grid>
 
-        <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+        <GridSplitter Grid.Column="1" Classes="niceV" />
 
         <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
             <Border Grid.Row="0" Padding="12,8" BorderThickness="0,0,0,1"
