@@ -6,15 +6,58 @@ The Secrets tab is live (SecretBlast 1.0.0 wired in). Scripts can now
 pull values out of the vault via the `Secrets` global (see the Done
 section below). Still open:
 
-1. **Migrate named-connection config.** Today: plaintext JSON. Target:
-   `{ name → { category, key } }` pointing into the vault. One-shot migration
-   helper so existing users don't lose connections. **Building blocks
-   landed 2026-04-26**: NetworkBlast 1.0.2 and AzureBlast 2.1.0 both
-   accept a `Func<category, key, ct, Task<string>>` resolver and pull
-   connection details from the vault on demand. What's left: a UI flow
-   that lets users define a named connection by picking `(category, key)`
-   pairs and writes the config so AzureBlast/NetworkBlast pick them up
-   via `Secrets.Resolver`.
+1. **Multipart named connections.** A connection is a named bag of fields
+   where each field is either a plaintext literal (URL, server, account
+   name, timeout) or a pointer into the vault (token, password, secret
+   key). The library convention from `networkblast_plan.md` is "category
+   = connection name, key = field name", so a script handing
+   `Secrets.Resolver` to a library and asking for connection `"github"`
+   triggers `resolver("github", "baseUrl")` and `resolver("github", "token")`.
+   The on-disk shape:
+
+   ```jsonc
+   // ~/.taskblaster/connections.json
+   {
+     "github": {
+       "baseUrl":  { "value":    "https://api.github.com" },
+       "token":    { "fromVault": { "category": "github-secrets", "key": "pat" } }
+     },
+     "prod-sql": {
+       "server":   { "value":    "tcp:my-server.database.windows.net,1433" },
+       "user":     { "value":    "tb-runtime" },
+       "password": { "fromVault": { "category": "azure-sql", "key": "prod-pw" } }
+     }
+   }
+   ```
+
+   TaskBlaster wraps `Secrets.Resolver` with a connections-aware resolver
+   that, for each `(category, key)` lookup, first checks
+   `connections[category][key]`. `{ "value": ... }` returns the literal;
+   `{ "fromVault": ... }` dispatches to `Secrets.Resolver` against the
+   pointed-to vault entry; an absent connection or absent field falls
+   through to `Secrets.Resolver(category, key)` directly so existing
+   all-vault setups keep working unchanged.
+
+   Building blocks already landed 2026-04-26: NetworkBlast 1.0.2 and
+   AzureBlast 2.1.0 accept a `Func<category, key, ct, Task<string>>`
+   resolver. Remaining work, phased:
+
+   - **Phase 1: model + store.** `ConnectionStore` reads/writes
+     `connections.json`. `ConnectionsResolver` wraps `IVaultService` to
+     produce the merged `Func<category, key, ct, Task<string>>`. Wire
+     it as the script-side default (replace the raw `Secrets.Resolver`
+     hand-off with the wrapped one in `ScriptGlobals`). Tests for
+     plaintext / vault / fall-through / missing-key behaviour.
+   - **Phase 2: UI.** Connections tab (or a page under Settings)
+     listing connection names; per-connection editor with rows of
+     `(field name, Plaintext | FromVault, value | (category,key) picker)`.
+     The vault picker reuses the OptionsPropertyEditor pattern (vault
+     unlock on demand).
+   - **Phase 3: migration helper.** "Import legacy connections…"
+     wizard that reads a flat connections JSON, lets the user mark
+     which fields per connection should move into the vault, writes
+     the vault entries, and rewrites the connections file with
+     `fromVault` pointers in their place.
 2. **Value-column reveal (open question).** The grid currently shows
    Category / Key / Description / Updated only; the value lives behind 📋 Copy
    and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
