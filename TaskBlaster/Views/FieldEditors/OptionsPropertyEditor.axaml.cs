@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +32,8 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
     private FieldEditor? _field;
     private OptionEditor? _selected;
     private bool _suppress;
+
+    private readonly ObservableCollection<string> _displayItems = new();
 
     public event EventHandler? Changed;
 
@@ -68,6 +71,8 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
 
         _valueBox.TextChanged += (_, _) => CommitValueFromTextBox();
         _labelBox.TextChanged += (_, _) => CommitLabel();
+
+        _optionList.ItemsSource = _displayItems;
     }
 
     public void Bind(FieldEditor field)
@@ -227,6 +232,7 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
             _labelBox.Text = picked;
             Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
         }
+        UpdateDisplayForSelected();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -236,15 +242,22 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
 
     private void RefreshOptionList()
     {
-        if (_field is null)
-        {
-            _optionList.ItemsSource = Array.Empty<string>();
-            return;
-        }
-        _optionList.ItemsSource = _field.Options
-            .Select(o => string.IsNullOrEmpty(o.Label) ? o.Value : $"{o.Label} ({o.Value})")
-            .ToList();
+        _displayItems.Clear();
+        if (_field is null) return;
+        foreach (var o in _field.Options)
+            _displayItems.Add(FormatOption(o));
     }
+
+    private void UpdateDisplayForSelected()
+    {
+        if (_field is null || _selected is null) return;
+        var idx = _field.Options.IndexOf(_selected);
+        if (idx < 0 || idx >= _displayItems.Count) return;
+        _displayItems[idx] = FormatOption(_selected);
+    }
+
+    private static string FormatOption(OptionEditor o) =>
+        string.IsNullOrEmpty(o.Label) ? o.Value : $"{o.Label} ({o.Value})";
 
     private void OnOptionSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -274,6 +287,7 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
     {
         if (_suppress || _selected is null) return;
         _selected.Value = _valueBox.Text ?? "";
+        UpdateDisplayForSelected();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -281,6 +295,7 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
     {
         if (_suppress || _selected is null) return;
         _selected.Label = _labelBox.Text;
+        UpdateDisplayForSelected();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

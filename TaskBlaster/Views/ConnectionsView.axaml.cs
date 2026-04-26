@@ -21,10 +21,9 @@ namespace TaskBlaster.Views;
 public partial class ConnectionsView : UserControl
 {
     private readonly ListBox _list;
-    private readonly Button _deleteButton;
-    private readonly Button _addFieldButton;
     private readonly TextBlock _header;
     private readonly DataGrid _grid;
+    private readonly ConnectionsActionsView _toolbarActions;
 
     private IConnectionStore? _store;
     private IPromptService? _prompts;
@@ -39,14 +38,20 @@ public partial class ConnectionsView : UserControl
     {
         InitializeComponent();
         _list           = this.FindControl<ListBox>("ConnectionsList")!;
-        _deleteButton   = this.FindControl<Button>("DeleteConnectionButton")!;
-        _addFieldButton = this.FindControl<Button>("AddFieldButton")!;
         _header         = this.FindControl<TextBlock>("ConnectionHeader")!;
         _grid           = this.FindControl<DataGrid>("FieldsGrid")!;
 
         _list.ItemsSource = _connectionNames;
         _grid.ItemsSource = _fields;
+
+        _toolbarActions = new ConnectionsActionsView();
+        _toolbarActions.AddClicked      += (s, e) => OnAddConnectionClicked(s, new RoutedEventArgs());
+        _toolbarActions.DeleteClicked   += (s, e) => OnDeleteConnectionClicked(s, new RoutedEventArgs());
+        _toolbarActions.AddFieldClicked += (s, e) => OnAddFieldClicked(s, new RoutedEventArgs());
     }
+
+    /// <summary>The action strip this view contributes to the main toolbar.</summary>
+    public Control ToolbarActions => _toolbarActions;
 
     /// <summary>Wire the view to its dependencies.</summary>
     public void Initialize(IConnectionStore store, IPromptService prompts, Action<string> log)
@@ -78,8 +83,7 @@ public partial class ConnectionsView : UserControl
     {
         var name = _list.SelectedItem as string;
         _selectedConnectionName = name;
-        _deleteButton.IsEnabled = name is not null;
-        _addFieldButton.IsEnabled = name is not null;
+        _toolbarActions.HasSelection = name is not null;
         LoadFieldsFor(name);
     }
 

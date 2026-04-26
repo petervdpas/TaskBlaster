@@ -8,19 +8,15 @@
     <Grid ColumnDefinitions="220,4,*">
         <Border Grid.Column="0" BorderThickness="0,0,1,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
-            <Grid RowDefinitions="Auto,*,Auto">
+            <Grid RowDefinitions="Auto,*">
                 <TextBlock Grid.Row="0" Text="Connections" FontWeight="SemiBold" Padding="10,8" />
                 <ListBox  Grid.Row="1" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="10,8">
-                    <Button Name="AddConnectionButton" Content="➕ Add"      Click="OnAddConnectionClicked" />
-                    <Button Name="DeleteConnectionButton" Content="🗑 Delete" IsEnabled="False" Click="OnDeleteConnectionClicked" />
-                </StackPanel>
             </Grid>
         </Border>
 
         <GridSplitter Grid.Column="1" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
 
-        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
             <Border Grid.Row="0" Padding="12,8" BorderThickness="0,0,0,1"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
                 <TextBlock Name="ConnectionHeader"
@@ -41,7 +37,7 @@
                       CanUserResizeColumns="True"
                       CanUserSortColumns="False"
                       IsReadOnly="True"
-                      Margin="12,4,12,0">
+                      Margin="12,4,12,12">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="Field" Width="160" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>
@@ -107,10 +103,6 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
-
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" Margin="12,8">
-                <Button Name="AddFieldButton" Content="➕ Add field" IsEnabled="False" Click="OnAddFieldClicked" />
-            </StackPanel>
         </Grid>
     </Grid>
 </UserControl>

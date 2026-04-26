@@ -20,13 +20,10 @@ public partial class SecretsView : UserControl
     private readonly Grid _unlockedPanel;
     private readonly ListBox _categoriesListBox;
     private readonly DataGrid _grid;
-    private readonly Button _editButton;
-    private readonly Button _deleteButton;
-    private readonly Button _copyButton;
     private readonly TextBlock _emptyLabel;
     private readonly TextBlock _lockedHint;
-    private readonly Button _unlockButton;
     private readonly Button _resetButton;
+    private readonly SecretsActionsView _toolbarActions;
     private string? _hintBeforeVerifying;
 
     private IVaultService? _vault;
@@ -48,14 +45,24 @@ public partial class SecretsView : UserControl
         _unlockedPanel     = this.FindControl<Grid>("UnlockedPanel")!;
         _categoriesListBox = this.FindControl<ListBox>("CategoriesList")!;
         _grid              = this.FindControl<DataGrid>("EntriesGrid")!;
-        _editButton    = this.FindControl<Button>("EditButton")!;
-        _deleteButton  = this.FindControl<Button>("DeleteButton")!;
-        _copyButton    = this.FindControl<Button>("CopyButton")!;
         _emptyLabel    = this.FindControl<TextBlock>("EmptyLabel")!;
         _lockedHint    = this.FindControl<TextBlock>("LockedHint")!;
-        _unlockButton  = this.FindControl<Button>("UnlockButton")!;
         _resetButton   = this.FindControl<Button>("ResetButton")!;
+
+        _toolbarActions = new SecretsActionsView();
+        _toolbarActions.UnlockClicked         += (_, _) => UnlockRequested?.Invoke(this, EventArgs.Empty);
+        _toolbarActions.AddClicked            += (s, e) => OnAddClicked(s, new RoutedEventArgs());
+        _toolbarActions.EditClicked           += (s, e) => OnEditClicked(s, new RoutedEventArgs());
+        _toolbarActions.DeleteClicked         += (s, e) => OnDeleteClicked(s, new RoutedEventArgs());
+        _toolbarActions.CopyClicked           += (s, e) => OnCopyClicked(s, new RoutedEventArgs());
+        _toolbarActions.LockClicked           += (s, e) => OnLockClicked(s, new RoutedEventArgs());
+        _toolbarActions.CategoriesClicked     += (s, e) => OnCategoriesClicked(s, new RoutedEventArgs());
+        _toolbarActions.ChangePasswordClicked += (s, e) => OnChangePasswordClicked(s, new RoutedEventArgs());
+        _toolbarActions.DestroyClicked        += (s, e) => OnDestroyClicked(s, new RoutedEventArgs());
     }
+
+    /// <summary>The action strip this view contributes to the main toolbar.</summary>
+    public Control ToolbarActions => _toolbarActions;
 
     /// <summary>
     /// Toggle the locked panel between "ready to unlock" and "running Argon2"
@@ -69,7 +76,7 @@ public partial class SecretsView : UserControl
         {
             _hintBeforeVerifying ??= _lockedHint.Text;
             _lockedHint.Text = "Verifying password…";
-            _unlockButton.IsEnabled = false;
+            _toolbarActions.CanUnlock = false;
             _resetButton.IsEnabled = false;
         }
         else
@@ -79,7 +86,7 @@ public partial class SecretsView : UserControl
                 _lockedHint.Text = _hintBeforeVerifying;
                 _hintBeforeVerifying = null;
             }
-            _unlockButton.IsEnabled = true;
+            _toolbarActions.CanUnlock = true;
             _resetButton.IsEnabled = true;
         }
     }
@@ -126,12 +133,14 @@ public partial class SecretsView : UserControl
         _lockedHint.Text = hint;
         _lockedPanel.IsVisible = true;
         _unlockedPanel.IsVisible = false;
+        _toolbarActions.IsUnlocked = false;
     }
 
     private void ShowUnlocked()
     {
         _lockedPanel.IsVisible = false;
         _unlockedPanel.IsVisible = true;
+        _toolbarActions.IsUnlocked = true;
     }
 
     private void RefreshLockedState()
@@ -200,13 +209,8 @@ public partial class SecretsView : UserControl
 
     private void UpdateActionState()
     {
-        var hasSelection = _grid.SelectedItem is SecretRow;
-        _editButton.IsEnabled   = hasSelection;
-        _deleteButton.IsEnabled = hasSelection;
-        _copyButton.IsEnabled   = hasSelection;
+        _toolbarActions.HasSelection = _grid.SelectedItem is SecretRow;
     }
-
-    private void OnUnlockClicked(object? sender, RoutedEventArgs e) => UnlockRequested?.Invoke(this, EventArgs.Empty);
 
     private async void OnAddClicked(object? sender, RoutedEventArgs e)
     {

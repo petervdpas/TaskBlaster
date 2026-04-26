@@ -22,6 +22,7 @@ namespace TaskBlaster;
 public partial class MainWindow : Window
 {
     private readonly ToolbarView _toolbar;
+    private readonly ScriptFormActionsView _scriptFormActions;
     private readonly SidebarView _sidebar;
     private readonly EditorView _editor;
     private readonly FormDesignerView _designer;
@@ -90,13 +91,15 @@ public partial class MainWindow : Window
 
         _sidebar.ScriptSelected += OnFileSelected;
 
-        _toolbar.RunClicked    += OnRunClicked;
-        _toolbar.StopClicked   += OnStopClicked;
+        _scriptFormActions = new ScriptFormActionsView();
+        _scriptFormActions.RunClicked    += OnRunClicked;
+        _scriptFormActions.StopClicked   += OnStopClicked;
+        _scriptFormActions.NewClicked    += OnNewClicked;
+        _scriptFormActions.SaveClicked   += (_, _) => SaveCurrent();
+        _scriptFormActions.RenameClicked += OnRenameClicked;
+        _scriptFormActions.DeleteClicked += OnDeleteClicked;
+
         _toolbar.ConfigClicked += OnConfigClicked;
-        _toolbar.NewClicked    += OnNewClicked;
-        _toolbar.SaveClicked   += (_, _) => SaveCurrent();
-        _toolbar.RenameClicked += OnRenameClicked;
-        _toolbar.DeleteClicked += OnDeleteClicked;
         _toolbar.ModeChanged   += (_, mode) => SwitchMode(mode);
 
         _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
@@ -154,7 +157,7 @@ public partial class MainWindow : Window
         _toolbar.Mode = mode;
 
         _currentFilePath = null;
-        _toolbar.CanModify = false;
+        _scriptFormActions.CanModify = false;
         UpdateDirtyUi();
 
         switch (mode)
@@ -168,8 +171,9 @@ public partial class MainWindow : Window
                 _sidebar.Header = "Scripts";
                 _sidebar.Pattern = "*.csx";
                 _sidebar.Folder = _config.ScriptsFolder;
-                _toolbar.SetRunLabel("▶ Run");
-                _toolbar.CanRun = true;
+                _scriptFormActions.SetRunLabel("▶ Run");
+                _scriptFormActions.CanRun = false;
+                _toolbar.ActionsContent = _scriptFormActions;
                 break;
 
             case AppMode.Forms:
@@ -181,16 +185,16 @@ public partial class MainWindow : Window
                 _sidebar.Header = "Forms";
                 _sidebar.Pattern = "*.json";
                 _sidebar.Folder = _config.FormsFolder;
-                _toolbar.SetRunLabel("👁 Preview");
-                _toolbar.CanRun = true;
+                _scriptFormActions.SetRunLabel("👁 Preview");
+                _scriptFormActions.CanRun = false;
+                _toolbar.ActionsContent = _scriptFormActions;
                 break;
 
             case AppMode.Secrets:
                 _scriptsFormsWorkspace.IsVisible = false;
                 _secrets.IsVisible = true;
                 _connections.IsVisible = false;
-                // Scripts/Forms toolbar actions don't apply in secrets mode.
-                _toolbar.CanRun = false;
+                _toolbar.ActionsContent = _secrets.ToolbarActions;
                 await _secrets.ActivateAsync();
                 break;
 
@@ -198,7 +202,7 @@ public partial class MainWindow : Window
                 _scriptsFormsWorkspace.IsVisible = false;
                 _secrets.IsVisible = false;
                 _connections.IsVisible = true;
-                _toolbar.CanRun = false;
+                _toolbar.ActionsContent = _connections.ToolbarActions;
                 _connections.Reload();
                 break;
         }
@@ -212,7 +216,8 @@ public partial class MainWindow : Window
     private void OnFileSelected(object? sender, string path)
     {
         _currentFilePath = path;
-        _toolbar.CanModify = true;
+        _scriptFormActions.CanModify = true;
+        _scriptFormActions.CanRun = true;
 
         if (_mode == AppMode.Scripts)
         {
@@ -250,7 +255,7 @@ public partial class MainWindow : Window
         var name = _currentFilePath is null ? string.Empty : Path.GetFileName(_currentFilePath);
         _statusBar.CurrentFile = name;
         _statusBar.SetDirty(_currentFilePath is null ? null : IsDirty);
-        _toolbar.CanSave = _currentFilePath is not null && IsDirty;
+        _scriptFormActions.CanSave = _currentFilePath is not null && IsDirty;
     }
 
     // ==================== Save ====================
@@ -294,8 +299,8 @@ public partial class MainWindow : Window
         var scriptText = File.ReadAllText(path);
 
         _runCts = new CancellationTokenSource();
-        _toolbar.CanRun = false;
-        _toolbar.CanStop = true;
+        _scriptFormActions.CanRun = false;
+        _scriptFormActions.CanStop = true;
         _statusBar.Status = "Running…";
         _terminal.Log($"▶ {name}");
 
@@ -320,8 +325,8 @@ public partial class MainWindow : Window
         {
             _runCts?.Dispose();
             _runCts = null;
-            _toolbar.CanRun = true;
-            _toolbar.CanStop = false;
+            _scriptFormActions.CanRun = true;
+            _scriptFormActions.CanStop = false;
         }
 
         switch (result.Status)
@@ -515,7 +520,8 @@ public partial class MainWindow : Window
         _editor.Text = string.Empty;
         DetachCurrentFormDoc();
         _designer.Document = null;
-        _toolbar.CanModify = false;
+        _scriptFormActions.CanModify = false;
+        _scriptFormActions.CanRun = false;
         UpdateDirtyUi();
 
         // Refresh the sidebar for the mode we're in.
@@ -630,7 +636,8 @@ public partial class MainWindow : Window
             DetachCurrentFormDoc();
             _designer.Document = null;
         }
-        _toolbar.CanModify = false;
+        _scriptFormActions.CanModify = false;
+        _scriptFormActions.CanRun = false;
         UpdateDirtyUi();
         _sidebar.Refresh();
     }
