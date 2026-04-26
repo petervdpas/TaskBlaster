@@ -4,8 +4,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -78,31 +80,76 @@ public partial class TerminalView : UserControl
 
     private static Control BuildError(ErrorItem e)
     {
-        var header = new TextBlock
+        var monospace = new FontFamily("Cascadia Code,Consolas,Menlo,Monospace");
+
+        var headerText = new TextBlock
         {
             Text = $"✗ {e.Summary}",
             Foreground = Brushes.IndianRed,
             FontWeight = FontWeight.SemiBold,
+            FontFamily = monospace,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
         };
 
         if (string.IsNullOrEmpty(e.Details))
-            return new StackPanel { Margin = new Thickness(0, 2), Children = { header } };
+        {
+            return new Border
+            {
+                Margin = new Thickness(0, 2),
+                Child = headerText,
+            };
+        }
+
+        var copyButton = new Button
+        {
+            Content = "📋 Copy",
+            FontSize = 11,
+            Padding = new Thickness(8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        var capturedDetails = e.Details;
+        copyButton.Click += async (sender, _) =>
+        {
+            if (sender is not Control c) return;
+            var clip = TopLevel.GetTopLevel(c)?.Clipboard;
+            if (clip is null) return;
+            await clip.SetTextAsync(capturedDetails);
+        };
+
+        // Header: summary stretches, Copy pinned to the right of the same row.
+        var headerPanel = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(copyButton, Dock.Right);
+        headerPanel.Children.Add(copyButton);
+        headerPanel.Children.Add(headerText);
 
         var details = new SelectableTextBlock
         {
             Text = e.Details,
-            FontFamily = new FontFamily("Cascadia Code,Consolas,Menlo,Monospace"),
+            FontFamily = monospace,
             FontSize = 11,
             TextWrapping = TextWrapping.NoWrap,
             Foreground = Brushes.IndianRed,
-            Margin = new Thickness(0, 4, 0, 0),
+        };
+
+        // Self-contained scroll region so the long stack lines don't push
+        // the outer terminal's horizontal scroll and drag the header off-screen.
+        var detailsScroll = new ScrollViewer
+        {
+            Content = details,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 240,
         };
 
         return new Expander
         {
-            Header = header,
-            Content = details,
+            Header = headerPanel,
+            Content = detailsScroll,
             IsExpanded = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 2),
         };
     }
