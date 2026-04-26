@@ -39,6 +39,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Roslyn-based script host with live stdout/stderr streaming into a terminal panel
 * **Visual form designer** for GuiBlast JSON forms — field list, per-type property editor, visibility rules, action buttons, live preview
 * **Encrypted secrets vault** (Argon2id + AES-GCM), surfaced as a `Secrets` global inside scripts
+* **Named connections** — a `connections.json` file maps a friendly name to a bag of fields where each field is either a plaintext literal (URL, server, account name) or a pointer into the vault (token, password). Scripts grab the whole bag with `Secrets.GetConnection("name")` (dynamic) or `Secrets.GetConnection<T>("name")` (typed); Blast libraries that take a resolver delegate (NetworkBlast, AzureBlast) receive the wrapped resolver via `Secrets.Resolver`.
 * **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
 * Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
 * Configurable scripts folder, forms folder, vault folder, editor font size, and theme
@@ -146,16 +147,61 @@ The **Secrets** tab manages an encrypted local vault. Each entry has a `category
 
 Scripts read from the vault via the `Secrets` global; values never leave SecretBlast except as a returned string in the script's own memory.
 
+## Connections
+
+The **🔗 Connections** tab manages a `connections.json` file that maps a connection name to a bag of fields. Each field is either a plaintext literal or a pointer into the vault, so non-secret config (URLs, server names, timeouts) doesn't have to live behind the unlock prompt while real secrets stay encrypted.
+
+```jsonc
+// ~/.taskblaster/connections.json
+{
+  "github": {
+    "baseUrl": { "value":    "https://api.github.com" },
+    "token":   { "fromVault": { "category": "github-secrets", "key": "pat" } }
+  },
+  "prod-sql": {
+    "server":   { "value":    "tcp:my-server.database.windows.net,1433" },
+    "database": { "value":    "main" },
+    "user":     { "value":    "tb-runtime" },
+    "password": { "fromVault": { "category": "azure-sql", "key": "prod-pw" } }
+  }
+}
+```
+
+The library convention (per `NetworkBlast` and `AzureBlast 2.1+`): the connection name is the resolver "category", and field keys are the well-known names the library asks for. NetworkBlast wants `baseUrl` + `token`; AzureBlast SQL wants `server` / `database` / `user` / `password`. Plaintext fields skip the vault entirely; vault-ref fields trigger the unlock prompt the first time one is read.
+
+Three ways scripts use a connection:
+
+```csharp
+// 1) Direct field lookup, sync.
+var url = Secrets.Resolve("github", "baseUrl");
+
+// 2) Whole-bag dynamic — `var conn` infers `dynamic`.
+var conn = Secrets.GetConnection("github");
+var url2  = conn.baseUrl;     // DynamicObject member access
+var token = conn.token;       // case-insensitive fallback also matches "Token"
+
+// 3) Whole-bag typed — bind to a record / class.
+record GithubConn(string BaseUrl, string Token);
+var c = Secrets.GetConnection<GithubConn>("github");
+
+// 4) Hand the resolver to a Blast library — name = category, library asks for its field keys.
+using NetworkBlast;
+var api = new NetClient(Secrets.Resolver, "github");
+```
+
+If a connection isn't in the file, the resolver falls through to the vault directly so all-vault setups keep working unchanged. `Secrets.Connections()` returns the registered names so a script can build a quick picker.
+
 ## Data layout
 
 ```
 ~/.taskblaster/
-├── config.json     # scripts/forms/vault folder paths and editor prefs
-├── scripts/        # your .csx scripts
-├── forms/          # your .json form specs
+├── config.json        # scripts/forms/vault folder paths, editor prefs, theme
+├── connections.json   # named connections (plaintext + fromVault pointers)
+├── scripts/           # your .csx scripts
+├── forms/             # your .json form specs
 └── vault/
-    ├── vault.json  # SecretBlast header (KDF params, canary, vault id)
-    └── secrets/    # *.secret files, opaque GUID-named
+    ├── vault.json     # SecretBlast header (KDF params, canary, vault id)
+    └── secrets/       # *.secret files, opaque GUID-named
 ```
 
 All three folders are configurable from the **Settings** dialog.
@@ -189,6 +235,7 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/sqlite-demo.csx`       | Local SQLite store via SqliteBlast — insert / query / transaction. |
 | `DemoScripts/json-csv-demo.csx`     | UtilBlast 1.1 JSON ⇆ CSV bridge + JObject helpers.   |
 | `DemoScripts/blast-display-demo.csx`| UtilBlast 1.2 `Blast` display DSL — heading / status / table / kv. |
+| `DemoScripts/connections-demo.csx`  | Named-connection layer end-to-end: dynamic field access, typed binding, vault-ref dereferencing. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |

@@ -6,64 +6,29 @@ The Secrets tab is live (SecretBlast 1.0.0 wired in). Scripts can now
 pull values out of the vault via the `Secrets` global (see the Done
 section below). Still open:
 
-1. **Multipart named connections.** A connection is a named bag of fields
-   where each field is either a plaintext literal (URL, server, account
-   name, timeout) or a pointer into the vault (token, password, secret
-   key). The library convention from `networkblast_plan.md` is "category
-   = connection name, key = field name", so a script handing
-   `Secrets.Resolver` to a library and asking for connection `"github"`
-   triggers `resolver("github", "baseUrl")` and `resolver("github", "token")`.
-   The on-disk shape:
-
-   ```jsonc
-   // ~/.taskblaster/connections.json
-   {
-     "github": {
-       "baseUrl":  { "value":    "https://api.github.com" },
-       "token":    { "fromVault": { "category": "github-secrets", "key": "pat" } }
-     },
-     "prod-sql": {
-       "server":   { "value":    "tcp:my-server.database.windows.net,1433" },
-       "user":     { "value":    "tb-runtime" },
-       "password": { "fromVault": { "category": "azure-sql", "key": "prod-pw" } }
-     }
-   }
-   ```
-
-   TaskBlaster wraps `Secrets.Resolver` with a connections-aware resolver
-   that, for each `(category, key)` lookup, first checks
-   `connections[category][key]`. `{ "value": ... }` returns the literal;
-   `{ "fromVault": ... }` dispatches to `Secrets.Resolver` against the
-   pointed-to vault entry; an absent connection or absent field falls
-   through to `Secrets.Resolver(category, key)` directly so existing
-   all-vault setups keep working unchanged.
-
-   Building blocks already landed 2026-04-26: NetworkBlast 1.0.2 and
-   AzureBlast 2.1.0 accept a `Func<category, key, ct, Task<string>>`
-   resolver. Remaining work, phased:
-
-   - **Phase 1: model + store.** `ConnectionStore` reads/writes
-     `connections.json`. `ConnectionsResolver` wraps `IVaultService` to
-     produce the merged `Func<category, key, ct, Task<string>>`. Wire
-     it as the script-side default (replace the raw `Secrets.Resolver`
-     hand-off with the wrapped one in `ScriptGlobals`). Tests for
-     plaintext / vault / fall-through / missing-key behaviour.
-   - **Phase 2: UI.** Connections tab (or a page under Settings)
-     listing connection names; per-connection editor with rows of
-     `(field name, Plaintext | FromVault, value | (category,key) picker)`.
-     The vault picker reuses the OptionsPropertyEditor pattern (vault
-     unlock on demand).
-   - **Phase 3: migration helper.** "Import legacy connections…"
-     wizard that reads a flat connections JSON, lets the user mark
-     which fields per connection should move into the vault, writes
-     the vault entries, and rewrites the connections file with
-     `fromVault` pointers in their place.
-2. **Value-column reveal (open question).** The grid currently shows
+1. **Connections: legacy import wizard.** Phase 3 of the multipart
+   connections work (Phase 1 model+resolver, Phase 2 Connections tab
+   landed 2026-04-26). Wizard would read a flat / fully-plaintext
+   legacy connections JSON, let the user mark which fields per
+   connection should move into the vault, write those vault entries,
+   and rewrite the connections file with `fromVault` pointers in
+   their place. Only worth building if there's a real ScriptRunner.Plugins
+   data set to migrate from.
+2. **Connections UI: vault picker.** The Connections tab currently
+   uses two free-text TextBoxes for the (category, key) pair on
+   FromVault fields. Replace with a pair of ComboBoxes populated from
+   `IVaultService.GetCategoriesAsync` + a keys-by-category lookup,
+   reusing the OptionsPropertyEditor pattern (vault unlock on demand).
+3. **Connections UI: reveal toggle for plaintext fields.** Long
+   plaintext values (especially anything that looks secret-shaped)
+   could use a 👁 toggle similar to `SecretEntryDialog`. Optional, low
+   priority.
+4. **Value-column reveal (open question).** The Secrets grid currently shows
    Category / Key / Description / Updated only; the value lives behind 📋 Copy
    and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
-3. **Search / filter box** on the Secrets DataGrid.
+5. **Search / filter box** on the Secrets DataGrid.
 
 ## Roadmap (separate repos)
 
@@ -71,6 +36,82 @@ section below). Still open:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-26 (cont. 3) — Multipart named connections
+
+End-to-end vertical slice for the Connections feature. A connection
+is a named bag of fields; each field is either a plaintext literal
+(URL, server, account name, timeout) or a pointer into the vault
+(token, password, secret key). Phases 1+2 of the original 3-phase
+plan; Phase 3 (legacy import wizard) is in the open list and will
+only get built if a real ScriptRunner.Plugins data set shows up.
+
+Phase 1: model + resolver:
+
+- **`TaskBlaster.Connections`** namespace: `Connection`,
+  `ConnectionField`, `ConnectionVaultRef` records;
+  `ConnectionFieldEditor` INPC viewmodel for the UI;
+  `ConnectionSnapshot` (`DynamicObject`) for the resolved view scripts
+  see; `ConnectionStore` (JSON-backed) reads/writes
+  `~/.taskblaster/connections.json`; `ConnectionsResolver` wraps a
+  vault resolver with a connections overlay.
+- **Resolver semantics:** for each `(category, key)` lookup,
+  `connections[category][key]` is consulted first. `{ "value": ... }`
+  returns the literal (no vault unlock); `{ "fromVault": ... }`
+  dispatches to the underlying vault resolver against the pointed-to
+  pair. An absent connection or absent field falls through to the
+  vault resolver directly so all-vault scripts keep working
+  unchanged.
+- **`ScriptSecrets`** grew an `IConnectionStore` ctor parameter and
+  uses it to wrap the script-facing `Resolver`. New API:
+  `Connections()` lists registered connection names;
+  `GetConnection(name)` returns a `dynamic` snapshot
+  (`var conn = Secrets.GetConnection("github"); var url = conn.baseUrl;`);
+  `GetConnection<T>(name)` deserialises the snapshot into a record /
+  class via JsonSerializer with case-insensitive name match and
+  `JsonNumberHandling.AllowReadingFromString`.
+- **DI:** `IConnectionStore` registered as a singleton in `Program.cs`,
+  path anchored on `Path.GetDirectoryName(VaultFolder)` so the file
+  follows the user when the TaskBlaster home moves.
+- **Tests:** 7 in `ConnectionStoreTests` (round-trip, case-insensitive
+  Get, sorted List, Remove, malformed-field drop, malformed-JSON
+  recovery), 5 in `ConnectionsResolverTests` (plaintext / fromVault /
+  missing-field fall-through / missing-connection fall-through /
+  delegate shape), 8 in `ScriptSecretsConnectionsTests`
+  (Connections() listing, plaintext-only no-unlock, mixed fields
+  dereference vault, missing-name throws, Has / GetOrDefault, no-store
+  empty case, dynamic member access, case-insensitive dynamic, typed
+  record binding, numeric-from-string typed binding).
+
+Phase 2: Connections tab:
+
+- **`AppMode.Connections`** + `🔗 Connections` toolbar toggle.
+- **`ConnectionsView`** with two-pane layout: name list on the left
+  (`➕ Add` / `🗑 Delete`); per-connection editor on the right with a
+  `DataGrid` of fields (Name / Mode / Value / ×) and an `➕ Add field`
+  button. Mode column is a combo (`Plaintext` / `From vault`); Value
+  column flips between a single TextBox (plaintext) and a paired
+  category / key TextBox grid (from-vault) via INPC-driven
+  `IsVisible` bindings on the `ConnectionFieldEditor` viewmodel.
+- **Implicit persistence**: every name / mode / value edit calls
+  `PersistCurrentConnection()` which writes the whole connection
+  back through `IConnectionStore.Save`, mirroring the live-edit
+  feel of the Secrets tab.
+
+Other:
+
+- **Settings dialog:** Theme moved out of the toolbar into a Theme
+  dropdown at the top of Settings. `IThemeService.AvailableThemes`,
+  `IConfigStore.Theme`, `App` now applies the persisted theme on
+  startup. `🌓 Theme` toolbar button removed along with its event
+  plumbing.
+- **`DemoScripts/connections-demo.csx`** showing inventory + dynamic
+  + typed forms, plus a commented-out NetworkBlast handoff. Bundled
+  via the existing `DemoScripts/*.csx` content glob.
+- **README** Stack list bumped to SecretBlast 1.0.2; demo table grew a
+  connections-demo entry; new "Connections" section explaining the
+  feature and the field convention.
+- 202/202 TaskBlaster tests green.
 
 ### 2026-04-26 (cont. 2) — Category rename moves the secrets
 

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using TaskBlaster.Connections;
@@ -27,6 +29,7 @@ public sealed class ScriptSecrets
     private readonly IVaultService _vault;
     private readonly Func<CancellationToken, Task> _ensureUnlocked;
     private readonly Func<string, string, CancellationToken, Task<string>> _resolver;
+    private readonly IConnectionStore? _connections;
 
     public ScriptSecrets(
         IVaultService vault,
@@ -47,6 +50,7 @@ public sealed class ScriptSecrets
     {
         _vault = vault ?? throw new ArgumentNullException(nameof(vault));
         _ensureUnlocked = ensureUnlocked ?? throw new ArgumentNullException(nameof(ensureUnlocked));
+        _connections = connections;
 
         if (connections is null)
         {
@@ -93,6 +97,93 @@ public sealed class ScriptSecrets
         if (!_vault.IsUnlocked)
             throw new VaultLockedException("Vault is locked, cannot resolve secret.");
         return await _vault.ResolveAsync(category, key, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Connection names defined in <c>connections.json</c>. Empty when
+    /// no connections file exists or no connections are registered.
+    /// Useful for building a quick picker (e.g.
+    /// <c>Prompts.Select("Connection", "…", Secrets.Connections())</c>).
+    /// </summary>
+    public IReadOnlyList<string> Connections()
+        => _connections is null
+            ? Array.Empty<string>()
+            : _connections.List().Select(c => c.Name).ToList();
+
+    /// <summary>
+    /// Resolve every field of a named connection in one call. Plaintext
+    /// fields return their literal; vault-ref fields go through
+    /// <see cref="ResolveAsync"/>, unlocking the vault on demand. Throws
+    /// <see cref="KeyNotFoundException"/> if the connection isn't defined,
+    /// or <see cref="VaultLockedException"/> if a vault-ref field is
+    /// needed and the user cancels the unlock prompt.
+    /// <para>
+    /// The return type is <c>dynamic</c> so a script can write
+    /// <c>var conn = Secrets.GetConnection("github"); var url = conn.baseUrl;</c>
+    /// directly. The runtime object is a <see cref="ConnectionSnapshot"/>
+    /// (a <see cref="System.Dynamic.DynamicObject"/>), so typed access
+    /// like <c>conn["baseUrl"]</c>, <c>conn.GetOrDefault(...)</c> and
+    /// <c>conn.Fields</c> works too.
+    /// </para>
+    /// </summary>
+    public dynamic GetConnection(string name)
+        => GetConnectionAsync(name).GetAwaiter().GetResult();
+
+    /// <summary>Async form of <see cref="GetConnection"/>.</summary>
+    public async Task<dynamic> GetConnectionAsync(string name, CancellationToken ct = default)
+        => await GetConnectionSnapshotAsync(name, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Strongly-typed binding of a named connection to <typeparamref name="T"/>.
+    /// Field names are matched to <typeparamref name="T"/> property /
+    /// constructor-parameter names case-insensitively. Records and
+    /// classes with init or settable properties both work; numeric
+    /// targets read string values via
+    /// <see cref="JsonNumberHandling.AllowReadingFromString"/>. Useful
+    /// when a script wants compile-time field names rather than dynamic
+    /// dispatch:
+    /// <code>
+    /// record GithubConn(string baseUrl, string token);
+    /// var c = Secrets.GetConnection&lt;GithubConn&gt;("github");
+    /// // c.baseUrl, c.token — IntelliSense + null-checks.
+    /// </code>
+    /// </summary>
+    public T GetConnection<T>(string name) where T : class
+        => GetConnectionAsync<T>(name).GetAwaiter().GetResult();
+
+    /// <summary>Async form of <see cref="GetConnection{T}"/>.</summary>
+    public async Task<T> GetConnectionAsync<T>(string name, CancellationToken ct = default) where T : class
+    {
+        var snapshot = await GetConnectionSnapshotAsync(name, ct).ConfigureAwait(false);
+        var json = JsonSerializer.Serialize(snapshot.Fields);
+        var typed = JsonSerializer.Deserialize<T>(json, TypedConnectionOptions);
+        return typed
+            ?? throw new InvalidOperationException(
+                $"Could not bind connection '{name}' to {typeof(T).Name}.");
+    }
+
+    private static readonly JsonSerializerOptions TypedConnectionOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+    };
+
+    private async Task<ConnectionSnapshot> GetConnectionSnapshotAsync(string name, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Connection name is required.", nameof(name));
+
+        var conn = _connections?.Get(name)
+            ?? throw new KeyNotFoundException($"No connection named '{name}'.");
+
+        var resolved = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (fieldName, _) in conn.Fields)
+        {
+            // Go through the wrapped resolver so plaintext stays plaintext
+            // and vault refs trigger exactly one unlock-on-demand handshake.
+            resolved[fieldName] = await _resolver(name, fieldName, ct).ConfigureAwait(false);
+        }
+        return new ConnectionSnapshot(name, resolved);
     }
 
     /// <summary>
