@@ -392,6 +392,7 @@ public partial class MainWindow : Window
                 confirm: true);
             if (pw is null) return;
 
+            _secrets.SetVerifying(true);
             try
             {
                 await _vaultService.InitializeAsync(pw);
@@ -401,6 +402,10 @@ public partial class MainWindow : Window
             {
                 await _prompts.MessageAsync("Create failed", ex.Message);
                 return;
+            }
+            finally
+            {
+                _secrets.SetVerifying(false);
             }
         }
         else
@@ -413,6 +418,7 @@ public partial class MainWindow : Window
                     confirm: false);
                 if (pw is null) return;
 
+                _secrets.SetVerifying(true);
                 try
                 {
                     await _vaultService.UnlockAsync(pw);
@@ -422,12 +428,16 @@ public partial class MainWindow : Window
                 catch (InvalidMasterPasswordException)
                 {
                     await _prompts.MessageAsync("Unlock failed", "Incorrect master password. Try again.");
-                    // Loop — re-prompt.
+                    // Loop, re-prompt.
                 }
                 catch (Exception ex)
                 {
                     await _prompts.MessageAsync("Unlock failed", ex.Message);
                     return;
+                }
+                finally
+                {
+                    _secrets.SetVerifying(false);
                 }
             }
         }

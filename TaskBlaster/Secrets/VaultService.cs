@@ -25,6 +25,14 @@ public sealed class VaultService : IVaultService, IDisposable
     private ISecretVault? _vault;
 
     /// <summary>
+    /// Serialises calls into <see cref="InitializeAsync"/>, <see cref="UnlockAsync"/>,
+    /// and <see cref="ChangePasswordAsync"/> so two parallel UI clicks (or a
+    /// click plus a script-triggered unlock) can't both run Argon2 against
+    /// freshly-opened vault instances and clobber each other's <see cref="AttachVault"/>.
+    /// </summary>
+    private readonly SemaphoreSlim _stateGate = new(1, 1);
+
+    /// <summary>
     /// Production ctor — desktop-grade Argon2 parameters
     /// (256 MiB / 3 iterations / 4 lanes) and the default 15-minute auto-lock.
     /// </summary>
@@ -55,46 +63,64 @@ public sealed class VaultService : IVaultService, IDisposable
 
     public async Task InitializeAsync(string masterPassword, CancellationToken ct = default)
     {
-        DisposeCurrent();
+        await _stateGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            DisposeCurrent();
 
-        var path = _config.VaultFolder;
-        Directory.CreateDirectory(path);
+            var path = _config.VaultFolder;
+            Directory.CreateDirectory(path);
 
-        var options = _optionsFactory();
-        var vault = SecretVault.Create(path, masterPassword, options);
-        AttachVault(vault, path);
-
-        await Task.CompletedTask;
-        _ = ct; // Create is synchronous in SecretBlast today; swallow ct.
+            var options = _optionsFactory();
+            var vault = SecretVault.Create(path, masterPassword, options);
+            AttachVault(vault, path);
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
     }
 
     public async Task UnlockAsync(string masterPassword, CancellationToken ct = default)
     {
-        var path = _config.VaultFolder;
-
-        if (_vault is not null && string.Equals(_openedAt, path, StringComparison.Ordinal))
-        {
-            // Reuse the existing instance; SecretBlast's UnlockAsync on an
-            // already-unlocked vault is a no-op and on a locked one derives
-            // the key from scratch.
-            await _vault.UnlockAsync(masterPassword, ct);
-            return;
-        }
-
-        DisposeCurrent();
-
-        var options = _optionsFactory();
-        var vault = SecretVault.Open(path, options);
+        await _stateGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await vault.UnlockAsync(masterPassword, ct);
+            var path = _config.VaultFolder;
+
+            // If a queued caller arrives after another already finished unlocking,
+            // skip the Argon2 work entirely; the vault is genuinely open and the
+            // late password is irrelevant.
+            if (_vault is { IsLocked: false } && string.Equals(_openedAt, path, StringComparison.Ordinal))
+                return;
+
+            if (_vault is not null && string.Equals(_openedAt, path, StringComparison.Ordinal))
+            {
+                // Reuse the existing instance; SecretBlast's UnlockAsync on a
+                // locked vault derives the key from scratch and validates it.
+                await _vault.UnlockAsync(masterPassword, ct).ConfigureAwait(false);
+                return;
+            }
+
+            DisposeCurrent();
+
+            var options = _optionsFactory();
+            var vault = SecretVault.Open(path, options);
+            try
+            {
+                await vault.UnlockAsync(masterPassword, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                vault.Dispose();
+                throw;
+            }
+            AttachVault(vault, path);
         }
-        catch
+        finally
         {
-            vault.Dispose();
-            throw;
+            _stateGate.Release();
         }
-        AttachVault(vault, path);
     }
 
     public void Lock()

@@ -25,6 +25,9 @@ public partial class SecretsView : UserControl
     private readonly Button _copyButton;
     private readonly TextBlock _emptyLabel;
     private readonly TextBlock _lockedHint;
+    private readonly Button _unlockButton;
+    private readonly Button _resetButton;
+    private string? _hintBeforeVerifying;
 
     private IVaultService? _vault;
     private IPromptService? _prompts;
@@ -50,6 +53,35 @@ public partial class SecretsView : UserControl
         _copyButton    = this.FindControl<Button>("CopyButton")!;
         _emptyLabel    = this.FindControl<TextBlock>("EmptyLabel")!;
         _lockedHint    = this.FindControl<TextBlock>("LockedHint")!;
+        _unlockButton  = this.FindControl<Button>("UnlockButton")!;
+        _resetButton   = this.FindControl<Button>("ResetButton")!;
+    }
+
+    /// <summary>
+    /// Toggle the locked panel between "ready to unlock" and "running Argon2"
+    /// states. Disables the buttons and shows a verifying hint so the user
+    /// gets feedback during the multi-second key derivation, and so a second
+    /// click can't fire a parallel unlock chain.
+    /// </summary>
+    public void SetVerifying(bool verifying)
+    {
+        if (verifying)
+        {
+            _hintBeforeVerifying ??= _lockedHint.Text;
+            _lockedHint.Text = "Verifying password…";
+            _unlockButton.IsEnabled = false;
+            _resetButton.IsEnabled = false;
+        }
+        else
+        {
+            if (_hintBeforeVerifying is not null)
+            {
+                _lockedHint.Text = _hintBeforeVerifying;
+                _hintBeforeVerifying = null;
+            }
+            _unlockButton.IsEnabled = true;
+            _resetButton.IsEnabled = true;
+        }
     }
 
     /// <summary>Wire the view to the vault and to the main-window prompts.</summary>
