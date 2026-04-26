@@ -2,6 +2,7 @@ using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
+using TaskBlaster.Connections;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Forms;
@@ -97,6 +98,17 @@ class Program
         services.AddSingleton<IPromptServiceFactory, AvaloniaPromptServiceFactory>();
         services.AddSingleton<IFormDocumentFactory, FormDocumentFactory>();
         services.AddSingleton<IVaultService, VaultService>();
+        services.AddSingleton<IConnectionStore>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IConfigStore>();
+            // Connections live next to the vault folder by convention. Anchoring
+            // on VaultFolder's parent puts the file under ~/.taskblaster/ for
+            // the default config and follows the user if they relocate the
+            // TaskBlaster home (the three folders move together via Settings).
+            var anchor = Path.GetDirectoryName(cfg.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return new ConnectionStore(Path.Combine(anchor, "connections.json"));
+        });
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

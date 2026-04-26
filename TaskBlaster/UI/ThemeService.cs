@@ -11,6 +11,9 @@ public sealed class ThemeService : IThemeService
     public string DefaultTheme => "Industrial";
     public string CurrentTheme { get; private set; }
 
+    public System.Collections.Generic.IReadOnlyList<string> AvailableThemes { get; } =
+        new[] { "Industrial", "Light" };
+
     public event EventHandler<string>? ThemeChanged;
 
     public ThemeService()

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -6,24 +8,40 @@ using Avalonia.Platform.Storage;
 namespace TaskBlaster.Dialogs;
 
 /// <summary>
-/// Result returned by <see cref="ConfigDialog"/>. Null fields mean "leave the existing value alone".
+/// Result returned by <see cref="ConfigDialog"/>. Null fields mean
+/// "leave the existing value alone".
 /// </summary>
-public sealed record ConfigDialogResult(string? ScriptsFolder, string? FormsFolder, string? VaultFolder);
+public sealed record ConfigDialogResult(
+    string? ScriptsFolder,
+    string? FormsFolder,
+    string? VaultFolder,
+    string? Theme);
 
 public partial class ConfigDialog : Window
 {
+    private readonly ComboBox _themeBox;
     private readonly TextBox _scriptsBox;
     private readonly TextBox _formsBox;
     private readonly TextBox _vaultBox;
 
-    public ConfigDialog() : this("", "", "") { }
+    public ConfigDialog() : this("", "", "", new[] { "Industrial" }, "Industrial") { }
 
-    public ConfigDialog(string currentScriptsFolder, string currentFormsFolder, string currentVaultFolder)
+    public ConfigDialog(
+        string currentScriptsFolder,
+        string currentFormsFolder,
+        string currentVaultFolder,
+        IReadOnlyList<string> availableThemes,
+        string currentTheme)
     {
         InitializeComponent();
+        _themeBox   = this.FindControl<ComboBox>("ThemeBox")!;
         _scriptsBox = this.FindControl<TextBox>("ScriptsFolderBox")!;
         _formsBox   = this.FindControl<TextBox>("FormsFolderBox")!;
         _vaultBox   = this.FindControl<TextBox>("VaultFolderBox")!;
+
+        _themeBox.ItemsSource = availableThemes;
+        _themeBox.SelectedItem = availableThemes.Contains(currentTheme) ? currentTheme : availableThemes[0];
+
         _scriptsBox.Text = currentScriptsFolder;
         _formsBox.Text   = currentFormsFolder;
         _vaultBox.Text   = currentVaultFolder;
@@ -57,10 +75,13 @@ public partial class ConfigDialog : Window
         var scripts = (_scriptsBox.Text ?? "").Trim();
         var forms   = (_formsBox.Text   ?? "").Trim();
         var vault   = (_vaultBox.Text   ?? "").Trim();
+        var theme   = _themeBox.SelectedItem as string;
+
         Close(new ConfigDialogResult(
             ScriptsFolder: string.IsNullOrEmpty(scripts) ? null : scripts,
             FormsFolder:   string.IsNullOrEmpty(forms)   ? null : forms,
-            VaultFolder:   string.IsNullOrEmpty(vault)   ? null : vault));
+            VaultFolder:   string.IsNullOrEmpty(vault)   ? null : vault,
+            Theme:         string.IsNullOrEmpty(theme)   ? null : theme));
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close((ConfigDialogResult?)null);

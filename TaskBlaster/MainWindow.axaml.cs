@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private readonly IThemeService _themes;
     private readonly IFormDocumentFactory _formDocFactory;
     private readonly IVaultService _vaultService;
+    private readonly IConnectionStore _connectionStore;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -52,7 +53,8 @@ public partial class MainWindow : Window
         IScriptBlaster blaster,
         IPromptServiceFactory promptFactory,
         IFormDocumentFactory formDocFactory,
-        IVaultService vaultService)
+        IVaultService vaultService,
+        IConnectionStore connectionStore)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -61,6 +63,7 @@ public partial class MainWindow : Window
         _blaster = blaster;
         _formDocFactory = formDocFactory;
         _vaultService = vaultService;
+        _connectionStore = connectionStore;
         _prompts = promptFactory.Create(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
@@ -86,7 +89,6 @@ public partial class MainWindow : Window
 
         _toolbar.RunClicked    += OnRunClicked;
         _toolbar.StopClicked   += OnStopClicked;
-        _toolbar.ThemeClicked  += OnThemeClicked;
         _toolbar.ConfigClicked += OnConfigClicked;
         _toolbar.NewClicked    += OnNewClicked;
         _toolbar.SaveClicked   += (_, _) => SaveCurrent();
@@ -126,7 +128,6 @@ public partial class MainWindow : Window
         var current = _themes.CurrentTheme;
         _statusBar.ThemeName = current;
         _editor.ApplyTheme(variant);
-        _toolbar.SetThemeLabel(current == "Light" ? "🌓 Industrial" : "🌓 Light");
     }
 
     private void UpdateFontSizeUi() => _statusBar.FontSizeText = $"{_editor.EditorFontSize:0}px";
@@ -288,7 +289,7 @@ public partial class MainWindow : Window
         try
         {
             var globals = new ScriptGlobals(
-                new ScriptSecrets(_vaultService, EnsureVaultUnlockedAsync));
+                new ScriptSecrets(_vaultService, EnsureVaultUnlockedAsync, _connectionStore));
 
             result = await _blaster.RunAsync(
                 scriptText,
@@ -445,13 +446,6 @@ public partial class MainWindow : Window
         if (_mode == AppMode.Secrets) await _secrets.ActivateAsync();
     }
 
-    private void OnThemeClicked(object? sender, EventArgs e)
-    {
-        var next = _themes.CurrentTheme == "Light" ? "Industrial" : "Light";
-        _themes.Apply(next);
-        _terminal.Log($"Theme: {next}");
-    }
-
     private async void OnFormSettingsClicked(object? sender, EventArgs e)
     {
         if (_currentFormDoc is null)
@@ -465,7 +459,12 @@ public partial class MainWindow : Window
 
     private async void OnConfigClicked(object? sender, EventArgs e)
     {
-        var result = await new ConfigDialog(_config.ScriptsFolder, _config.FormsFolder, _config.VaultFolder).ShowDialog<ConfigDialogResult?>(this);
+        var result = await new ConfigDialog(
+            _config.ScriptsFolder,
+            _config.FormsFolder,
+            _config.VaultFolder,
+            _themes.AvailableThemes,
+            _themes.CurrentTheme).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(
@@ -480,7 +479,16 @@ public partial class MainWindow : Window
             result.VaultFolder, _config.VaultFolder, "Vault folder",
             path => _config.VaultFolder = path);
 
-        if (!scriptsChanged && !formsChanged && !vaultChanged) return;
+        var themeChanged = false;
+        if (!string.IsNullOrEmpty(result.Theme)
+            && !string.Equals(result.Theme, _themes.CurrentTheme, StringComparison.OrdinalIgnoreCase))
+        {
+            _themes.Apply(result.Theme);
+            _config.Theme = result.Theme;
+            themeChanged = true;
+        }
+
+        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged) return;
 
         // Changing the vault path invalidates the currently-unlocked vault;
         // next access will hit a locked view and re-prompt.

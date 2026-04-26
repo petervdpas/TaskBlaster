@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TaskBlaster.Connections;
 using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Engine;
@@ -25,32 +26,52 @@ public sealed class ScriptSecrets
 {
     private readonly IVaultService _vault;
     private readonly Func<CancellationToken, Task> _ensureUnlocked;
+    private readonly Func<string, string, CancellationToken, Task<string>> _resolver;
 
     public ScriptSecrets(
         IVaultService vault,
         Func<CancellationToken, Task> ensureUnlocked)
+        : this(vault, ensureUnlocked, connections: null) { }
+
+    /// <summary>
+    /// Three-arg ctor used by the host app to layer in the
+    /// <see cref="IConnectionStore"/>. When non-null, plaintext fields
+    /// in the connections file short-circuit the vault unlock entirely;
+    /// vault-ref fields dispatch to <see cref="IVaultService.ResolveAsync"/>
+    /// after the standard unlock-on-demand handshake.
+    /// </summary>
+    public ScriptSecrets(
+        IVaultService vault,
+        Func<CancellationToken, Task> ensureUnlocked,
+        IConnectionStore? connections)
     {
         _vault = vault ?? throw new ArgumentNullException(nameof(vault));
         _ensureUnlocked = ensureUnlocked ?? throw new ArgumentNullException(nameof(ensureUnlocked));
+
+        if (connections is null)
+        {
+            _resolver = ResolveFromVaultAsync;
+        }
+        else
+        {
+            var wrapped = new ConnectionsResolver(connections, ResolveFromVaultAsync);
+            _resolver = wrapped.ResolveAsync;
+        }
     }
 
     /// <summary>
     /// Resolve a (category, key) pair to its raw value. Blocks until the
-    /// vault is unlocked and the lookup completes. Throws
+    /// vault is unlocked (when needed) and the lookup completes. Throws
     /// <see cref="InvalidOperationException"/> if the vault remains
-    /// locked (e.g. the user cancelled the unlock prompt).
+    /// locked (e.g. the user cancelled the unlock prompt). Plaintext
+    /// fields from the connections file return without unlocking.
     /// </summary>
     public string Resolve(string category, string key)
         => ResolveAsync(category, key).GetAwaiter().GetResult();
 
     /// <summary>Async form of <see cref="Resolve"/>.</summary>
-    public async Task<string> ResolveAsync(string category, string key, CancellationToken ct = default)
-    {
-        await _ensureUnlocked(ct).ConfigureAwait(false);
-        if (!_vault.IsUnlocked)
-            throw new VaultLockedException("Vault is locked, cannot resolve secret.");
-        return await _vault.ResolveAsync(category, key, ct).ConfigureAwait(false);
-    }
+    public Task<string> ResolveAsync(string category, string key, CancellationToken ct = default)
+        => _resolver(category, key, ct);
 
     /// <summary>
     /// Delegate form of <see cref="ResolveAsync"/>, shaped for libraries
@@ -64,7 +85,15 @@ public sealed class ScriptSecrets
     /// var api = new NetClient(Secrets.Resolver, "github");
     /// </code>
     /// </summary>
-    public Func<string, string, CancellationToken, Task<string>> Resolver => ResolveAsync;
+    public Func<string, string, CancellationToken, Task<string>> Resolver => _resolver;
+
+    private async Task<string> ResolveFromVaultAsync(string category, string key, CancellationToken ct)
+    {
+        await _ensureUnlocked(ct).ConfigureAwait(false);
+        if (!_vault.IsUnlocked)
+            throw new VaultLockedException("Vault is locked, cannot resolve secret.");
+        return await _vault.ResolveAsync(category, key, ct).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Category names the vault knows about. Useful for building form

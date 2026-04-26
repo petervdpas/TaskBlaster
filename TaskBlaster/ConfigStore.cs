@@ -23,11 +23,13 @@ public sealed class ConfigStore : IConfigStore
         ScriptsFolder = Path.Combine(_baseDirectory, "scripts");
         FormsFolder   = Path.Combine(_baseDirectory, "forms");
         VaultFolder   = Path.Combine(_baseDirectory, "vault");
+        Theme         = "Industrial";
     }
 
     public string ScriptsFolder { get; set; }
     public string FormsFolder   { get; set; }
     public string VaultFolder   { get; set; }
+    public string Theme         { get; set; }
 
     private string ConfigPath => Path.Combine(_baseDirectory, "config.json");
 
@@ -41,6 +43,7 @@ public sealed class ConfigStore : IConfigStore
             if (!string.IsNullOrWhiteSpace(data.ScriptsFolder)) ScriptsFolder = data.ScriptsFolder;
             if (!string.IsNullOrWhiteSpace(data.FormsFolder))   FormsFolder   = data.FormsFolder;
             if (!string.IsNullOrWhiteSpace(data.VaultFolder))   VaultFolder   = data.VaultFolder;
+            if (!string.IsNullOrWhiteSpace(data.Theme))         Theme         = data.Theme;
         }
         catch
         {
@@ -51,7 +54,13 @@ public sealed class ConfigStore : IConfigStore
     public void Save()
     {
         Directory.CreateDirectory(_baseDirectory);
-        var data = new ConfigData { ScriptsFolder = ScriptsFolder, FormsFolder = FormsFolder, VaultFolder = VaultFolder };
+        var data = new ConfigData
+        {
+            ScriptsFolder = ScriptsFolder,
+            FormsFolder   = FormsFolder,
+            VaultFolder   = VaultFolder,
+            Theme         = Theme,
+        };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
     }
@@ -61,5 +70,6 @@ public sealed class ConfigStore : IConfigStore
         public string? ScriptsFolder { get; set; }
         public string? FormsFolder   { get; set; }
         public string? VaultFolder   { get; set; }
+        public string? Theme         { get; set; }
     }
 }

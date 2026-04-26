@@ -7,26 +7,29 @@
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource DialogSurfaceBrush}"
         Title="Settings">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="16">
-        <TextBlock Grid.Row="0" Text="Scripts folder" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Text="Theme" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <ComboBox  Grid.Row="1" Name="ThemeBox" HorizontalAlignment="Stretch" Margin="0,0,0,14" />
+
+        <TextBlock Grid.Row="2" Text="Scripts folder" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
             <TextBox Grid.Column="0" Name="ScriptsFolderBox" />
             <Button  Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Click="OnBrowseScripts" />
         </Grid>
 
-        <TextBlock Grid.Row="2" Text="Forms folder" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+        <TextBlock Grid.Row="4" Text="Forms folder" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
             <TextBox Grid.Column="0" Name="FormsFolderBox" />
             <Button  Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Click="OnBrowseForms" />
         </Grid>
 
-        <TextBlock Grid.Row="4" Text="Vault folder" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+        <TextBlock Grid.Row="6" Text="Vault folder" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <Grid Grid.Row="7" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
             <TextBox Grid.Column="0" Name="VaultFolderBox" />
             <Button  Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Click="OnBrowseVault" />
         </Grid>
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Name="CancelButton" Content="Cancel" Click="OnCancel" />
             <Button Name="SaveButton"   Content="Save"   Click="OnSave" IsDefault="True" />
         </StackPanel>

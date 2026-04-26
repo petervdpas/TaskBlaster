@@ -11,6 +11,13 @@ public interface IConfigStore
     string FormsFolder   { get; set; }
     string VaultFolder   { get; set; }
 
+    /// <summary>
+    /// Persisted theme name. Defaults to <see cref="IThemeService.DefaultTheme"/>
+    /// on a fresh install. Validated against <see cref="IThemeService.AvailableThemes"/>
+    /// at apply-time; an unknown value falls back to the default.
+    /// </summary>
+    string Theme { get; set; }
+
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();
 
