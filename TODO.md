@@ -30,6 +30,35 @@ AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.0.)*
 
 ## Done
 
+### 2026-04-26 — UtilBlast 1.1 + SqliteBlast 1.0 wired in
+
+Two more siblings on the same day. Both bring real-world data tooling
+to scripts without dragging in heavy dependencies.
+
+- **UtilBlast 1.1.0** (in `~/Projects/UtilBlast/`): JSON ⇆ CSV bridge
+  (`string.JsonToCsv()` / `string.CsvToJson()`, RFC 4180 compliant with
+  quoted fields / embedded newlines / doubled quotes), `DataTable.ToCsv()` /
+  `string.ParseCsvToDataTable()`, `IEnumerable<T>.ToCsv()` (reflection),
+  `JObject.Flatten()`, `JToken.GetByPath("a.b[0].c")`. The pre-existing
+  broken `DataTable.ToCsv(bool)` (no escaping) was replaced. 53 new tests,
+  270/270 total green.
+- **SqliteBlast 1.0.0** (in `~/Projects/SqliteBlast/`): brand-new Blast
+  nuget for local SQLite. `ISqliteStore` with `Execute` / `ExecuteScalar<T>` /
+  `Query<T>` (typed row mapping with full coercion) / `QueryDataTable` /
+  `BeginTransaction` (rollback-on-dispose, commit explicitly). Directory-
+  based migration runner with a `__migrations__` table for idempotence.
+  Vault-aware `SetupAsync(resolver, name)` mirroring AzureBlast 2.1's pattern.
+  Script-friendly `SqliteBlastFactory.Open(path)` and `InMemory()` factories.
+  31 tests, 0 warnings.
+- **TaskBlaster.csproj**: bumped `UtilBlast` 1.0.2 → 1.1.0; added `SqliteBlast 1.0.0`.
+- **`Engine/ScriptBlaster.cs`**: force-loads `SqliteBlast.SqliteStore` alongside the others.
+- **Demo scripts**:
+  - `DemoScripts/sqlite-demo.csx` — in-memory store + parameter binding +
+    transaction + typed Query, plus a commented vault-backed path.
+  - `DemoScripts/json-csv-demo.csx` — JSON-to-CSV with nested flatten,
+    CSV-to-JSON round-trip, `JObject.Flatten()`, `JToken.GetByPath()`.
+- 176/176 TaskBlaster tests still green.
+
 ### 2026-04-26 — NetworkBlast + AzureBlast resolver path wired in
 
 Two siblings landed on the same day; both consume `Secrets.Resolver`
