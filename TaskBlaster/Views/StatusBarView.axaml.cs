@@ -7,6 +7,7 @@ public partial class StatusBarView : UserControl
 {
     private readonly TextBlock _fileLabel;
     private readonly TextBlock _dirtyLabel;
+    private readonly Avalonia.Controls.Shapes.Rectangle _dirtyDivider;
     private readonly TextBlock _fontSizeLabel;
     private readonly TextBlock _themeLabel;
     private readonly TextBlock _statusLabel;
@@ -16,6 +17,7 @@ public partial class StatusBarView : UserControl
         InitializeComponent();
         _fileLabel     = this.FindControl<TextBlock>("FileLabel")!;
         _dirtyLabel    = this.FindControl<TextBlock>("DirtyLabel")!;
+        _dirtyDivider  = this.FindControl<Avalonia.Controls.Shapes.Rectangle>("DirtyDivider")!;
         _fontSizeLabel = this.FindControl<TextBlock>("FontSizeLabel")!;
         _themeLabel    = this.FindControl<TextBlock>("ThemeLabel")!;
         _statusLabel   = this.FindControl<TextBlock>("StatusLabel")!;
@@ -46,21 +48,23 @@ public partial class StatusBarView : UserControl
     }
 
     /// <summary>
-    /// Show a coloured dirty/saved indicator next to the filename.
-    /// Pass null when no file is selected to hide it entirely.
+    /// Show a coloured dirty/saved indicator next to the filename. Pass null
+    /// when no file is selected to render the dot in the muted default colour.
     /// </summary>
     public void SetDirty(bool? isDirty)
     {
-        if (isDirty is null)
-        {
-            _dirtyLabel.IsVisible = false;
-            return;
-        }
         _dirtyLabel.IsVisible = true;
+        _dirtyDivider.IsVisible = true;
         _dirtyLabel.Text = "●";
-        var key = isDirty == true ? "DangerBrush" : "SuccessBrush";
-        ToolTip.SetTip(_dirtyLabel, isDirty == true ? "Unsaved changes" : "Saved");
-        if (this.TryFindResource(key, out var brush) && brush is IBrush b)
+
+        string brushKey;
+        string? tip;
+        if (isDirty is null)        { brushKey = "SystemControlForegroundBaseMediumBrush"; tip = "No file open"; }
+        else if (isDirty == true)   { brushKey = "DangerBrush";  tip = "Unsaved changes"; }
+        else                        { brushKey = "SuccessBrush"; tip = "Saved"; }
+
+        ToolTip.SetTip(_dirtyLabel, tip);
+        if (this.TryFindResource(brushKey, out var brush) && brush is IBrush b)
             _dirtyLabel.Foreground = b;
     }
 }
