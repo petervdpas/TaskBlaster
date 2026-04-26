@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="150"
+             xmlns:forms="clr-namespace:TaskBlaster.Forms"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="200"
              x:Class="TaskBlaster.Views.ActionsEditorView">
     <Border BorderThickness="1" CornerRadius="4" Padding="12"
             BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
@@ -12,20 +13,71 @@
                 <Button Grid.Column="1" Name="AddButton" Content="+ Add action" Click="OnAdd" />
             </Grid>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,*,72,72,40" Margin="0,0,0,4">
-                <TextBlock Grid.Column="0" Text="ID"      Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="1" Text="Label"   Opacity="0.7" FontSize="11" Margin="0,0,8,0" />
-                <TextBlock Grid.Column="2" Text="Submit"  Opacity="0.7" FontSize="11" HorizontalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="Dismiss" Opacity="0.7" FontSize="11" HorizontalAlignment="Center" />
-            </Grid>
+            <TextBlock Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Text="Buttons rendered at the bottom of the form. Submit validates and returns field values to the script; Dismiss closes the form without validating." />
 
-            <ItemsControl Grid.Row="2" Name="ActionsList">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Spacing="4" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-            </ItemsControl>
+            <DataGrid Grid.Row="2" Name="ActionsGrid"
+                      x:DataType="forms:ActionEditor"
+                      AutoGenerateColumns="False"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      CanUserReorderColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="ID" Width="*" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="forms:ActionEditor">
+                                <TextBox Text="{Binding Id, Mode=OneWay}"
+                                         TextChanged="OnIdChanged"
+                                         BorderThickness="1"
+                                         Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Label" Width="*" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="forms:ActionEditor">
+                                <TextBox Text="{Binding Label, Mode=OneWay}"
+                                         TextChanged="OnLabelChanged"
+                                         Margin="2" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Submit" Width="100" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="forms:ActionEditor">
+                                <CheckBox IsChecked="{Binding Submit, Mode=OneWay}"
+                                          IsCheckedChanged="OnSubmitChanged"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Dismiss" Width="100" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="forms:ActionEditor">
+                                <CheckBox IsChecked="{Binding Dismiss, Mode=OneWay}"
+                                          IsCheckedChanged="OnDismissChanged"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Width="48" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="forms:ActionEditor">
+                                <Button Content="×" Padding="8,2"
+                                        Click="OnRemove"
+                                        ToolTip.Tip="Remove action"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
     </Border>
 </UserControl>

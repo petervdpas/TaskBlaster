@@ -319,6 +319,76 @@ public sealed class VisibilityRuleEditor
     public ObservableCollection<string> ShowTags { get; } = new();
     public ObservableCollection<string> HideTags { get; } = new();
 
+    private bool _isNeq;
+    private bool _isHide;
+
+    /// <summary>
+    /// True when the rule uses the <c>neq</c> branch instead of <c>eq</c>.
+    /// Tracked separately from the Eq/Neq fields so the designer combo can stay
+    /// on "not equal" even when the user has not typed a value yet.
+    /// </summary>
+    public bool IsNeq
+    {
+        get => _isNeq;
+        set
+        {
+            if (_isNeq == value) return;
+            if (value) { Neq = Eq ?? Neq; Eq = null; }
+            else       { Eq  = Neq ?? Eq; Neq = null; }
+            _isNeq = value;
+        }
+    }
+
+    /// <summary>
+    /// True when the rule populates <c>hide</c> instead of <c>show</c>.
+    /// Tracked separately from the lists so the designer combo stays on "hide"
+    /// when the targets list is empty.
+    /// </summary>
+    public bool IsHide
+    {
+        get => _isHide;
+        set
+        {
+            if (_isHide == value) return;
+            if (value)
+            {
+                foreach (var t in Show.ToList())
+                    if (!Hide.Contains(t)) Hide.Add(t);
+                Show.Clear();
+            }
+            else
+            {
+                foreach (var t in Hide.ToList())
+                    if (!Show.Contains(t)) Show.Add(t);
+                Hide.Clear();
+            }
+            _isHide = value;
+        }
+    }
+
+    /// <summary>Convenience accessor that maps to either <see cref="Eq"/> or <see cref="Neq"/> based on <see cref="IsNeq"/>.</summary>
+    public string Value
+    {
+        get => Eq ?? Neq ?? "";
+        set { if (_isNeq) Neq = value; else Eq = value; }
+    }
+
+    /// <summary>Comma-separated view of <see cref="Show"/> or <see cref="Hide"/> based on <see cref="IsHide"/>.</summary>
+    public string TargetsCsv
+    {
+        get => string.Join(", ", _isHide ? Hide : Show);
+        set
+        {
+            var list = _isHide ? Hide : Show;
+            list.Clear();
+            foreach (var part in (value ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = part.Trim();
+                if (trimmed.Length > 0) list.Add(trimmed);
+            }
+        }
+    }
+
     internal static VisibilityRuleEditor FromDto(FormEditor.VisibilityDto dto)
     {
         var r = new VisibilityRuleEditor
@@ -327,6 +397,8 @@ public sealed class VisibilityRuleEditor
             Eq = dto.Eq,
             Neq = dto.Neq,
         };
+        r._isNeq = dto.Neq is not null && dto.Eq is null;
+        r._isHide = dto.Hide is { Length: > 0 } && (dto.Show is null || dto.Show.Length == 0);
         if (dto.Show     is not null) foreach (var s in dto.Show)     r.Show.Add(s);
         if (dto.Hide     is not null) foreach (var s in dto.Hide)     r.Hide.Add(s);
         if (dto.ShowTags is not null) foreach (var s in dto.ShowTags) r.ShowTags.Add(s);

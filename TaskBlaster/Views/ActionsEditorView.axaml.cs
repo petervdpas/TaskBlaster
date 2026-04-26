@@ -1,8 +1,6 @@
 using System;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Media;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
@@ -10,19 +8,23 @@ using TaskBlaster.Interfaces;
 namespace TaskBlaster.Views;
 
 /// <summary>
-/// Edits the form's Actions collection: add/remove + inline edit of id/label/submit/dismiss.
-/// Each row is built programmatically (no per-row DataTemplate) to keep binding simple.
+/// Edits the form's Actions collection. Bound to the document's
+/// <see cref="ActionEditor"/> ObservableCollection via a DataGrid; per-cell
+/// templates keep the original "always-editable" feel while letting the
+/// DataGrid own column-header alignment.
 /// </summary>
 public partial class ActionsEditorView : UserControl
 {
-    private readonly ItemsControl _list;
+    private static readonly IBrush ErrorBrush = new SolidColorBrush(Colors.OrangeRed);
+
+    private readonly DataGrid _grid;
 
     private IFormDocument? _document;
 
     public ActionsEditorView()
     {
         InitializeComponent();
-        _list = this.FindControl<ItemsControl>("ActionsList")!;
+        _grid = this.FindControl<DataGrid>("ActionsGrid")!;
     }
 
     public IFormDocument? Document
@@ -40,91 +42,79 @@ public partial class ActionsEditorView : UserControl
             if (_document is not null)
                 _document.ActionsChanged += OnDocActionsChanged;
 
-            Rebuild();
+            Rebind();
         }
     }
 
-    private void OnDocActionsChanged(object? sender, EventArgs e) => Rebuild();
+    private void OnDocActionsChanged(object? sender, EventArgs e) => Rebind();
 
-    private void Rebuild()
+    private void Rebind() => _grid.ItemsSource = _document?.Actions;
+
+    private void OnIdChanged(object? sender, TextChangedEventArgs e)
     {
-        var items = new System.Collections.Generic.List<Control>();
-        if (_document is not null)
-            foreach (var action in _document.Actions)
-                items.Add(BuildRow(action));
-        _list.ItemsSource = items;
+        if (_document is null) return;
+        if (sender is not TextBox tb) return;
+        if (tb.DataContext is not ActionEditor action) return;
+
+        var newText = tb.Text ?? "";
+        if (string.Equals(action.Id, newText, StringComparison.Ordinal))
+        {
+            tb.BorderBrush = null!;
+            return;
+        }
+
+        var error = _document.ValidateActionId(newText, ignore: action);
+        tb.BorderBrush = error is null ? null! : ErrorBrush;
+        if (error is null)
+        {
+            action.Id = newText;
+            _document.MarkActionChanged();
+        }
     }
 
-    private Control BuildRow(ActionEditor action)
+    private void OnLabelChanged(object? sender, TextChangedEventArgs e)
     {
-        var grid = new Grid
-        {
-            // Match the header row's columns exactly so they line up.
-            ColumnDefinitions = new ColumnDefinitions("*,*,72,72,40")
-        };
+        if (_document is null) return;
+        if (sender is not TextBox tb) return;
+        if (tb.DataContext is not ActionEditor action) return;
 
-        var idBox = new TextBox { Text = action.Id, Margin = new Thickness(0, 0, 8, 0) };
-        idBox.TextChanged += (_, _) =>
-        {
-            if (_document is null) return;
-            var error = _document.ValidateActionId(idBox.Text ?? "", ignore: action);
-            idBox.BorderBrush = error is null ? null! : new SolidColorBrush(Colors.OrangeRed);
-            if (error is null)
-            {
-                action.Id = idBox.Text ?? "";
-                _document.MarkActionChanged();
-            }
-        };
-        Grid.SetColumn(idBox, 0);
-        grid.Children.Add(idBox);
+        var newText = tb.Text ?? "";
+        if (string.Equals(action.Label ?? "", newText, StringComparison.Ordinal)) return;
 
-        var labelBox = new TextBox { Text = action.Label ?? "", Margin = new Thickness(0, 0, 8, 0) };
-        labelBox.TextChanged += (_, _) =>
-        {
-            if (_document is null) return;
-            action.Label = labelBox.Text;
-            _document.MarkActionChanged();
-        };
-        Grid.SetColumn(labelBox, 1);
-        grid.Children.Add(labelBox);
+        action.Label = newText;
+        _document.MarkActionChanged();
+    }
 
-        var submit = new CheckBox
-        {
-            IsChecked = action.Submit,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        submit.IsCheckedChanged += (_, _) =>
-        {
-            if (_document is null) return;
-            action.Submit = submit.IsChecked == true;
-            _document.MarkActionChanged();
-        };
-        Grid.SetColumn(submit, 2);
-        grid.Children.Add(submit);
+    private void OnSubmitChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_document is null) return;
+        if (sender is not CheckBox cb) return;
+        if (cb.DataContext is not ActionEditor action) return;
 
-        var dismiss = new CheckBox
-        {
-            IsChecked = action.Dismiss,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        dismiss.IsCheckedChanged += (_, _) =>
-        {
-            if (_document is null) return;
-            action.Dismiss = dismiss.IsChecked == true;
-            _document.MarkActionChanged();
-        };
-        Grid.SetColumn(dismiss, 3);
-        grid.Children.Add(dismiss);
+        var v = cb.IsChecked == true;
+        if (action.Submit == v) return;
+        action.Submit = v;
+        _document.MarkActionChanged();
+    }
 
-        var remove = new Button { Content = "×", Padding = new Thickness(8, 2) };
-        ToolTip.SetTip(remove, "Remove action");
-        remove.Click += (_, _) => _document?.RemoveAction(action);
-        Grid.SetColumn(remove, 4);
-        grid.Children.Add(remove);
+    private void OnDismissChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_document is null) return;
+        if (sender is not CheckBox cb) return;
+        if (cb.DataContext is not ActionEditor action) return;
 
-        return grid;
+        var v = cb.IsChecked == true;
+        if (action.Dismiss == v) return;
+        action.Dismiss = v;
+        _document.MarkActionChanged();
+    }
+
+    private void OnRemove(object? sender, RoutedEventArgs e)
+    {
+        if (_document is null) return;
+        if (sender is not Button btn) return;
+        if (btn.DataContext is not ActionEditor action) return;
+        _document.RemoveAction(action);
     }
 
     private void OnAdd(object? sender, RoutedEventArgs e) => _document?.AddAction();

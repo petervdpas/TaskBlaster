@@ -20,8 +20,12 @@
                 <views:VisibilityEditorView Name="VisibilityEditor" Margin="0,8,0,0" />
             </TabItem>
         </TabControl>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
-            <Button Name="CloseButton" Content="Close" Click="OnClose" IsDefault="True" />
-        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+            <TextBlock Grid.Column="0" Name="StatusText"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <Button Grid.Column="1" Name="CloseButton" Content="Close" Click="OnClose" IsDefault="True" />
+        </Grid>
     </Grid>
 </Window>

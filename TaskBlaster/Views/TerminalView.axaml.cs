@@ -53,7 +53,7 @@ public partial class TerminalView : UserControl
 
     // ---------- per-item widget builders ----------
 
-    private static Control? Render(TerminalItem? item) => item switch
+    private static Control Render(TerminalItem? item) => item switch
     {
         TextItem t      => BuildText(t),
         HeadingItem h   => BuildHeading(h),
@@ -215,7 +215,7 @@ public partial class TerminalView : UserControl
     {
         dataGrid.LoadingRow += (_, e) =>
         {
-            e.Row.Background = e.Row.GetIndex() % 2 == 1
+            e.Row.Background = e.Row.Index % 2 == 1
                 ? AlternatingRowBrush
                 : Brushes.Transparent;
         };

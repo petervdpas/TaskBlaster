@@ -1,8 +1,6 @@
-using System;
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Views;
@@ -15,7 +13,6 @@ public partial class SizeEditorView : UserControl
     private readonly TextBlock _errorText;
 
     private IFormDocument? _document;
-    private bool _suppress;
 
     public SizeEditorView()
     {
@@ -43,23 +40,23 @@ public partial class SizeEditorView : UserControl
 
     private void LoadFromDocument()
     {
-        _suppress = true;
         _widthBox.Text     = _document?.Width  is { } w ? w.ToString(CultureInfo.InvariantCulture) : string.Empty;
         _heightBox.Text    = _document?.Height is { } h ? h.ToString(CultureInfo.InvariantCulture) : string.Empty;
         _resizableBox.IsChecked = _document?.Resizable ?? false;
         ClearError();
-        Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
     }
 
     private void CommitResizable()
     {
-        if (_suppress || _document is null) return;
-        _document.Resizable = _resizableBox.IsChecked == true;
+        if (_document is null) return;
+        var v = _resizableBox.IsChecked == true;
+        if (_document.Resizable == v) return;
+        _document.Resizable = v;
     }
 
     private void Commit(TextBox box, bool isWidth)
     {
-        if (_suppress || _document is null) return;
+        if (_document is null) return;
         var text = box.Text ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
