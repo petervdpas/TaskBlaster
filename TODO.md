@@ -104,6 +104,20 @@ First operations worth building:
    `$"  {k,-20} = {v}"` lines; offer the equivalent `Blast.WriteHeading`
    / `Blast.WriteKv` / `Blast.WriteTable` rewrite.
 
+Supporting work in the Blast nugets (cross-cutting):
+
+- **`[AssemblyMetadata("Blast.PrimaryFacade", "...")]` convention.** Each
+  Blast package's main assembly declares the 1-3 entry-point type names
+  the AI should treat as front doors (e.g. `NetworkBlast.NetClient,
+  NetworkBlast.ODataClient`; `AzureBlast.MssqlDatabase,
+  AzureBlast.AzureServiceBus, AzureBlast.AzureKeyVault`). Three lines
+  per package, optional, falls back to scanning all public types when
+  absent. The win: when the LLM gets handed an unfamiliar Blast assembly
+  it instantly knows the canonical entry points instead of guessing from
+  dozens of public types. Everything else (signatures, descriptions,
+  examples) stays in xmldoc — already required, already shipped in the
+  nupkgs, no new contract needed.
+
 Open questions before any code:
 
 - Streaming vs single-shot response (streaming = nicer UX, but harder to
