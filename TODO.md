@@ -28,6 +28,31 @@ section below). Still open:
    and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
+5. **Per-script (project-style) external references.** Today's External tab is
+   global: every imported nupkg/dll loads into the AppDomain at startup and
+   is visible to every script. That model has two real pain points:
+
+   - Two scripts that need different versions of the same package can't
+     coexist (the default `AssemblyLoadContext` refuses two same-simple-name
+     assemblies; current upgrade flow stages for next-launch only).
+   - A script's dependencies aren't self-describing; a fresh user opening
+     a `.csx` has no idea which externals it needs.
+
+   A "project" model would scope references per-script (or per-folder):
+
+   - In-script directive: `#r "package: Acme.Domain, 1.0.0"` resolved from
+     `~/.taskblaster/packages/`, missing entries surface a one-click
+     "Import this package" prompt.
+   - Or sidecar metadata: `<script>.deps.json` listing the references,
+     editable from a new pane in the editor toolbar.
+   - Engine: each script run gets its own `AssemblyLoadContext` so two
+     scripts can host different versions side-by-side and old versions
+     get GC'd when the run completes.
+
+   Worth doing once the global model starts hurting (multi-version conflicts
+   in real usage, or scripts being shared between teams that need explicit
+   manifests). Until then the simpler global model is fine for the
+   "everyone uses one canonical-models package" case.
 
 ## Roadmap (separate repos)
 
@@ -35,6 +60,115 @@ section below). Still open:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-27 (cont. 2) — External references (NuGet + loose DLL) tab
+
+User-facing surface for loading third-party assemblies into the script
+engine. Built specifically to handle the "private canonical-models nupkg"
+case (a corp-internal package full of model classes that scripts need to
+`using`), but applies to any net10.0-compatible nupkg or loose dll.
+
+Storage + manager:
+
+- **`Externals/` namespace** owns the load lifecycle. `NupkgImporter`
+  opens a `.nupkg` as a zip (it just is one), reads the `.nuspec` for
+  identity, picks the best TFM from `lib/` with precedence
+  `net10.0 → net9.0 → net8.0 → net7.0 → net6.0 → netstandard2.1 →
+  netstandard2.0`, extracts the chosen folder's DLLs into
+  `~/.taskblaster/packages/<id>/<version>/` (wipes the destination
+  first so re-imports stay clean).
+- **`AssemblyValidator`** uses `MetadataLoadContext` (System.Reflection.Emit
+  package) to inspect a candidate without polluting the AppDomain. Resolver
+  is built from runtime BCL + AppDomain assemblies + sibling DLLs in the
+  package's lib folder + every DLL from already-imported externals. Reports:
+  TFM warning for `.NETFramework`, **error** for self-conflicts (same
+  identity name, different version, against either AppDomain or other
+  externals), **warning** for unresolved or version-skewed references.
+- **`ExternalReferenceManager`** orchestrates. `LoadAll()` runs at startup
+  and swallows per-entry failures into an error list (one bad DLL doesn't
+  kill the app — startup logs them as `⚠ ...` to the terminal).
+  `AddDll`/`AddPackage` validate first, only commit on no-errors unless
+  `force: true`. After `Assembly.LoadFrom` we call `GetTypes()` to flush
+  `ReflectionTypeLoadException` so type-load issues surface immediately.
+- **`force: true` + already-loaded same-name DLL** stages the new entry
+  in config without a successful live load, so the next launch picks up
+  the upgraded version. Mirrors the existing Remove behavior — we already
+  document that AppDomain unload isn't supported.
+
+Config:
+
+- `IConfigStore` grew `ExternalDlls` (`IList<string>`) and
+  `ExternalPackages` (`IList<ExternalPackageRef>`). `ConfigStore`
+  serializes both as nullable arrays so legacy configs still load.
+  Malformed package entries (missing id/version) are silently dropped
+  on load. All 4 test config stubs updated.
+
+UI:
+
+- `ConfigDialog` is now 720×540 with three tabs: **Display** (theme,
+  highlighter, code folding), **Location** (scripts/forms/vault folders),
+  **External** (NuGet + DLL lists with Add/Remove). Add buttons run a
+  file picker (`*.nupkg` or `*.dll`), then route through the manager.
+- `ExternalValidationDialog` (new) renders one section per validated
+  DLL with color-coded ✗ / ⚠ icons, a "✓ no issues" line otherwise, and
+  three buttons: **Cancel**, **Add anyway** (only when errors present,
+  red background), **Add** (default, only when no errors). External-tab
+  Add/Remove are immediate-effect — they don't participate in the
+  Settings dialog's Save/Cancel split because nupkg extraction can't
+  be rolled back.
+- New `WarningBrush` / `Color.Warning` in both themes (amber, theme-tuned).
+- New `ResourceKeyToBrushConverter` registered in `App.axaml` so issue
+  rows can name their colour by string.
+
+Bundled fixture:
+
+- **`TaskBlaster.SampleModels/`** project produces `Acme.Domain.1.0.0.nupkg`
+  with `Customer`/`Person`/`Order`/`Product`/`Address` records plus
+  `SampleData` fixtures. Project name stays under the `TaskBlaster.*`
+  prefix (it's our test fixture); the *output* package and assembly are
+  named `Acme.Domain` to read like a real third-party dep. Built via
+  `<AssemblyName>` + `<RootNamespace>` + `<PackageId>` overrides.
+- TaskBlaster's csproj has a `BeforeTargets="AssignTargetPaths"` MSBuild
+  target that builds the sibling project, copies the produced .nupkg into
+  `TaskBlaster/DemoNugets/`, and adds it as Content via a
+  *target-time* ItemGroup (avoids the chicken-and-egg on a fresh clone).
+- First-run seeder creates `~/.taskblaster/demo-nugets/` and copies the
+  bundled .nupkg there if missing; `--seed-demos` does the overwrite
+  variant. Mirrors DemoScripts/DemoForms.
+- `DemoScripts/acme-domain-demo.csx` walks the package's types via the
+  `Blast` display DSL. Top of the file documents the two-step setup
+  (Settings → External → Add the nupkg → restart).
+
+Tests:
+
+- 22 new tests across 4 files. **`NupkgImporterTests`** (6): identity
+  parsing, TFM precedence, netstandard fallback, no-compatible-TFM throw,
+  missing-nuspec throw, destination wipe. **`AssemblyValidatorTests`** (4):
+  clean DLL, identity conflict, same-version no-conflict, unreadable path
+  surfaces as error not throw. **`ExternalReferenceManagerTests`** (8):
+  add/persist, missing file errors without persist, conflict + force=false
+  doesn't persist, package extract+persist, same-id-different-version
+  replaces config, RemovePackage cleans folder, RemoveDll drops entry,
+  LoadAll collects errors. **`ConfigStoreExternalsTests`** (4): defaults,
+  round-trip, legacy-config tolerance, malformed-entry filtering. New
+  `ExternalsFixtures` helper synthesises throwaway DLLs via
+  `PersistedAssemblyBuilder` (.NET 9+ persistent emit) and zips them into
+  in-memory nupkgs — no binary fixtures committed to git.
+
+Two production bugs the tests caught:
+
+- **`ScriptBlaster.GetLoadableAssemblies()`** now skips assemblies whose
+  backing file no longer exists. Without this, removing an external
+  (or having one moved out from under us) would silently break every
+  subsequent Roslyn compile because Roslyn re-reads `assembly.Location`
+  from disk.
+- **`ExternalReferenceManager.CommitDll`** persists on `force=true`
+  even when live load fails. Surfaced by the upgrade-an-already-loaded-
+  package case: without this, "Add anyway" did nothing (config not
+  updated, restart didn't pick up the new version, user thought the
+  feature was broken).
+
+225/225 tests green.
 
 ### 2026-04-27 (cont.) — Editor + UX polish
 

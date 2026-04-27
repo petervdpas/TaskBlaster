@@ -43,9 +43,10 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * **Encrypted secrets vault** (Argon2id + AES-GCM), surfaced as a `Secrets` global inside scripts
 * **Named connections** — a `connections.json` file maps a friendly name to a bag of fields where each field is either a plaintext literal (URL, server, account name) or a pointer into the vault (token, password). Scripts grab the whole bag with `Secrets.GetConnection("name")` (dynamic) or `Secrets.GetConnection<T>("name")` (typed); Blast libraries that take a resolver delegate (NetworkBlast, AzureBlast) receive the wrapped resolver via `Secrets.Resolver`.
 * **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
+* **External references** — drop a `.nupkg` (or a loose `.dll`) into Settings → External and TaskBlaster validates it (TFM compatibility, unresolved deps, version conflicts against already-loaded assemblies), extracts to `~/.taskblaster/packages/`, and surfaces the types to scripts as standard `using` namespaces
 * Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
 * Configurable scripts folder, forms folder, vault folder, theme, editor highlighter, code folding, and terminal visibility — all persisted in `~/.taskblaster/config.json`
-* Demo scripts and forms shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
+* Demo scripts, forms, and a sample `.nupkg` (the `Acme.Domain` canonical-models fixture) shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
 
 ## Stack
 
@@ -201,16 +202,40 @@ If a connection isn't in the file, the resolver falls through to the vault direc
 
 ```
 ~/.taskblaster/
-├── config.json        # scripts/forms/vault folder paths, editor prefs, theme
+├── config.json        # scripts/forms/vault folder paths, editor prefs, theme, externals
 ├── connections.json   # named connections (plaintext + fromVault pointers)
 ├── scripts/           # your .csx scripts
 ├── forms/             # your .json form specs
+├── packages/          # imported .nupkgs, one folder per id/version (External tab)
+├── demo-nugets/       # bundled sample .nupkgs (Acme.Domain) seeded on first launch
 └── vault/
     ├── vault.json     # SecretBlast header (KDF params, canary, vault id)
     └── secrets/       # *.secret files, opaque GUID-named
 ```
 
 All three folders, the active theme, the editor highlighter (Native / TextMate), and the code-folding toggle are configurable from the **Settings** dialog. The terminal panel toggle lives on the toolbar next to Settings; its state is persisted to `config.json` alongside the rest.
+
+## External references
+
+The **External** tab in Settings lets you load arbitrary `.nupkg` packages or loose `.dll` files into the script engine. Use it to surface a private canonical-models package (or any third-party assembly) to scripts as standard `using` namespaces.
+
+Add flow:
+
+1. Pick a `.nupkg` (or `.dll`) via the file picker.
+2. TaskBlaster validates the candidate via `MetadataLoadContext` without polluting the AppDomain — picks the best TFM from `lib/` (`net10.0 → net9.0 → net8.0 → netstandard2.1` precedence), walks `GetReferencedAssemblies`, and flags identity conflicts against everything already loaded.
+3. The validation dialog renders the report, color-coded: ✓ no issues, ⚠ warnings (unresolved reference, version skew), ✗ errors (TFM incompatible, identity conflict).
+4. Click **Add** for clean reports or **Add anyway** to override warnings/errors.
+5. On success, TaskBlaster `Assembly.LoadFrom`s the DLLs and runs `GetTypes()` to surface any remaining type-load issues immediately.
+
+Imported packages live under `~/.taskblaster/packages/<id>/<version>/` so they survive across launches; the `(id, version)` pairs persist in `config.json`.
+
+Limitations to know:
+
+* **Upgrades require a restart.** The default `AssemblyLoadContext` won't host two assemblies with the same simple name in one process. If you re-import an already-loaded package at a different version, the entry is staged for next launch but the live load is skipped.
+* **Removal is also next-launch.** The default AppDomain doesn't support unload, so removing an entry from the External tab takes effect on the next start.
+* **Imports are still global.** Every script sees every loaded external — there's no per-script scoping yet (see TODO).
+
+A bundled fixture, **`Acme.Domain.1.0.0.nupkg`**, ships in `~/.taskblaster/demo-nugets/` so you can exercise the flow end-to-end. The `acme-domain-demo.csx` demo script uses its `Customer`, `Person`, `Address`, and `Order` types.
 
 ## Refreshing the bundled demos (developer)
 
@@ -242,9 +267,11 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/json-csv-demo.csx`     | UtilBlast 1.1 JSON ⇆ CSV bridge + JObject helpers.   |
 | `DemoScripts/blast-display-demo.csx`| UtilBlast 1.2 `Blast` display DSL — heading / status / table / kv. |
 | `DemoScripts/connections-demo.csx`  | Named-connection layer end-to-end: dynamic field access, typed binding, vault-ref dereferencing. |
+| `DemoScripts/acme-domain-demo.csx`  | Walks the bundled `Acme.Domain` canonical-models package — Customer / Person / Address / Order. Requires importing the .nupkg via Settings → External first. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |
+| `DemoNugets/Acme.Domain.1.0.0.nupkg`| Sample canonical-models package (built from `TaskBlaster.SampleModels/`). Import via Settings → External to make the types available to scripts. |
 
 ## Downloads
 
