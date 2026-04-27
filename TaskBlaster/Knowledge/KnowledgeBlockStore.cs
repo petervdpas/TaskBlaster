@@ -12,15 +12,16 @@ namespace TaskBlaster.Knowledge;
 /// file in <see cref="Folder"/> as a knowledge block; the file basename
 /// is the id. Frontmatter (YAML-style <c>key: value</c> lines fenced by
 /// two <c>---</c> markers at the top of the file) is parsed into a
-/// case-insensitive string map; everything below the closing fence is
-/// the body. Writes round-trip the frontmatter back, putting the well-known
-/// keys (title, when, priority) first when present so the on-disk shape
-/// stays predictable for hand-editing.
+/// case-insensitive string map; <c>tags:</c> and <c>includes:</c> are
+/// additionally parsed as comma-separated lists for first-class use by
+/// the picker. Writes round-trip the frontmatter back, putting the
+/// well-known keys (title, when, priority, tags, includes) first when
+/// present so the on-disk shape stays predictable for hand-editing.
 /// </summary>
 public sealed class KnowledgeBlockStore : IKnowledgeBlockStore
 {
     private const string FenceLine = "---";
-    private static readonly string[] PreferredOrder = { "title", "when", "priority" };
+    private static readonly string[] PreferredOrder = { "title", "when", "priority", "tags", "includes" };
 
     private readonly Dictionary<string, KnowledgeBlock> _byId = new(StringComparer.OrdinalIgnoreCase);
 
@@ -93,7 +94,41 @@ public sealed class KnowledgeBlockStore : IKnowledgeBlockStore
         var title = frontmatter.TryGetValue("title", out var t) && !string.IsNullOrWhiteSpace(t)
             ? t.Trim()
             : Humanise(id);
-        return new KnowledgeBlock(id, title, body, frontmatter);
+        int? priority = null;
+        if (frontmatter.TryGetValue("priority", out var pRaw)
+            && int.TryParse(pRaw?.Trim(), System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture, out var pVal))
+        {
+            priority = pVal;
+        }
+        var tags = frontmatter.TryGetValue("tags", out var tagRaw)
+            ? ParseList(tagRaw, lowercase: true)
+            : Array.Empty<string>();
+        var includes = frontmatter.TryGetValue("includes", out var incRaw)
+            ? ParseList(incRaw, lowercase: true)
+            : Array.Empty<string>();
+        return new KnowledgeBlock(id, title, body, priority, tags, includes, frontmatter);
+    }
+
+    /// <summary>
+    /// Split a comma-separated frontmatter value into a normalised list.
+    /// Empty / whitespace tokens are dropped. When <paramref name="lowercase"/>
+    /// is true (the default for tags + includes), tokens are folded to
+    /// lowercase so "Mssql" and "mssql" don't double-count.
+    /// </summary>
+    public static IReadOnlyList<string> ParseList(string? raw, bool lowercase = true)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return Array.Empty<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>();
+        foreach (var part in raw.Split(','))
+        {
+            var token = part.Trim();
+            if (token.Length == 0) continue;
+            if (lowercase) token = token.ToLowerInvariant();
+            if (seen.Add(token)) result.Add(token);
+        }
+        return result;
     }
 
     /// <summary>Render a block back to the on-disk markdown form (frontmatter + body).</summary>
@@ -118,9 +153,10 @@ public sealed class KnowledgeBlockStore : IKnowledgeBlockStore
 
     private static Dictionary<string, string> MergedFrontmatter(KnowledgeBlock block)
     {
-        // Promote Title into the frontmatter so it round-trips, but only
-        // when it isn't just the auto-humanised id (otherwise we'd add a
-        // title line the user never wrote).
+        // Promote Title / Tags / Includes back into the frontmatter so they
+        // round-trip. Title is omitted when it's just the auto-humanised id
+        // (otherwise we'd add a title line the user never wrote); empty
+        // lists are removed so we never write "tags: " with no value.
         var merged = new Dictionary<string, string>(block.Frontmatter, StringComparer.OrdinalIgnoreCase);
         var humanised = Humanise(block.Id);
         if (!string.IsNullOrWhiteSpace(block.Title)
@@ -128,6 +164,18 @@ public sealed class KnowledgeBlockStore : IKnowledgeBlockStore
         {
             merged["title"] = block.Title;
         }
+
+        if (block.Priority.HasValue)
+            merged["priority"] = block.Priority.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        else
+            merged.Remove("priority");
+
+        if (block.Tags.Count > 0) merged["tags"] = string.Join(", ", block.Tags);
+        else merged.Remove("tags");
+
+        if (block.Includes.Count > 0) merged["includes"] = string.Join(", ", block.Includes);
+        else merged.Remove("includes");
+
         return merged;
     }
 

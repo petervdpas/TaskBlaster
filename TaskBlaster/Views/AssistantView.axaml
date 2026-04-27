@@ -26,7 +26,7 @@
 
             <Grid Grid.Row="2" Name="MetadataGrid"
                   ColumnDefinitions="120,*"
-                  RowDefinitions="Auto,Auto,Auto,Auto"
+                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
                   Margin="0,0,0,8"
                   IsVisible="False">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Id"        VerticalAlignment="Center" Margin="0,4" />
@@ -40,8 +40,25 @@
                            ToolTip.Tip="When this block is in scope. Examples: 'always', 'AzureBlast.MssqlDatabase', 'tag:db'." />
 
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Priority"  VerticalAlignment="Center" Margin="0,4" />
-                <TextBox   Grid.Row="3" Grid.Column="1" Name="PriorityBox" TextChanged="OnEditorChanged" Margin="4,4"
-                           ToolTip.Tip="Higher wins when blocks compete for context. Leave empty for the default." />
+                <NumericUpDown Grid.Row="3" Grid.Column="1" Name="PriorityBox"
+                               Margin="4,4"
+                               HorizontalAlignment="Stretch"
+                               Increment="1"
+                               FormatString="0"
+                               AllowSpin="True"
+                               ShowButtonSpinner="True"
+                               ValueChanged="OnPriorityChanged"
+                               ToolTip.Tip="Higher wins when blocks compete for context. Leave empty for the default." />
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Tags"      VerticalAlignment="Center" Margin="0,4" />
+                <TextBox   Grid.Row="4" Grid.Column="1" Name="TagsBox"   TextChanged="OnEditorChanged" Margin="4,4"
+                           Watermark="comma-separated, e.g. mssql, db"
+                           ToolTip.Tip="Free-form labels for grouping. Match a tag from a 'when' rule like 'tag:db'." />
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Includes"  VerticalAlignment="Center" Margin="0,4" />
+                <TextBox   Grid.Row="5" Grid.Column="1" Name="IncludesBox" TextChanged="OnEditorChanged" Margin="4,4"
+                           Watermark="comma-separated block ids, e.g. base-conventions, sql-shared"
+                           ToolTip.Tip="Other blocks pulled in transitively whenever this one is picked." />
             </Grid>
 
             <Border Grid.Row="3" Name="BodyBorder"

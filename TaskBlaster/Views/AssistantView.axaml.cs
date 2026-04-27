@@ -21,7 +21,9 @@ public partial class AssistantView : UserControl
     private readonly TextBlock _idLabel;
     private readonly TextBox _titleBox;
     private readonly TextBox _whenBox;
-    private readonly TextBox _priorityBox;
+    private readonly NumericUpDown _priorityBox;
+    private readonly TextBox _tagsBox;
+    private readonly TextBox _includesBox;
     private readonly TextBox _bodyBox;
     private readonly Grid _metadataGrid;
     private readonly Border _bodyBorder;
@@ -46,7 +48,9 @@ public partial class AssistantView : UserControl
         _idLabel      = this.FindControl<TextBlock>("IdLabel")!;
         _titleBox     = this.FindControl<TextBox>("TitleBox")!;
         _whenBox      = this.FindControl<TextBox>("WhenBox")!;
-        _priorityBox  = this.FindControl<TextBox>("PriorityBox")!;
+        _priorityBox  = this.FindControl<NumericUpDown>("PriorityBox")!;
+        _tagsBox      = this.FindControl<TextBox>("TagsBox")!;
+        _includesBox  = this.FindControl<TextBox>("IncludesBox")!;
         _bodyBox      = this.FindControl<TextBox>("BodyBox")!;
         _metadataGrid = this.FindControl<Grid>("MetadataGrid")!;
         _bodyBorder   = this.FindControl<Border>("BodyBorder")!;
@@ -126,7 +130,9 @@ public partial class AssistantView : UserControl
                 _idLabel.Text = string.Empty;
                 _titleBox.Text = string.Empty;
                 _whenBox.Text = string.Empty;
-                _priorityBox.Text = string.Empty;
+                _priorityBox.Value = null;
+                _tagsBox.Text = string.Empty;
+                _includesBox.Text = string.Empty;
                 _bodyBox.Text = string.Empty;
                 SetEditorEnabled(false);
                 MarkClean();
@@ -147,7 +153,9 @@ public partial class AssistantView : UserControl
             _idLabel.Text = block.Id;
             _titleBox.Text = block.Title;
             _whenBox.Text = block.Frontmatter.TryGetValue("when", out var w) ? w : string.Empty;
-            _priorityBox.Text = block.Frontmatter.TryGetValue("priority", out var p) ? p : string.Empty;
+            _priorityBox.Value = block.Priority.HasValue ? new decimal(block.Priority.Value) : null;
+            _tagsBox.Text = string.Join(", ", block.Tags);
+            _includesBox.Text = string.Join(", ", block.Includes);
             _bodyBox.Text = block.Body;
             SetEditorEnabled(true);
             MarkClean();
@@ -164,7 +172,11 @@ public partial class AssistantView : UserControl
         _bodyBorder.IsVisible = enabled;
     }
 
-    private void OnEditorChanged(object? sender, TextChangedEventArgs e)
+    private void OnEditorChanged(object? sender, TextChangedEventArgs e) => MarkDirty();
+
+    private void OnPriorityChanged(object? sender, NumericUpDownValueChangedEventArgs e) => MarkDirty();
+
+    private void MarkDirty()
     {
         if (_suppressDirty) return;
         if (_selectedId is null) return;
@@ -207,6 +219,9 @@ public partial class AssistantView : UserControl
             id,
             KnowledgeBlockStore.Humanise(id),
             string.Empty,
+            Priority: null,
+            Array.Empty<string>(),
+            Array.Empty<string>(),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         _store.Save(block);
         _log?.Invoke($"Knowledge block '{id}' created.");
@@ -227,23 +242,23 @@ public partial class AssistantView : UserControl
         {
             foreach (var (k, v) in existing.Frontmatter)
             {
-                if (string.Equals(k, "title", StringComparison.OrdinalIgnoreCase)) continue;
-                if (string.Equals(k, "when", StringComparison.OrdinalIgnoreCase)) continue;
-                if (string.Equals(k, "priority", StringComparison.OrdinalIgnoreCase)) continue;
+                if (IsManagedKey(k)) continue;
                 fm[k] = v;
             }
         }
 
         var when = (_whenBox.Text ?? string.Empty).Trim();
         if (when.Length > 0) fm["when"] = when;
-        var priority = (_priorityBox.Text ?? string.Empty).Trim();
-        if (priority.Length > 0) fm["priority"] = priority;
 
         var title = string.IsNullOrWhiteSpace(_titleBox.Text)
             ? KnowledgeBlockStore.Humanise(_selectedId)
             : _titleBox.Text.Trim();
 
-        var block = new KnowledgeBlock(_selectedId, title, _bodyBox.Text ?? string.Empty, fm);
+        int? priority = _priorityBox.Value.HasValue ? (int)_priorityBox.Value.Value : null;
+        var tags = KnowledgeBlockStore.ParseList(_tagsBox.Text);
+        var includes = KnowledgeBlockStore.ParseList(_includesBox.Text);
+
+        var block = new KnowledgeBlock(_selectedId, title, _bodyBox.Text ?? string.Empty, priority, tags, includes, fm);
         _store.Save(block);
 
         _log?.Invoke($"Knowledge block '{_selectedId}' saved.");
@@ -279,6 +294,13 @@ public partial class AssistantView : UserControl
         LoadIntoEditor(null);
         Reload();
     }
+
+    private static bool IsManagedKey(string k) =>
+        string.Equals(k, "title",    StringComparison.OrdinalIgnoreCase)
+     || string.Equals(k, "when",     StringComparison.OrdinalIgnoreCase)
+     || string.Equals(k, "priority", StringComparison.OrdinalIgnoreCase)
+     || string.Equals(k, "tags",     StringComparison.OrdinalIgnoreCase)
+     || string.Equals(k, "includes", StringComparison.OrdinalIgnoreCase);
 
     private static string SanitizeId(string raw)
     {

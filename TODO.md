@@ -298,6 +298,66 @@ AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
 
+### 2026-04-27 (cont. 5) — Knowledge blocks: store + Assistant tab + typed model
+
+First user-visible Directed-AI surface. The Assistant tab lets the
+user create / edit / delete knowledge blocks (markdown files under
+`~/.taskblaster/knowledge/`) that will become AI directing context
+once the picker + prompt builder land.
+
+Model + store:
+
+- **`Knowledge/KnowledgeBlock`** record: `Id` (file basename),
+  `Title` (from frontmatter or humanised id), `Body` (markdown), `Priority`
+  (`int?`), `Tags` (`IReadOnlyList<string>`), `Includes`
+  (`IReadOnlyList<string>`), plus the raw `Frontmatter` dict for any
+  hand-added keys we don't model yet.
+- **`Knowledge/KnowledgeBlockStore`** + **`Interfaces/IKnowledgeBlockStore`**.
+  Reads `*.md` from the configured folder, parses YAML-style frontmatter
+  fenced by two `---` lines, and surfaces typed properties for the
+  well-known keys. `ParseList` (public, used by the UI on save too)
+  trims, lowercases, deduplicates comma-separated tokens. Serialize
+  writes well-known keys first in fixed order (title → when → priority
+  → tags → includes → other) so hand-edited files stay predictable.
+  Empty lists drop the key entirely so we never emit `tags:` with no
+  value. Title only round-trips when it differs from the auto-humanised
+  id (no auto-generated title lines polluting clean files).
+- **DI**: `IKnowledgeBlockStore` registered as a singleton anchored on
+  `Path.GetDirectoryName(VaultFolder)` + `"knowledge"`, matching the
+  `connections.json` / `packages/` convention.
+
+UI:
+
+- **`AppMode.Assistant`** + new 🧠 Assistant toggle on the toolbar.
+- **`Views/AssistantView`** (sidebar list + filter) + per-block editor
+  pane on the right with: read-only `Id`, `Title`, `When`, `Priority`
+  (NumericUpDown — empty = unset), `Tags` (comma-separated), `Includes`
+  (comma-separated), and a markdown body in a monospace `TextBox`.
+  Editor pane is hidden until a block is selected so the empty state
+  shows only the description hint.
+- **`Views/AssistantActionsView`** for the toolbar action strip:
+  ➕ Add / 💾 Save / 🗑 Delete. Save is explicit (per-keystroke writes
+  would thrash disk for the body); selection switches discard pending
+  edits, same as Scripts/Forms switching.
+
+Tests: 21 new in `KnowledgeBlockStoreTests` covering parse + serialize
+round-trip, frontmatter ordering, CRLF tolerance, malformed /
+unterminated frontmatter, tags + includes lowercasing + dedup, empty
+list omission, priority parse-as-int with unparseable string falling
+to null and surviving in the raw `Frontmatter` map. 285/285 green.
+
+What's still missing to close the loop (next steps):
+
+- **Picker.** Pure function: takes a context (loaded Blast facades + open
+  script text), matches `when:` rules to find entry-point blocks, walks
+  `includes:` transitively with cycle detection, sorts by `priority`,
+  returns ordered list.
+- **Prompt builder.** Composes a system prompt from picked blocks +
+  Blast facade summaries from `LoadedReferenceCatalog`. First named
+  operation hooks in here.
+- **Demo blocks.** Ship a couple of example `.md` files alongside
+  DemoScripts/DemoForms so a fresh install has something to look at.
+
 ### 2026-04-27 (cont. 4) — XmlDocReader (xmldoc → structured lookup)
 
 Second foundation piece for the AI roadmap. Useful immediately for the
