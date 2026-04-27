@@ -52,12 +52,12 @@
 
                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Tags"      VerticalAlignment="Center" Margin="0,4" />
                 <TextBox   Grid.Row="4" Grid.Column="1" Name="TagsBox"   TextChanged="OnEditorChanged" Margin="4,4"
-                           Watermark="comma-separated, e.g. mssql, db"
+                           PlaceholderText="comma-separated, e.g. mssql, db"
                            ToolTip.Tip="Free-form labels for grouping. Match a tag from a 'when' rule like 'tag:db'." />
 
                 <TextBlock Grid.Row="5" Grid.Column="0" Text="Includes"  VerticalAlignment="Center" Margin="0,4" />
                 <TextBox   Grid.Row="5" Grid.Column="1" Name="IncludesBox" TextChanged="OnEditorChanged" Margin="4,4"
-                           Watermark="comma-separated block ids, e.g. base-conventions, sql-shared"
+                           PlaceholderText="comma-separated block ids, e.g. base-conventions, sql-shared"
                            ToolTip.Tip="Other blocks pulled in transitively whenever this one is picked." />
             </Grid>
 

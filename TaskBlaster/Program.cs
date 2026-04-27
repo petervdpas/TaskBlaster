@@ -48,16 +48,18 @@ class Program
         config.Load();
         Directory.CreateDirectory(config.ScriptsFolder);
         Directory.CreateDirectory(config.FormsFolder);
-        var demoNugetsFolder = Path.Combine(
-            Path.GetDirectoryName(config.VaultFolder)
-                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "demo-nugets");
+        var anchor = Path.GetDirectoryName(config.VaultFolder)
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var demoNugetsFolder = Path.Combine(anchor, "demo-nugets");
+        var knowledgeFolder = Path.Combine(anchor, "knowledge");
         Directory.CreateDirectory(demoNugetsFolder);
+        Directory.CreateDirectory(knowledgeFolder);
 
         var copied = 0;
-        copied += ForceCopyDemos("DemoScripts", config.ScriptsFolder, "*.csx");
-        copied += ForceCopyDemos("DemoForms",   config.FormsFolder,   "*.json");
-        copied += ForceCopyDemos("DemoNugets",  demoNugetsFolder,     "*.nupkg");
+        copied += ForceCopyDemos("DemoScripts",   config.ScriptsFolder, "*.csx");
+        copied += ForceCopyDemos("DemoForms",     config.FormsFolder,   "*.json");
+        copied += ForceCopyDemos("DemoNugets",    demoNugetsFolder,     "*.nupkg");
+        copied += ForceCopyDemos("DemoKnowledge", knowledgeFolder,      "*.md");
         Console.WriteLine($"Done. {copied} file(s) written.");
         return 0;
     }
