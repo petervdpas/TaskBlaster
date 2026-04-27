@@ -1,33 +1,40 @@
 <?xml version="1.0"?>
 <SyntaxDefinition name="C#" extensions=".cs" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
-    <!-- Define Colors for Dark Theme -->
-    <Color name="Comment" foreground="#57A64A" exampleText="// comment" />
-    <Color name="String" foreground="#D69D85" exampleText="string text = &quot;Hello, World!&quot;" />
-    <Color name="StringInterpolation" foreground="#D4D4D4" exampleText="string text = $&quot;Hello, {name}!&quot;" />
-    <Color name="Char" foreground="#C586C0" exampleText="char linefeed = '\n';" />
-    <Color name="Preprocessor" foreground="#9B9B9B" exampleText="#region Title" />
-    <Color name="Punctuation" foreground="#D4D4D4" exampleText="a(b.c);" />
-    <Color name="ValueTypeKeywords" fontWeight="bold" foreground="#D7BA7D" exampleText="bool b = true;" />
-    <Color name="ReferenceTypeKeywords" foreground="#4EC9B0" exampleText="object o;" />
-    <Color name="MethodCall" foreground="#9CDCFE" fontWeight="bold" exampleText="o.ToString();" />
-    <Color name="NumberLiteral" foreground="#B5CEA8" exampleText="3.1415f" />
-    <Color name="ThisOrBaseReference" fontWeight="bold" foreground="#C586C0" exampleText="this.Do(); base.Do();" />
-    <Color name="NullOrValueKeywords" fontWeight="bold" foreground="#569CD6" exampleText="if (value == null)" />
-    <Color name="Keywords" fontWeight="bold" foreground="#569CD6" exampleText="if (a) {} else {}" />
-    <Color name="GotoKeywords" foreground="#9CDCFE" exampleText="continue; return null;" />
-    <Color name="ContextKeywords" foreground="#D4D4D4" exampleText="var a = from x in y select z;" />
-    <Color name="ExceptionKeywords" fontWeight="bold" foreground="#4EC9B0" exampleText="try {} catch {} finally {}" />
-    <Color name="CheckedKeyword" fontWeight="bold" foreground="#808080" exampleText="checked {}" />
-    <Color name="UnsafeKeywords" foreground="#D16969" exampleText="unsafe { fixed (..) {} }" />
-    <Color name="OperatorKeywords" fontWeight="bold" foreground="#DCDCAA" exampleText="public static implicit operator..." />
-    <Color name="ParameterModifiers" fontWeight="bold" foreground="#C586C0" exampleText="(ref int a, params int[] b)" />
-    <Color name="Modifiers" foreground="#569CD6" exampleText="static readonly int a;" />
-    <Color name="Visibility" fontWeight="bold" foreground="#569CD6" exampleText="public override void ToString();" />
-    <Color name="NamespaceKeywords" fontWeight="bold" foreground="#4EC9B0" exampleText="namespace A.B { using System; }" />
-    <Color name="GetSetAddRemove" foreground="#D7BA7D" exampleText="int Prop { get; set; }" />
-    <Color name="TrueFalse" fontWeight="bold" foreground="#4EC9B0" exampleText="b = false; a = true;" />
-    <Color name="TypeKeywords" fontWeight="bold" foreground="#4EC9B0" exampleText="if (x is int) { a = x as int; type = typeof(int); size = sizeof(int); c = new object(); }" />
-    <Color name="SemanticKeywords" fontWeight="bold" foreground="#4EC9B0" exampleText="if (args == null) throw new ArgumentNullException(nameof(args));" />
+    <!-- Dark palette tuned to VS Code Dark+. Default text is the editor's
+         own foreground, so anything that should render as plain text just
+         omits the colour. Control-flow keywords share the magenta family
+         and declaration/access keywords share the blue family. -->
+    <Color name="Comment"               foreground="#6A9955" exampleText="// comment" />
+    <Color name="String"                foreground="#CE9178" exampleText="string text = &quot;Hello, World!&quot;" />
+    <Color name="StringInterpolation"   foreground="#D4D4D4" exampleText="string text = $&quot;Hello, {name}!&quot;" />
+    <Color name="Char"                  foreground="#CE9178" exampleText="char linefeed = '\n';" />
+    <Color name="Preprocessor"          foreground="#9B9B9B" exampleText="#region Title" />
+    <Color name="Punctuation"           foreground="#D4D4D4" exampleText="a(b.c);" />
+    <Color name="NumberLiteral"         foreground="#B5CEA8" exampleText="3.1415f" />
+    <Color name="MethodCall"            foreground="#DCDCAA" exampleText="o.ToString();" />
+
+    <!-- Declaration / access / built-in type keywords (blue family) -->
+    <Color name="ValueTypeKeywords"     foreground="#569CD6" exampleText="bool b = true;" />
+    <Color name="ReferenceTypeKeywords" foreground="#569CD6" exampleText="object o;" />
+    <Color name="Modifiers"             foreground="#569CD6" exampleText="static readonly int a;" />
+    <Color name="Visibility"            foreground="#569CD6" exampleText="public override void ToString();" />
+    <Color name="NamespaceKeywords"     foreground="#569CD6" exampleText="namespace A.B { using System; }" />
+    <Color name="GetSetAddRemove"       foreground="#569CD6" exampleText="int Prop { get; set; }" />
+    <Color name="ThisOrBaseReference"   foreground="#569CD6" exampleText="this.Do(); base.Do();" />
+    <Color name="NullOrValueKeywords"   foreground="#569CD6" exampleText="if (value == null)" />
+    <Color name="TrueFalse"             foreground="#569CD6" exampleText="b = false; a = true;" />
+    <Color name="ContextKeywords"       foreground="#569CD6" exampleText="var a = from x in y select z;" />
+    <Color name="OperatorKeywords"      foreground="#569CD6" exampleText="public static implicit operator..." />
+    <Color name="ParameterModifiers"    foreground="#569CD6" exampleText="(ref int a, params int[] b)" />
+    <Color name="TypeKeywords"          foreground="#569CD6" exampleText="if (x is int) ..." />
+    <Color name="CheckedKeyword"        foreground="#569CD6" exampleText="checked {}" />
+    <Color name="UnsafeKeywords"        foreground="#569CD6" exampleText="unsafe { fixed (..) {} }" />
+    <Color name="SemanticKeywords"      foreground="#DCDCAA" exampleText="nameof(args)" />
+
+    <!-- Control-flow keywords (magenta family) -->
+    <Color name="Keywords"              foreground="#C586C0" exampleText="if (a) {} else {}" />
+    <Color name="GotoKeywords"          foreground="#C586C0" exampleText="continue; return null;" />
+    <Color name="ExceptionKeywords"     foreground="#C586C0" exampleText="try {} catch {} finally {}" />
 
     <Property name="DocCommentMarker" value="///" />
 
