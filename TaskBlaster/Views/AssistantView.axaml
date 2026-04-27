@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:views="clr-namespace:TaskBlaster.Views"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
              x:Class="TaskBlaster.Views.AssistantView">
     <Grid ColumnDefinitions="240,6,*">
@@ -65,15 +66,13 @@
                     BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                     BorderThickness="1"
                     IsVisible="False">
-                <TextBox Name="BodyBox"
-                         AcceptsReturn="True"
-                         AcceptsTab="True"
-                         TextWrapping="Wrap"
-                         FontFamily="Consolas, Menlo, monospace"
-                         FontSize="13"
-                         TextChanged="OnEditorChanged"
-                         BorderThickness="0"
-                         Background="Transparent" />
+                <ae:TextEditor Name="BodyEditor"
+                               FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                               FontSize="13"
+                               ShowLineNumbers="False"
+                               WordWrap="True"
+                               HorizontalScrollBarVisibility="Auto"
+                               VerticalScrollBarVisibility="Auto" />
             </Border>
         </Grid>
     </Grid>
