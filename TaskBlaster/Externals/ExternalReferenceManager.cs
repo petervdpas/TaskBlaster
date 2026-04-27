@@ -211,12 +211,20 @@ public sealed class ExternalReferenceManager
             loaded.Add(r.DllPath);
         }
 
-        if (loaded.Count == 0 && runtimeErrors.Count > 0)
+        // Persist when live load succeeded cleanly, OR when the user
+        // explicitly forced through validation errors. The forced case
+        // covers "upgrade an already-loaded package": the default
+        // AssemblyLoadContext can't host two assemblies with the same
+        // simple name, so live load fails — but the user's intent is
+        // that next launch should pick up the new version, so we still
+        // write the config.
+        var shouldPersist = (loaded.Count > 0 && runtimeErrors.Count == 0) || force;
+        if (!shouldPersist)
             return new ExternalAddOutcome(false, loaded, reports, runtimeErrors);
 
         persist();
         _config.Save();
-        return new ExternalAddOutcome(true, loaded, reports, runtimeErrors);
+        return new ExternalAddOutcome(loaded.Count > 0, loaded, reports, runtimeErrors);
     }
 
     private bool TryLoad(string dllPath, out string? error)

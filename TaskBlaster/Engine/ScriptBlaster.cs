@@ -152,8 +152,18 @@ public sealed class ScriptBlaster : IScriptBlaster
 
     private static IEnumerable<Assembly> GetLoadableAssemblies()
     {
+        // Roslyn reads assemblies from disk when we hand them to
+        // WithReferences, so an assembly whose backing file has been
+        // deleted (uninstalled external, moved package, broken symlink)
+        // would explode the entire compilation. Filter those out so
+        // every script compile stays robust to AppDomain cruft.
         return AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(SafeLocation(a)));
+            .Where(a => !a.IsDynamic)
+            .Where(a =>
+            {
+                var loc = SafeLocation(a);
+                return !string.IsNullOrEmpty(loc) && File.Exists(loc);
+            });
     }
 
     private static string SafeLocation(Assembly a)
