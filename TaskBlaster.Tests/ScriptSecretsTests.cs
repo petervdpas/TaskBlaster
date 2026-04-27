@@ -210,6 +210,10 @@ public sealed class ScriptSecretsTests : IDisposable
         public bool TerminalVisible { get; set; } = true;
         public string EditorHighlighter { get; set; } = "Native";
         public bool CodeFolding { get; set; } = true;
+        public System.Collections.Generic.IList<string> ExternalDlls { get; }
+            = new System.Collections.Generic.List<string>();
+        public System.Collections.Generic.IList<TaskBlaster.Externals.ExternalPackageRef> ExternalPackages { get; }
+            = new System.Collections.Generic.List<TaskBlaster.Externals.ExternalPackageRef>();
         public void Load() { }
         public void Save() { }
     }

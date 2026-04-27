@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dlg="clr-namespace:TaskBlaster.Dialogs"
              x:Class="TaskBlaster.App"
              RequestedThemeVariant="Default">
 
@@ -49,6 +50,8 @@
 
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries />
+            <dlg:ResourceKeyToBrushConverter x:Key="ResourceKeyToBrush" />
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="DialogSurfaceBrush" Color="#F3F3F3" />

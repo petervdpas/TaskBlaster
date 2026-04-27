@@ -233,6 +233,9 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
         public bool TerminalVisible { get; set; } = true;
         public string EditorHighlighter { get; set; } = "Native";
         public bool CodeFolding { get; set; } = true;
+        public IList<string> ExternalDlls { get; } = new List<string>();
+        public IList<TaskBlaster.Externals.ExternalPackageRef> ExternalPackages { get; }
+            = new List<TaskBlaster.Externals.ExternalPackageRef>();
         public void Load() { }
         public void Save() { }
     }

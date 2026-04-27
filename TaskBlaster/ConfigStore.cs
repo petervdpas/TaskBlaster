@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using TaskBlaster.Externals;
 using TaskBlaster.Interfaces;
 
 namespace TaskBlaster;
@@ -27,6 +30,8 @@ public sealed class ConfigStore : IConfigStore
         TerminalVisible   = true;
         EditorHighlighter = "Native";
         CodeFolding       = true;
+        ExternalDlls      = new List<string>();
+        ExternalPackages  = new List<ExternalPackageRef>();
     }
 
     public string ScriptsFolder     { get; set; }
@@ -36,6 +41,8 @@ public sealed class ConfigStore : IConfigStore
     public bool   TerminalVisible   { get; set; }
     public string EditorHighlighter { get; set; }
     public bool   CodeFolding       { get; set; }
+    public IList<string> ExternalDlls           { get; }
+    public IList<ExternalPackageRef> ExternalPackages { get; }
 
     private string ConfigPath => Path.Combine(_baseDirectory, "config.json");
 
@@ -53,6 +60,19 @@ public sealed class ConfigStore : IConfigStore
             if (data.TerminalVisible.HasValue)                  TerminalVisible   = data.TerminalVisible.Value;
             if (!string.IsNullOrWhiteSpace(data.EditorHighlighter)) EditorHighlighter = data.EditorHighlighter;
             if (data.CodeFolding.HasValue)                          CodeFolding       = data.CodeFolding.Value;
+            if (data.ExternalDlls is not null)
+            {
+                ExternalDlls.Clear();
+                foreach (var d in data.ExternalDlls)
+                    if (!string.IsNullOrWhiteSpace(d)) ExternalDlls.Add(d);
+            }
+            if (data.ExternalPackages is not null)
+            {
+                ExternalPackages.Clear();
+                foreach (var p in data.ExternalPackages)
+                    if (!string.IsNullOrWhiteSpace(p?.Id) && !string.IsNullOrWhiteSpace(p.Version))
+                        ExternalPackages.Add(new ExternalPackageRef(p.Id, p.Version));
+            }
         }
         catch
         {
@@ -72,6 +92,8 @@ public sealed class ConfigStore : IConfigStore
             TerminalVisible    = TerminalVisible,
             EditorHighlighter = EditorHighlighter,
             CodeFolding       = CodeFolding,
+            ExternalDlls      = ExternalDlls.ToList(),
+            ExternalPackages  = ExternalPackages.Select(p => new PackageData { Id = p.Id, Version = p.Version }).ToList(),
         };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
@@ -86,5 +108,13 @@ public sealed class ConfigStore : IConfigStore
         public bool?   TerminalVisible   { get; set; }
         public string? EditorHighlighter { get; set; }
         public bool?   CodeFolding       { get; set; }
+        public List<string>?      ExternalDlls     { get; set; }
+        public List<PackageData>? ExternalPackages { get; set; }
+    }
+
+    private sealed class PackageData
+    {
+        public string? Id      { get; set; }
+        public string? Version { get; set; }
     }
 }

@@ -1,16 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using TaskBlaster.Externals;
 
 namespace TaskBlaster.Dialogs;
 
 /// <summary>
 /// Result returned by <see cref="ConfigDialog"/>. Null fields mean
-/// "leave the existing value alone".
+/// "leave the existing value alone". External-tab changes are NOT in
+/// here: those are applied immediately via <see cref="ExternalReferenceManager"/>
+/// because they touch on-disk state (nupkg extraction) and cannot be
+/// rolled back by clicking Cancel.
 /// </summary>
 public sealed record ConfigDialogResult(
     string? ScriptsFolder,
@@ -28,8 +33,23 @@ public partial class ConfigDialog : Window
     private readonly TextBox _scriptsBox;
     private readonly TextBox _formsBox;
     private readonly TextBox _vaultBox;
+    private readonly ListBox _nugetsList;
+    private readonly ListBox _dllsList;
+    private readonly Button _removeNugetButton;
+    private readonly Button _removeDllButton;
 
-    public ConfigDialog() : this("", "", "", new[] { "Industrial" }, "Industrial", "Native", true) { }
+    private readonly ExternalReferenceManager? _externals;
+
+    public ConfigDialog() : this(
+        currentScriptsFolder: "",
+        currentFormsFolder:   "",
+        currentVaultFolder:   "",
+        availableThemes:      new[] { "Industrial" },
+        currentTheme:         "Industrial",
+        currentHighlighter:   "Native",
+        currentCodeFolding:   true,
+        externals:            null)
+    { }
 
     public ConfigDialog(
         string currentScriptsFolder,
@@ -38,7 +58,8 @@ public partial class ConfigDialog : Window
         IReadOnlyList<string> availableThemes,
         string currentTheme,
         string currentHighlighter,
-        bool currentCodeFolding)
+        bool currentCodeFolding,
+        ExternalReferenceManager? externals)
     {
         InitializeComponent();
         _themeBox        = this.FindControl<ComboBox>("ThemeBox")!;
@@ -47,6 +68,12 @@ public partial class ConfigDialog : Window
         _scriptsBox      = this.FindControl<TextBox>("ScriptsFolderBox")!;
         _formsBox        = this.FindControl<TextBox>("FormsFolderBox")!;
         _vaultBox        = this.FindControl<TextBox>("VaultFolderBox")!;
+        _nugetsList      = this.FindControl<ListBox>("NugetsList")!;
+        _dllsList        = this.FindControl<ListBox>("DllsList")!;
+        _removeNugetButton = this.FindControl<Button>("RemoveNugetButton")!;
+        _removeDllButton   = this.FindControl<Button>("RemoveDllButton")!;
+
+        _externals = externals;
 
         _themeBox.ItemsSource = availableThemes;
         _themeBox.SelectedItem = availableThemes.Contains(currentTheme) ? currentTheme : availableThemes[0];
@@ -57,6 +84,8 @@ public partial class ConfigDialog : Window
         _scriptsBox.Text = currentScriptsFolder;
         _formsBox.Text   = currentFormsFolder;
         _vaultBox.Text   = currentVaultFolder;
+
+        RefreshExternalsLists();
 
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close((ConfigDialogResult?)null); };
     }
@@ -113,4 +142,159 @@ public partial class ConfigDialog : Window
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close((ConfigDialogResult?)null);
+
+    // ---------- External tab ----------
+
+    private void RefreshExternalsLists()
+    {
+        if (_externals is null)
+        {
+            _nugetsList.ItemsSource = Array.Empty<string>();
+            _dllsList.ItemsSource   = Array.Empty<string>();
+            return;
+        }
+
+        // We bind to display strings (id + version, or full DLL path) and keep
+        // the original objects retrievable via Tag on the ListBoxItem.
+        _nugetsList.ItemsSource = BuildNugetItems();
+        _dllsList.ItemsSource   = BuildDllItems();
+    }
+
+    private List<ListBoxItem> BuildNugetItems()
+    {
+        var items = new List<ListBoxItem>();
+        if (_externals is null) return items;
+        foreach (var p in _externals.Packages)
+            items.Add(new ListBoxItem { Content = $"{p.Id}  {p.Version}", Tag = p });
+        return items;
+    }
+
+    private List<ListBoxItem> BuildDllItems()
+    {
+        var items = new List<ListBoxItem>();
+        if (_externals is null) return items;
+        foreach (var d in _externals.Dlls)
+            items.Add(new ListBoxItem { Content = d, Tag = d });
+        return items;
+    }
+
+    private void OnNugetSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        => _removeNugetButton.IsEnabled = _nugetsList.SelectedItem is ListBoxItem;
+
+    private void OnDllSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        => _removeDllButton.IsEnabled = _dllsList.SelectedItem is ListBoxItem;
+
+    private async void OnAddNuget(object? sender, RoutedEventArgs e)
+    {
+        if (_externals is null) return;
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var picked = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Pick a .nupkg",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("NuGet packages") { Patterns = new[] { "*.nupkg" } },
+            },
+        });
+        if (picked.Count == 0) return;
+
+        var nupkg = picked[0].Path.LocalPath;
+        var outcome = _externals.AddPackage(nupkg, force: false);
+        await HandleAddOutcome(outcome, $"NuGet: {Path.GetFileName(nupkg)}",
+            retry: () => _externals.AddPackage(nupkg, force: true));
+    }
+
+    private async void OnAddDll(object? sender, RoutedEventArgs e)
+    {
+        if (_externals is null) return;
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var picked = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Pick a DLL",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Assemblies") { Patterns = new[] { "*.dll" } },
+            },
+        });
+        if (picked.Count == 0) return;
+
+        var dll = picked[0].Path.LocalPath;
+        var outcome = _externals.AddDll(dll, force: false);
+        await HandleAddOutcome(outcome, $"DLL: {Path.GetFileName(dll)}",
+            retry: () => _externals.AddDll(dll, force: true));
+    }
+
+    private async System.Threading.Tasks.Task HandleAddOutcome(
+        ExternalAddOutcome outcome,
+        string header,
+        Func<ExternalAddOutcome> retry)
+    {
+        // No reports at all means we never even got to validation (file
+        // missing, nupkg malformed). Just message and bail.
+        if (outcome.Reports.Count == 0)
+        {
+            await new ExternalValidationDialog().Yield(d =>
+            {
+                d.SetContent(header, new[]
+                {
+                    new AssemblyValidationReport(
+                        DllPath:         "",
+                        AssemblyName:    "Could not import",
+                        AssemblyVersion: "",
+                        Issues:          outcome.RuntimeErrors
+                            .Select(m => new AssemblyIssue(IssueLevel.Error, m))
+                            .ToList()),
+                });
+            }).ShowDialog<ExternalValidationChoice>(this);
+            RefreshExternalsLists();
+            return;
+        }
+
+        var dialog = new ExternalValidationDialog();
+        dialog.SetContent(header, outcome.Reports);
+        var choice = await dialog.ShowDialog<ExternalValidationChoice>(this);
+
+        if (choice == ExternalValidationChoice.Cancel) return;
+        if (choice == ExternalValidationChoice.AddAnyway) outcome = retry();
+        // Successful no-issue Add path: outcome already loaded.
+
+        RefreshExternalsLists();
+    }
+
+    private void OnRemoveNuget(object? sender, RoutedEventArgs e)
+    {
+        if (_externals is null) return;
+        if (_nugetsList.SelectedItem is not ListBoxItem item) return;
+        if (item.Tag is not ExternalPackageRef pkg) return;
+
+        _externals.RemovePackage(pkg);
+        RefreshExternalsLists();
+    }
+
+    private void OnRemoveDll(object? sender, RoutedEventArgs e)
+    {
+        if (_externals is null) return;
+        if (_dllsList.SelectedItem is not ListBoxItem item) return;
+        if (item.Tag is not string path) return;
+
+        _externals.RemoveDll(path);
+        RefreshExternalsLists();
+    }
+
+}
+
+internal static class WindowExtensions
+{
+    /// <summary>Tiny helper so a single-expression dialog config reads as one chain.</summary>
+    public static T Yield<T>(this T self, Action<T> configure)
+    {
+        configure(self);
+        return self;
+    }
 }

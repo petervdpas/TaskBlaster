@@ -13,6 +13,7 @@ using GuiBlast.Forms.Result;
 using SecretBlast;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
+using TaskBlaster.Externals;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Views;
@@ -45,6 +46,7 @@ public partial class MainWindow : Window
     private readonly IFormDocumentFactory _formDocFactory;
     private readonly IVaultService _vaultService;
     private readonly IConnectionStore _connectionStore;
+    private readonly ExternalReferenceManager _externals;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -59,7 +61,8 @@ public partial class MainWindow : Window
         IPromptServiceFactory promptFactory,
         IFormDocumentFactory formDocFactory,
         IVaultService vaultService,
-        IConnectionStore connectionStore)
+        IConnectionStore connectionStore,
+        ExternalReferenceManager externals)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -69,6 +72,7 @@ public partial class MainWindow : Window
         _formDocFactory = formDocFactory;
         _vaultService = vaultService;
         _connectionStore = connectionStore;
+        _externals = externals;
         _prompts = promptFactory.Create(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
@@ -129,6 +133,12 @@ public partial class MainWindow : Window
         _editor.SetCodeFoldingEnabled(_config.CodeFolding);
         _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
         _terminal.Log($"Forms folder:   {_config.FormsFolder}");
+
+        var externalLoad = _externals.LoadAll();
+        if (externalLoad.LoadedDllCount > 0)
+            _terminal.Log($"External references: {externalLoad.LoadedDllCount} DLL(s) loaded.");
+        foreach (var err in externalLoad.Errors)
+            _terminal.Log($"⚠ {err}");
     }
 
     private void OnTerminalVisibilityChanged(bool visible)
@@ -523,7 +533,8 @@ public partial class MainWindow : Window
             _themes.AvailableThemes,
             _themes.CurrentTheme,
             _config.EditorHighlighter,
-            _config.CodeFolding).ShowDialog<ConfigDialogResult?>(this);
+            _config.CodeFolding,
+            _externals).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(

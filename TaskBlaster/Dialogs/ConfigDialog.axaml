@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TaskBlaster.Dialogs.ConfigDialog"
-        Width="720" Height="460"
+        Width="720" Height="540"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
@@ -56,6 +56,28 @@
                         </Grid>
                     </StackPanel>
                 </StackPanel>
+            </TabItem>
+
+            <TabItem Header="External">
+                <Grid RowDefinitions="Auto,*,Auto,*" Margin="4,12,4,4">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                        <TextBlock Text="NuGet packages" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Name="AddNugetButton"    Content="Add .nupkg…" Click="OnAddNuget" />
+                        <Button Name="RemoveNugetButton" Content="Remove"      Click="OnRemoveNuget" IsEnabled="False" />
+                    </StackPanel>
+                    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <ListBox Name="NugetsList" SelectionChanged="OnNugetSelectionChanged" />
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
+                        <TextBlock Text="Loose DLLs" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Name="AddDllButton"    Content="Add DLL…" Click="OnAddDll" />
+                        <Button Name="RemoveDllButton" Content="Remove"   Click="OnRemoveDll" IsEnabled="False" />
+                    </StackPanel>
+                    <Border Grid.Row="3" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <ListBox Name="DllsList" SelectionChanged="OnDllSelectionChanged" />
+                    </Border>
+                </Grid>
             </TabItem>
         </TabControl>
 

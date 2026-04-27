@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using TaskBlaster.Externals;
+
 namespace TaskBlaster.Interfaces;
 
 /// <summary>
@@ -37,6 +40,21 @@ public interface IConfigStore
     /// brace pairs. Defaults to on.
     /// </summary>
     bool CodeFolding { get; set; }
+
+    /// <summary>
+    /// Loose <c>.dll</c> file paths the user has added on the External tab.
+    /// Each is loaded into the script engine at startup via
+    /// <c>Assembly.LoadFrom</c>.
+    /// </summary>
+    IList<string> ExternalDlls { get; }
+
+    /// <summary>
+    /// NuGet packages the user has imported via the External tab. The
+    /// actual files live under <c>~/.taskblaster/packages/&lt;Id&gt;/&lt;Version&gt;/</c>;
+    /// this list is just the identities so we can rediscover them on next
+    /// launch.
+    /// </summary>
+    IList<ExternalPackageRef> ExternalPackages { get; }
 
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();

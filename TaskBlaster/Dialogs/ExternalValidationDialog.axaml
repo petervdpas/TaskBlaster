@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dlg="clr-namespace:TaskBlaster.Dialogs"
+        x:Class="TaskBlaster.Dialogs.ExternalValidationDialog"
+        Width="640" Height="420"
+        CanResize="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource DialogSurfaceBrush}"
+        Title="Validation results">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+        <TextBlock Grid.Row="0" Name="HeaderLabel" FontWeight="SemiBold" Margin="0,0,0,8" />
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsControl Name="ReportsList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="dlg:ValidationReportRow">
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                                Padding="0,6,0,8" Margin="0,0,0,4">
+                            <StackPanel Spacing="4">
+                                <TextBlock>
+                                    <Run Text="{Binding AssemblyName}" FontWeight="SemiBold" />
+                                    <Run Text="  v" />
+                                    <Run Text="{Binding AssemblyVersion}" />
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Issues}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="dlg:ValidationIssueRow">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,2,0,0">
+                                                <TextBlock Text="{Binding Symbol}"
+                                                           Foreground="{Binding BrushKey, Converter={StaticResource ResourceKeyToBrush}}"
+                                                           Width="14" />
+                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="✓ no issues" Foreground="{DynamicResource SuccessBrush}"
+                                           Margin="12,2,0,0" IsVisible="{Binding HasNoIssues}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+            <Button Name="CancelButton"    Content="Cancel"     Click="OnCancel" />
+            <Button Name="AddAnywayButton" Content="Add anyway" Click="OnAddAnyway" Background="{DynamicResource DangerBrush}" />
+            <Button Name="AddButton"       Content="Add"        Click="OnAdd" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

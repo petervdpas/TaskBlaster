@@ -13,6 +13,7 @@
   <Color x:Key="Color.Accent">#0B6BFF</Color>
   <Color x:Key="Color.Danger">#B63E3E</Color>
   <Color x:Key="Color.Success">#2E8B45</Color>
+  <Color x:Key="Color.Warning">#B07C00</Color>
 
   <Color x:Key="SystemAccentColor">#0B6BFF</Color>
   <Color x:Key="SystemAccentColorLight1">#4A93FF</Color>

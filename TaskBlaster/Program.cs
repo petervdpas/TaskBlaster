@@ -5,6 +5,7 @@ using System.IO;
 using TaskBlaster.Connections;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
+using TaskBlaster.Externals;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Secrets;
@@ -108,6 +109,15 @@ class Program
             var anchor = Path.GetDirectoryName(cfg.VaultFolder)
                 ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return new ConnectionStore(Path.Combine(anchor, "connections.json"));
+        });
+        services.AddSingleton<ExternalReferenceManager>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IConfigStore>();
+            // Imported NuGet packages live under ~/.taskblaster/packages/ by
+            // the same anchoring convention as connections.json.
+            var anchor = Path.GetDirectoryName(cfg.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return new ExternalReferenceManager(cfg, Path.Combine(anchor, "packages"));
         });
 
         services.AddSingleton<App>();
