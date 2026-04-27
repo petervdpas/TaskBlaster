@@ -44,6 +44,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * **Named connections** — a `connections.json` file maps a friendly name to a bag of fields where each field is either a plaintext literal (URL, server, account name) or a pointer into the vault (token, password). Scripts grab the whole bag with `Secrets.GetConnection("name")` (dynamic) or `Secrets.GetConnection<T>("name")` (typed); Blast libraries that take a resolver delegate (NetworkBlast, AzureBlast) receive the wrapped resolver via `Secrets.Resolver`.
 * **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
 * **External references** — drop a `.nupkg` (or a loose `.dll`) into Settings → External and TaskBlaster validates it (TFM compatibility, unresolved deps, version conflicts against already-loaded assemblies), extracts to `~/.taskblaster/packages/`, and surfaces the types to scripts as standard `using` namespaces
+* **Directed AI assistant** — per-script chat panel (💬) and a knowledge-blocks editor under a dedicated 🧠 Assistant tab. Bring-your-own-key against Anthropic; every assembled prompt is audited to disk; the assistant never auto-applies — it can only emit text you copy-paste yourself
 * Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
 * Configurable scripts folder, forms folder, vault folder, theme, editor highlighter, code folding, and terminal visibility — all persisted in `~/.taskblaster/config.json`
 * Demo scripts, forms, and a sample `.nupkg` (the `Acme.Domain` canonical-models fixture) shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
@@ -198,6 +199,91 @@ var api = new NetClient(Secrets.Resolver, "github");
 
 If a connection isn't in the file, the resolver falls through to the vault directly so all-vault setups keep working unchanged. `Secrets.Connections()` returns the registered names so a script can build a quick picker.
 
+## AI assistant (Directed AI)
+
+TaskBlaster has an in-app AI assistant for writing and refining scripts, called **Directed AI**. The pattern: the user actively *directs* the assistant via explicit, visible **knowledge blocks**, and can see exactly which blocks fired on any given response. The assistant runs against your own API key — there's no TaskBlaster-hosted proxy and prompts never leave your machine except to the configured provider.
+
+Today the assistant is wired up against **Anthropic** (Claude Opus 4.7, Sonnet 4.6, Haiku 4.5). Other providers (OpenAI, Ollama) are on the roadmap; the architecture is provider-agnostic.
+
+### Provider setup
+
+The assistant talks to a provider via a regular entry in `connections.json`. Add a connection with these fields:
+
+```jsonc
+"ai-anthropic": {
+  "kind":      { "value": "anthropic" },
+  "baseUrl":   { "value": "https://api.anthropic.com" },
+  "model":     { "value": "claude-sonnet-4-6" },
+  "maxTokens": { "value": "8192" },
+  "apikey":    { "fromVault": { "category": "ai", "key": "anthropic" } }
+}
+```
+
+Then point `aiDefaultProvider` in `config.json` at the connection name. Field semantics:
+
+* **`kind`** — selects the provider (`anthropic` today).
+* **`baseUrl`** — endpoint root. Anthropic's is `https://api.anthropic.com`; the provider tolerates `/v1/messages` either appended or omitted.
+* **`model`** — model id, e.g. `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`.
+* **`maxTokens`** — optional; defaults to 8192 when omitted, validated strictly when present (positive integer).
+* **`apikey`** — vault-backed; the API key never lives in plaintext on disk.
+
+The Connections tab includes a **Test** button that does a 5-token round-trip ping so you can verify connectivity before opening the chat panel.
+
+### 🧠 Assistant tab — knowledge blocks
+
+The Assistant tab manages **knowledge blocks**: small markdown files under `~/.taskblaster/knowledge/` that get injected into the AI's system prompt. Each block is a `.md` with YAML frontmatter:
+
+```markdown
+---
+title: Acme.Domain conventions
+when: Acme.Domain
+priority: 60
+tags: domain, models
+includes: sql-shared
+---
+# body — free-form markdown the model reads as context
+```
+
+Frontmatter keys:
+
+* **`title`** — display name; defaults to a humanised filename if omitted.
+* **`when`** — comma-separated rules; ANY rule matching fires the block. Forms recognised today:
+  * `always` — always matches.
+  * `tag:foo` — matches when the caller hands the picker a `foo` tag.
+  * `Namespace.Type` — matches when the open script has that exact loaded type FQN in scope.
+  * `Namespace` — matches when a loaded namespace equals the rule, or any loaded FQN starts with it.
+  * Blocks with no `when:` are never picked as entry points; they only appear when another block pulls them in via `includes:`. That gives a clean shape for shared/base blocks.
+* **`priority`** — integer; higher fires first when budgeted truncation matters.
+* **`includes`** — comma-separated block ids to pull in transitively (cycle-safe).
+* **`tags`** — comma-separated; lowercased and deduplicated on save.
+
+The editor pane lets you add, save, and delete blocks; switching selections discards pending edits, same convention as Scripts and Forms. Six demo blocks ship in `~/.taskblaster/knowledge/` on first launch — see the bundled-demos table below.
+
+### Per-script chat (💬)
+
+Each `.csx` gets its own chat panel, toggled by the **Chat** switch on the toolbar (visible in Scripts mode only). Each turn:
+
+1. Runs the **`KnowledgeBlockPicker`** against the open script + loaded references (Blast facades, namespaces, vault category names, connection names from `LoadedReferenceCatalog`) and selects the matching blocks plus their transitive includes.
+2. Composes a system prompt from those blocks plus the loaded-reference summary via `PromptBuilder`.
+3. Sends the conversation history — user/assistant turns since you opened the script — to the configured provider.
+4. Renders the response as Markdown in the chat panel.
+
+Conversation state is per-script and in-memory; switching scripts swaps the visible history. There's no auto-suggest and no auto-apply: the model emits text only, you copy what you want into the editor yourself.
+
+### What gets sent
+
+* **Vault context**: category and key *names* (organisational structure), never values.
+* **Connections context**: connection names and field names, never resolved vault references.
+* **Externals context**: type signatures from loaded `.nupkg` / `.dll` packages.
+* **Knowledge blocks**: whichever blocks matched the picker for this turn.
+* **Conversation**: the user and assistant messages for the active script.
+
+API keys leave the vault only as request headers to the configured provider.
+
+### Audit trail
+
+Every assembled prompt is written to `~/.taskblaster/ai-history/` as a Markdown file with frontmatter (kind, timestamp, picked blocks, loaded types and namespaces, tags) plus the system message and user message verbatim. Useful for "why did it answer like that?" retrospectives and for tuning blocks.
+
 ## Data layout
 
 ```
@@ -206,6 +292,8 @@ If a connection isn't in the file, the resolver falls through to the vault direc
 ├── connections.json   # named connections (plaintext + fromVault pointers)
 ├── scripts/           # your .csx scripts
 ├── forms/             # your .json form specs
+├── knowledge/         # markdown directing-context blocks (Assistant tab)
+├── ai-history/        # audit trail of every assembled AI prompt
 ├── packages/          # imported .nupkgs, one folder per id/version (External tab)
 ├── demo-nugets/       # bundled sample .nupkgs (Acme.Domain) seeded on first launch
 └── vault/
@@ -272,6 +360,12 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |
 | `DemoNugets/Acme.Domain.1.0.0.nupkg`| Sample canonical-models package (built from `TaskBlaster.SampleModels/`). Import via Settings → External to make the types available to scripts. |
+| `DemoKnowledge/00-house-rules.md`   | Always-on baseline directing rules every script in this install should follow. |
+| `DemoKnowledge/acme-domain-rules.md`| Knowledge block scoped to scripts that load the `Acme.Domain` namespace. |
+| `DemoKnowledge/mssql-conventions.md`| MS-SQL conventions block; fires when `AzureBlast.MssqlDatabase` is in scope. Pulls in `sql-shared` via `includes:`. |
+| `DemoKnowledge/networkblast-when-loaded.md` | NetworkBlast usage notes; fires when `NetworkBlast.NetClient` is loaded. |
+| `DemoKnowledge/runbook-queue-drain.md` | Operational runbook block; only fires when the caller hands the picker a `runbook` tag (`tag:runbook` rule shape). |
+| `DemoKnowledge/sql-shared.md`       | Shared SQL helper text with no `when:` rule; never picked as an entry point, only pulled in via another block's `includes:`. |
 
 ## Downloads
 
