@@ -54,6 +54,68 @@ section below). Still open:
    manifests). Until then the simpler global model is fine for the
    "everyone uses one canonical-models package" case.
 
+## Roadmap (in-app)
+
+### Context-aware AI script assistant
+
+The differentiator vs Copilot / Cursor / general LLM chat is **state Copilot
+can't see**: TaskBlaster knows what's in the vault (categories + keys, never
+values), what's in `connections.json`, which externals are loaded
+(`Acme.Domain.Customer` etc.), what forms exist nearby, and what Blast
+helpers are available. A generic LLM doesn't and will happily suggest
+hardcoded credentials or reinvent helpers we already have.
+
+Operating principles:
+
+- **Manual trigger only.** Button in the script editor toolbar; never
+  auto-suggest, never auto-apply. Output is a diff the user reviews.
+- **Never auto-execute.** Suggestions modify text only; running is still a
+  deliberate user action via the Run button.
+- **Bring your own key.** API key persisted in the vault (very on-brand,
+  reuses the existing encrypted store). Provider configurable so the
+  locally-paranoid can point at Ollama instead of OpenAI / Anthropic.
+- **Send structure, not secrets.** Vault context = category + key names
+  (already non-sensitive, surface organisation). Connections context =
+  field names + plaintext values (server / baseUrl) but never resolved
+  vault refs. Externals context = exported type signatures.
+
+Discipline note: "optimize this" produces forgettable results. Ship a
+small set of *named operations* and resist the open-ended chat surface.
+Each named op has a clear success criterion (does the diff actually do
+the thing) and is easier to evaluate, easier to ship, easier to mark as
+broken when it isn't working.
+
+First operations worth building:
+
+1. **Convert inline prompts → form file.** Detect repeated `Prompts.Input`
+   / `Prompts.Confirm` calls; offer to write a JSON form to
+   `~/.taskblaster/forms/<name>.json` and replace the prompts with
+   `DynamicForm.ShowJsonAsync` loading that file.
+2. **Use a connection instead of inline credentials.** Detect
+   connection-string fragments / hardcoded URLs that match an existing
+   `connections.json` entry; offer to replace with
+   `Secrets.GetConnection<T>` or `Secrets.Resolver`.
+3. **Use loaded external types instead of dictionaries.** Detect
+   `Dictionary<string, object>` / anonymous-type usage whose shape
+   matches a record in a loaded external (e.g. `Acme.Domain.Customer`);
+   offer the typed rewrite.
+4. **Replace ad-hoc output with the Blast display DSL.** Detect
+   `Console.WriteLine` separator strings (`===`, `---`), kv-style
+   `$"  {k,-20} = {v}"` lines; offer the equivalent `Blast.WriteHeading`
+   / `Blast.WriteKv` / `Blast.WriteTable` rewrite.
+
+Open questions before any code:
+
+- Streaming vs single-shot response (streaming = nicer UX, but harder to
+  show as a reviewable diff).
+- Should the assistant see *other* scripts in the folder for "use the
+  pattern this user already uses" suggestions, or stay strictly to the
+  active file?
+- Per-script enable/disable (some scripts shouldn't ever be sent to a
+  remote LLM — flag in a comment header? sidecar file?).
+- Telemetry: do we log which suggestions were accepted / rejected so we
+  can tune the prompts? Local-only if so.
+
 ## Roadmap (separate repos)
 
 *(empty; all currently-planned siblings have shipped: NetworkBlast 1.0.2,
