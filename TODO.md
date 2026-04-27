@@ -120,17 +120,134 @@ Supporting work in the Blast nugets (cross-cutting): **shipped**
 naming its 1-4 canonical entry points; consumed by
 `LoadedReferenceCatalog` (also shipped). See the Done log for details.
 
+### Knowledge blocks (graph-shaped library) — the bigger idea
+
+A user-curated library of small text blocks that get injected into AI
+context. The reframing that makes this important: **it's not just "make
+the AI smarter" — it's "make the AI auditable"**. With explicit,
+user-visible blocks of influence:
+
+- The AI's output shows which blocks fired.
+- The user can read the blocks → understand *why* the suggestion
+  came out the way it did.
+- The user can edit blocks → change future behavior deterministically.
+- The user can disable blocks → debug "is this block making things
+  worse?".
+
+This is the user reclaiming agency over the influence layer. Different
+product category from "AI assistant" — closer to "AI you can reason
+about". Solves a problem hosted LLMs structurally can't:
+domain knowledge that lives in heads / Confluence / tribal knowledge
+and is invisible to a generic model.
+
+File layout (proposed):
+
+```
+~/.taskblaster/knowledge/
+├── api-conventions.md       # camelCase JSON, snake_case SQL
+├── customer-domain.md       # Customer.Code is stable, not Customer.Id
+├── azure-sql-patterns.md    # Code samples for our warehouse
+├── queue-drain-runbook.md   # Operational steps
+└── form-templates.md        # Standard approval form shape
+```
+
+Each block is a markdown file with frontmatter:
+
+```yaml
+---
+title: Customer domain conventions
+priority: high
+when: always           # or: when-using=Acme.Domain
+                       # or: when-operation=convert-to-form
+                       # or: when-loaded=NetworkBlast
+---
+# body — free-form markdown the LLM reads as context
+```
+
+Composition rules (from the "it's combinatorics" conversation):
+
+- **Knowledge × operations × loaded-externals are orthogonal.** Free
+  composition is fine; that's where the leverage comes from. A "SQL
+  conventions" block + Acme.Domain types + the "convert to typed query"
+  operation produces a rewrite none of those alone could.
+- **Provider stays global.** Per-operation provider config is chaos —
+  one dropdown in Settings, applies everywhere.
+- **Scope is hierarchical.** Script-local (sidecar `.knowledge/` folder
+  next to the script) overrides global, doesn't interleave.
+- **Scope tags are the combinatoric pruner.** A block tagged
+  `when-using=Acme.Domain` only fires when the script actually loads
+  Acme.Domain types. Lets a user maintain 50 blocks without the AI
+  seeing 50 blocks every call.
+
+Three injection models, ranked by complexity:
+
+1. **Always-on (v1).** Every AI call gets every block whose `when:`
+  rule matches. Cheapest to build, predictable, fine for ~few KB of
+  total knowledge. Likely the right starting point.
+2. **Auto-relevant retrieval (v2).** AI sees titles + descriptions of
+  available blocks, asks for the ones it thinks are relevant. Costs an
+  extra round-trip. Needed once knowledge libraries grow past a few
+  dozen blocks.
+3. **User-pinned (always available alongside the above).** User
+  explicitly tags which blocks apply to which scripts. Boring but
+  transparent — the escape hatch when auto-rules misbehave.
+
+Auditability surface (this is what makes the feature distinctive):
+
+- Every AI call emits a "blocks used: [...]" trace shown to the user.
+- A "blocks influencing this suggestion" panel in the validation /
+  review UI lists each fired block with a one-click "open" / "disable
+  for this call" / "edit" action.
+- Optional per-call audit log (local-only, kept under
+  `~/.taskblaster/ai-history/`) captures the exact prompt + block set
+  + response. Lets the user retrospect "why did it suggest X yesterday?"
+
+Team sharing (this is what makes the feature a product):
+
+- Knowledge folder is plain text + git-friendly — a team's
+  `~/.taskblaster/knowledge/` checked into a repo IS their TaskBlaster
+  domain expertise. New hire clones the repo, points TaskBlaster at it,
+  inherits the team's accumulated knowledge.
+- This is also TaskBlaster's answer to the "no story for sharing
+  scripts" critique: the sharing surface isn't the scripts themselves,
+  it's the knowledge that informs how scripts get written.
+
+Lineage to be aware of:
+
+- `CLAUDE.md` (Claude Code) — single always-on file, no scope rules.
+- `.cursorrules` (Cursor) — same shape, different tool.
+- Anthropic MCP — server-based context plumbing; heavier than what we
+  need but worth understanding the protocol.
+- OpenAI Custom GPTs / Assistants file_search — RAG over uploaded
+  files, hosted-only.
+
+None of these are local-first + git-friendly + vault-aware in the way
+TaskBlaster could be. Steal the good ideas (markdown + frontmatter,
+scope-based activation, audit trail), skip the SaaS shape.
+
 Open questions before any code:
 
-- Streaming vs single-shot response (streaming = nicer UX, but harder to
-  show as a reviewable diff).
+- How do scope rules combine when multiple blocks match? Just include
+  all of them up to a token budget? Or rank by `priority:` and
+  truncate?
+- Sidecar `.knowledge/` folder per script — or annotate the script
+  header with `// @knowledge: customer-domain, sql-patterns` to
+  declare per-script overrides?
+- What's the v1 frontmatter schema? Start narrow (`title`, `priority`,
+  `when`) and expand only when concrete needs surface — same
+  scope-discipline as the AI operations themselves.
+
+Open questions for the AI assistant in general:
+
+- Streaming vs single-shot response (streaming = nicer UX, but harder
+  to show as a reviewable diff).
 - Should the assistant see *other* scripts in the folder for "use the
   pattern this user already uses" suggestions, or stay strictly to the
   active file?
 - Per-script enable/disable (some scripts shouldn't ever be sent to a
   remote LLM — flag in a comment header? sidecar file?).
-- Telemetry: do we log which suggestions were accepted / rejected so we
-  can tune the prompts? Local-only if so.
+- Telemetry: do we log which suggestions were accepted / rejected so
+  we can tune the prompts? Local-only if so.
 
 ## Roadmap (separate repos)
 
@@ -138,6 +255,37 @@ Open questions before any code:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-27 (cont. 4) — XmlDocReader (xmldoc → structured lookup)
+
+Second foundation piece for the AI roadmap. Useful immediately for the
+eventual editor-tooltip feature, and required-by-construction for the
+AI assistant (signatures-without-descriptions are weak context;
+signatures-plus-summaries are strong context).
+
+- **`Engine/XmlDocReader.cs`**. Static `TryRead(dllPath)` finds the
+  matching `.xml` file alongside a DLL (NuGet ships both side-by-side)
+  and returns an `XmlDocSet?` (null if no doc file or malformed XML —
+  callers shouldn't have to wrap it in a try). `Parse(xmlContent,
+  fallbackAssemblyName)` exposed for callers that already have the XML
+  string in hand.
+- **`XmlDocEntry`** record per documented member: ECMA-335 member ID,
+  summary, remarks, returns, parameter list. Whitespace from compiler-
+  emitted multi-line tags collapses to single trimmed strings so the
+  output reads like prose.
+- **`XmlDocSet`** wraps the entry list with a fast `Find(memberId)`
+  lookup keyed by the member ID string.
+
+Tests: 6 in `XmlDocReaderTests`. No-xml-beside-dll → null; malformed
+xml → null (not throw); summary/remarks/params/returns extraction
+from a synthesized fixture; multi-line summary collapses to one line;
+fallback assembly name when the `<assembly>` element is missing;
+malformed `<member>` entries skipped not crashed; **round-trip
+against the real `Acme.Domain.xml`** the SampleModels project ships
+(skipped gracefully if that build hasn't run yet, runs by default
+because TaskBlaster's csproj target builds SampleModels first).
+
+239/239 tests green.
 
 ### 2026-04-27 (cont. 3) — Blast.PrimaryFacade convention + LoadedReferenceCatalog
 
