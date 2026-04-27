@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Shapes;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -62,6 +65,32 @@ public static class MarkdownRenderer
             // inside the prose path below.
             if (string.IsNullOrWhiteSpace(line)) { i++; continue; }
 
+            // Horizontal rule: a line of three or more -, *, or _ (with
+            // optional whitespace). Renders as a thin divider.
+            if (IsHorizontalRule(line))
+            {
+                panel.Children.Add(BuildHorizontalRule());
+                i++;
+                continue;
+            }
+
+            // Blockquote: collect consecutive '> ' lines into one block.
+            if (line.TrimStart().StartsWith("> ", StringComparison.Ordinal)
+                || line.TrimStart() == ">")
+            {
+                var quoted = new List<string>();
+                while (i < lines.Length
+                       && (lines[i].TrimStart().StartsWith("> ", StringComparison.Ordinal)
+                           || lines[i].TrimStart() == ">"))
+                {
+                    var t = lines[i].TrimStart();
+                    quoted.Add(t.Length <= 2 ? string.Empty : t[2..]);
+                    i++;
+                }
+                panel.Children.Add(BuildBlockquote(string.Join(' ', quoted)));
+                continue;
+            }
+
             // Headings (ATX). Anything beyond ### renders as ### so the
             // visual hierarchy stays sane in a narrow chat panel.
             if (TryParseHeading(line, out var headingLevel, out var headingText))
@@ -84,6 +113,21 @@ public static class MarkdownRenderer
                 continue;
             }
 
+            // Table: a header row containing '|' followed immediately by a
+            // separator row of dashes/colons/pipes. Anything else with a
+            // bare '|' falls through to the paragraph path.
+            if (LooksLikeTableHeader(lines, i))
+            {
+                var tableLines = new List<string>();
+                while (i < lines.Length && lines[i].Contains('|'))
+                {
+                    tableLines.Add(lines[i]);
+                    i++;
+                }
+                panel.Children.Add(BuildTable(tableLines));
+                continue;
+            }
+
             // Default: a paragraph — one or more non-blank, non-special lines.
             var paraLines = new List<string> { line };
             i++;
@@ -91,7 +135,10 @@ public static class MarkdownRenderer
                    && !string.IsNullOrWhiteSpace(lines[i])
                    && !TryParseHeading(lines[i], out _, out _)
                    && !IsListItem(lines[i], out _)
-                   && !TryStartCodeFence(lines[i], out _))
+                   && !TryStartCodeFence(lines[i], out _)
+                   && !LooksLikeTableHeader(lines, i)
+                   && !IsHorizontalRule(lines[i])
+                   && !lines[i].TrimStart().StartsWith("> ", StringComparison.Ordinal))
             {
                 paraLines.Add(lines[i]);
                 i++;
@@ -207,6 +254,163 @@ public static class MarkdownRenderer
         return stack;
     }
 
+    private static bool IsHorizontalRule(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length < 3) return false;
+        var c = trimmed[0];
+        if (c is not ('-' or '*' or '_')) return false;
+        var count = 0;
+        foreach (var ch in trimmed)
+        {
+            if (ch == c) count++;
+            else if (ch != ' ') return false;
+        }
+        return count >= 3;
+    }
+
+    private static Control BuildHorizontalRule()
+    {
+        var rect = new Rectangle
+        {
+            Height = 1,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 8),
+            Opacity = 0.4,
+        };
+        if (Application.Current?.TryFindResource("BorderBrush", out var br) == true && br is IBrush brush)
+            rect.Fill = brush;
+        return rect;
+    }
+
+    private static Control BuildBlockquote(string text)
+    {
+        var tb = new SelectableTextBlock
+        {
+            FontSize = 12,
+            FontStyle = FontStyle.Italic,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        ApplyInlines(tb, text);
+        var border = new Border
+        {
+            BorderThickness = new Thickness(3, 0, 0, 0),
+            Padding = new Thickness(10, 4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Child = tb,
+        };
+        if (Application.Current?.TryFindResource("BorderBrush", out var br) == true && br is IBrush brush)
+            border.BorderBrush = brush;
+        return border;
+    }
+
+    private static bool LooksLikeTableHeader(string[] lines, int idx)
+    {
+        if (idx + 1 >= lines.Length) return false;
+        if (!lines[idx].Contains('|')) return false;
+        var separator = lines[idx + 1].Trim();
+        if (separator.Length == 0) return false;
+        // Separator is e.g. "|---|---|" or "| :-- | --: |" — every char
+        // must be one of |, -, :, or whitespace, and at least one '-'.
+        var hasDash = false;
+        foreach (var c in separator)
+        {
+            if (c == '-') hasDash = true;
+            else if (c is not ('|' or ':' or ' ' or '\t')) return false;
+        }
+        return hasDash;
+    }
+
+    private static List<string> SplitTableRow(string row)
+    {
+        var trimmed = row.Trim();
+        // Strip leading / trailing pipe so we don't get empty leading
+        // / trailing cells (very common form: "| a | b |").
+        if (trimmed.StartsWith('|')) trimmed = trimmed[1..];
+        if (trimmed.EndsWith('|'))   trimmed = trimmed[..^1];
+        var cells = new List<string>();
+        foreach (var part in trimmed.Split('|'))
+            cells.Add(part.Trim());
+        return cells;
+    }
+
+    private static Control BuildTable(List<string> tableLines)
+    {
+        // tableLines = [header, separator, ...body rows]
+        if (tableLines.Count < 2) return BuildParagraph(string.Join('\n', tableLines));
+
+        var header = SplitTableRow(tableLines[0]);
+        var bodyRows = new List<List<string>>();
+        for (var r = 2; r < tableLines.Count; r++)
+        {
+            var row = SplitTableRow(tableLines[r]);
+            // Pad short rows so the grid stays rectangular.
+            while (row.Count < header.Count) row.Add(string.Empty);
+            bodyRows.Add(row);
+        }
+
+        var cols = header.Count;
+        var grid = new Grid();
+        for (var c = 0; c < cols; c++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        for (var r = 0; r < bodyRows.Count + 1; r++)
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        // Header row.
+        for (var c = 0; c < cols; c++)
+            grid.Children.Add(BuildTableCell(header[c], row: 0, col: c, isHeader: true));
+        // Body rows.
+        for (var r = 0; r < bodyRows.Count; r++)
+        {
+            for (var c = 0; c < cols && c < bodyRows[r].Count; c++)
+                grid.Children.Add(BuildTableCell(bodyRows[r][c], row: r + 1, col: c, isHeader: false));
+        }
+
+        // Wrap in a horizontal scroller — wide tables don't need to push
+        // the entire chat panel wider; users can scroll the table itself.
+        var scroller = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility   = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = grid,
+        };
+        var border = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Child = scroller,
+        };
+        if (Application.Current?.TryFindResource("BorderBrush", out var br) == true && br is IBrush brush)
+            border.BorderBrush = brush;
+        return border;
+    }
+
+    private static Control BuildTableCell(string text, int row, int col, bool isHeader)
+    {
+        var tb = new SelectableTextBlock
+        {
+            FontSize = 12,
+            FontWeight = isHeader ? FontWeight.Bold : FontWeight.Normal,
+            TextWrapping = TextWrapping.Wrap,
+            Padding = new Thickness(8, 4),
+        };
+        ApplyInlines(tb, text);
+
+        var cell = new Border
+        {
+            // Right + bottom borders only; left + top come from the
+            // adjacent cells. Top-row cells get a top border too.
+            BorderThickness = new Thickness(0, isHeader ? 0 : 0, 1, 1),
+            Child = tb,
+        };
+        if (Application.Current?.TryFindResource("BorderBrush", out var br) == true && br is IBrush brush)
+            cell.BorderBrush = brush;
+        Grid.SetRow(cell, row);
+        Grid.SetColumn(cell, col);
+        return cell;
+    }
+
     private static Control BuildCodeBlock(string code, string language)
     {
         var inner = new SelectableTextBlock
@@ -255,9 +459,10 @@ public static class MarkdownRenderer
     }
 
     /// <summary>
-    /// Walk inline markdown (bold / italic / inline code) and append the
-    /// resulting <see cref="Run"/> spans to the target text block. Anything
-    /// the parser doesn't recognise falls through as plain text.
+    /// Walk inline markdown (bold / italic / inline code / links /
+    /// strikethrough / bare URLs) and append the resulting spans to the
+    /// target text block. Anything the parser doesn't recognise falls
+    /// through as plain text.
     /// </summary>
     private static void ApplyInlines(SelectableTextBlock tb, string text)
     {
@@ -297,6 +502,20 @@ public static class MarkdownRenderer
                 }
             }
 
+            // Strikethrough: ~~...~~
+            if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
+            {
+                var close = text.IndexOf("~~", i + 2, StringComparison.Ordinal);
+                if (close > i + 1)
+                {
+                    Flush(tb, sb);
+                    var struck = text[(i + 2)..close];
+                    tb.Inlines.Add(new Run(struck) { TextDecorations = TextDecorations.Strikethrough });
+                    i = close + 2;
+                    continue;
+                }
+            }
+
             // Italic: *...*  (only when not part of a ** pair)
             if (c == '*')
             {
@@ -311,10 +530,88 @@ public static class MarkdownRenderer
                 }
             }
 
+            // Markdown link: [label](url)
+            if (c == '[' && TryParseLink(text, i, out var label, out var url, out var consumed))
+            {
+                Flush(tb, sb);
+                tb.Inlines.Add(BuildLinkRun(label, url));
+                i += consumed;
+                continue;
+            }
+
+            // Bare URL autolinker: http(s)://… up to the next whitespace
+            // or sentence-terminating punctuation. Cheap heuristic, good
+            // enough for chat — not RFC-compliant.
+            if ((c == 'h' || c == 'H') && IsAutoLinkStart(text, i, out var urlEnd))
+            {
+                Flush(tb, sb);
+                var bareUrl = text[i..urlEnd];
+                tb.Inlines.Add(BuildLinkRun(bareUrl, bareUrl));
+                i = urlEnd;
+                continue;
+            }
+
             sb.Append(c);
             i++;
         }
         Flush(tb, sb);
+    }
+
+    private static bool TryParseLink(string text, int i, out string label, out string url, out int consumed)
+    {
+        label = string.Empty; url = string.Empty; consumed = 0;
+        // Walk to the closing ']' (allow nested chars but not nested brackets).
+        var end = text.IndexOf(']', i + 1);
+        if (end <= i) return false;
+        if (end + 1 >= text.Length || text[end + 1] != '(') return false;
+        var urlEnd = text.IndexOf(')', end + 2);
+        if (urlEnd <= end + 1) return false;
+        label = text[(i + 1)..end];
+        url = text[(end + 2)..urlEnd].Trim();
+        consumed = (urlEnd + 1) - i;
+        return url.Length > 0;
+    }
+
+    private static bool IsAutoLinkStart(string text, int i, out int end)
+    {
+        end = i;
+        if (i + 7 < text.Length
+            && (text[i..(i + 7)].Equals("http://", StringComparison.OrdinalIgnoreCase)
+                || (i + 8 < text.Length && text[i..(i + 8)].Equals("https://", StringComparison.OrdinalIgnoreCase))))
+        {
+            // Don't autolink when the URL was already consumed by the
+            // markdown-link path above (we'd see "[label](http..." — the
+            // '[' branch handles it). Since we got here, it's a bare URL.
+            end = i;
+            while (end < text.Length && !IsUrlTerminator(text[end])) end++;
+            // Strip trailing punctuation that's almost certainly sentence-
+            // ending (.,;) so "see http://x.y/path." links to /path not /path.
+            while (end > i && (text[end - 1] == '.' || text[end - 1] == ',' || text[end - 1] == ';' || text[end - 1] == ')'))
+                end--;
+            return end > i + 7;
+        }
+        return false;
+    }
+
+    private static bool IsUrlTerminator(char c) =>
+        c is ' ' or '\t' or '\n' or '\r' or '<' or '>' or '"' or '\'' or '`';
+
+    private static Run BuildLinkRun(string label, string url)
+    {
+        var run = new Run(label)
+        {
+            TextDecorations = TextDecorations.Underline,
+        };
+        // Pull the accent colour for links so they read as interactive
+        // (theme-aware via TryFindResource at render time — close enough).
+        if (Application.Current?.TryFindResource("AccentBrush", out var br) == true && br is IBrush brush)
+            run.Foreground = brush;
+        // Run is a TextElement, not a Control — can't carry pointer events
+        // or a tooltip directly. Visual styling (underline + accent colour)
+        // is the cue; the URL itself is part of the selectable text via
+        // text selection so it's still copyable.
+        _ = url;
+        return run;
     }
 
     private static void Flush(SelectableTextBlock tb, StringBuilder sb)

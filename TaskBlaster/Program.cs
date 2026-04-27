@@ -155,7 +155,11 @@ class Program
         // kind and known models; new providers (OpenAI, Ollama, ...)
         // plug in by adding another IAiProvider registration here.
         services.AddSingleton<IAiProvider, AnthropicProvider>();
-        services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = System.TimeSpan.FromSeconds(20) });
+        // 120s is a sane upper bound for AI calls — Ping returns in
+        // milliseconds, but a long chat completion (full code rewrite,
+        // big markdown table) can legitimately take 30-60+ seconds.
+        // 20s was tuned for Ping and was strangling the chat path.
+        services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = System.TimeSpan.FromSeconds(120) });
         services.AddSingleton<AiClient>();
 
         services.AddSingleton<App>();

@@ -37,7 +37,7 @@
                        Opacity="0.7" />
 
             <Border Grid.Row="3" Padding="10,6,10,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrush}">
-                <Grid RowDefinitions="*,Auto" RowSpacing="6">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                     <TextBox Grid.Row="0" Name="InputBox"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"

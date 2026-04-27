@@ -159,119 +159,76 @@ public partial class ScriptChatView : UserControl
     private void RenderMessage(AiMessage m)
     {
         var isUser = string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase);
-        var bg = isUser
-            ? TryBrush("AccentBrush")
-            : TryBrush("SurfaceBrush");
-        var fg = isUser
-            ? TryBrush("BgBrush") ?? TryBrush("TextPrimaryBrush")  // contrast against accent
-            : TryBrush("TextPrimaryBrush");
-
         // User bubble: plain text — they typed it, no markdown intended.
         // Assistant bubble: render markdown so headings / code / tables /
-        // bold appear as the model meant them. Both keep the raw text on
-        // hand for the copy button.
+        // bold appear as the model meant them.
         Control body = isUser
-            ? BuildPlainBody(m.Content, fg)
-            : BuildMarkdownBody(m.Content, fg);
+            ? new SelectableTextBlock
+            {
+                Text = m.Content,
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                FontSize = 12,
+            }
+            : MarkdownRenderer.Render(m.Content);
 
+        // The assistant bubble keeps its XAML-bound DynamicResource
+        // brushes (works on theme switch). The user bubble overrides
+        // them in code with the resolved AccentBrush + a contrasting
+        // foreground. Resolution happens here in ScriptChatView (which
+        // IS in the visual tree, so resource lookup actually finds the
+        // theme brushes — the bubble's own context fails the lookup).
+        IBrush? userAccent = isUser ? FindBrush("AccentBrush") : null;
+        IBrush? userFg     = isUser ? FindBrush("BgBrush")     : null;
+
+        var bubble = new ChatBubbleView();
+        _history.Children.Add(bubble);
+        bubble.SetContent(body, isUser, userAccent, userFg);
+
+        // Per-bubble copy button — separate StackPanel sibling right
+        // after the bubble. Copies just THIS bubble's raw markdown.
         var copyButton = new Button
         {
             Content = "📋 Copy",
-            FontSize = 10,
-            Padding = new Thickness(6, 1),
+            FontSize = 11,
+            Padding = new Thickness(8, 2),
             MinHeight = 0,
-            MinWidth = 0,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 0),
-            Background = Avalonia.Media.Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = fg,
-            Opacity = 0.55,
-            [ToolTip.TipProperty] = "Copy raw markdown to clipboard",
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            Margin = new Thickness(0, 2, 0, 0),
+            [ToolTip.TipProperty] = "Copy this message to the clipboard",
         };
-        // Always copy the RAW markdown text, even though the assistant
-        // body is a rendered tree — the rendered tree is the preview, the
-        // markdown source is what's useful to paste elsewhere.
-        copyButton.Click += async (_, _) => await CopyToClipboardAsync(m.Content);
-
-        // Two-row grid so the button lives BELOW the text instead of
-        // overlaying it — keeps it clear of the chat's vertical scrollbar
-        // and never sits on top of message content.
-        var bubbleContent = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
-        Grid.SetRow(body,       0);
-        Grid.SetRow(copyButton, 1);
-        bubbleContent.Children.Add(body);
-        bubbleContent.Children.Add(copyButton);
-
-        var border = new Border
+        var capturedContent = m.Content;
+        copyButton.Click += async (_, _) =>
         {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 6),
-            // Assistant bubble fills the available column; user bubble
-            // hugs the right and caps so short asks don't span the whole
-            // panel like a banner.
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Stretch,
-            MaxWidth = isUser ? 320 : double.PositiveInfinity,
-            Background = bg,
-            BorderBrush = TryBrush("BorderBrush"),
-            BorderThickness = isUser ? new Thickness(0) : new Thickness(1),
-            Child = bubbleContent,
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null) return;
+            await clipboard.SetTextAsync(capturedContent);
+            SetStatus("Copied to clipboard.", isError: false);
         };
-        _history.Children.Add(border);
-    }
+        _history.Children.Add(copyButton);
 
-    private static Control BuildPlainBody(string text, IBrush? fg)
-    {
-        return new SelectableTextBlock
+        // Scroll AFTER the chat StackPanel has actually re-measured to
+        // include the new bubble + copy button. SizeChanged on the panel
+        // fires AFTER the layout cycle that grew it — at that moment the
+        // ScrollViewer's Extent is fresh and ScrollToEnd lands on the
+        // real bottom (= where the new copy button sits). One-shot
+        // handler so we don't fight the user's manual scroll later.
+        EventHandler<SizeChangedEventArgs>? onPanelGrew = null;
+        onPanelGrew = (_, _) =>
         {
-            Text = text,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = fg,
+            _history.SizeChanged -= onPanelGrew!;
+            _historyScroll.ScrollToEnd();
         };
+        _history.SizeChanged += onPanelGrew;
     }
 
-    private static Control BuildMarkdownBody(string markdown, IBrush? fg)
-    {
-        // Tiny in-tree renderer — no third-party dep, theme-friendly,
-        // cross-platform monospace font for code blocks (Markdown.Avalonia
-        // crashes on Linux because it hardcodes Consolas).
-        var rendered = MarkdownRenderer.Render(markdown ?? string.Empty);
-        if (fg is not null && rendered is StackPanel sp)
-        {
-            // Apply the bubble's foreground colour to every text-bearing
-            // child so prose stays readable; code blocks pull their own
-            // styling from the theme.
-            foreach (var child in sp.Children)
-            {
-                if (child is SelectableTextBlock stb) stb.Foreground = fg;
-            }
-        }
-        return rendered;
-    }
-
-    private async Task CopyToClipboardAsync(string text)
-    {
-        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-        if (clipboard is null) return;
-        await clipboard.SetTextAsync(text);
-        SetStatus("Copied to clipboard.", isError: false);
-    }
-
-    private IBrush? TryBrush(string key)
-        => this.TryFindResource(key, out var v) ? v as IBrush : null;
+    private IBrush? FindBrush(string key)
+        => this.TryFindResource(key, out var v) && v is IBrush b ? b : null;
 
     private void ScrollToBottom()
     {
-        // Background priority fires too early — the freshly-added bubble
-        // hasn't been measured yet so ScrollToEnd targets the OLD end.
-        // Loaded priority + an explicit UpdateLayout forces the measure
-        // pass to complete before we ask the scroller for its new extent.
-        Dispatcher.UIThread.Post(() =>
-        {
-            _historyScroll.UpdateLayout();
-            _historyScroll.ScrollToEnd();
-        }, DispatcherPriority.Loaded);
+        // No-op now — RenderMessage uses BringIntoView on each bubble,
+        // which is more reliable than computing scroll positions
+        // ourselves. Kept as a method so existing call sites still work.
     }
 
     private void UpdateContextHint()

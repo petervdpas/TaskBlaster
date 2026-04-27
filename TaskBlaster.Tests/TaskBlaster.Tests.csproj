@@ -7,6 +7,12 @@
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!--
+      xUnit1051 nags us to thread TestContext.Current.CancellationToken through
+      every call that takes one. For these tests it's noise — they're synchronous
+      from xUnit's POV and pass `default` deliberately. Suppress at project level.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

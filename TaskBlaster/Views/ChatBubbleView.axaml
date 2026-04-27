@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="120"
+             x:Class="TaskBlaster.Views.ChatBubbleView">
+    <!--
+        DynamicResource brush bindings live in XAML — that's the proven
+        Avalonia pattern (every other view in this codebase uses it). The
+        assistant defaults are baked in here; the user-bubble path
+        overrides Background + BorderThickness from code-behind on
+        SetContent.
+    -->
+    <Border Name="BubbleBorder"
+            CornerRadius="6"
+            Padding="10,6"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            HorizontalAlignment="Stretch">
+        <ContentControl Name="BodyHost" />
+    </Border>
+</UserControl>
