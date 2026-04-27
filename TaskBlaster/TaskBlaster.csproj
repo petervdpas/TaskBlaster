@@ -75,4 +75,26 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!--
+    Build the sibling SampleModels project (which produces Acme.Domain.1.0.0.nupkg)
+    and stage the result under DemoNugets/ so it ships with the main app and the
+    first-run seeder can drop it into ~/.taskblaster/demo-nugets/. Content is
+    added inside the target (not as a static Include up top) because on a fresh
+    clone the staged file doesn't exist yet at item-evaluation time.
+  -->
+  <Target Name="StageSampleModelsNupkg" BeforeTargets="AssignTargetPaths">
+    <MSBuild Projects="..\TaskBlaster.SampleModels\TaskBlaster.SampleModels.csproj"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <_StagedNupkgs Include="..\TaskBlaster.SampleModels\nupkg\*.nupkg" />
+    </ItemGroup>
+    <MakeDir Directories="$(MSBuildThisFileDirectory)DemoNugets" />
+    <Copy SourceFiles="@(_StagedNupkgs)"
+          DestinationFolder="$(MSBuildThisFileDirectory)DemoNugets"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <Content Include="DemoNugets\*.nupkg" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
 </Project>

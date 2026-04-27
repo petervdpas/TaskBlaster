@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Acme.Domain</AssemblyName>
+    <RootNamespace>Acme.Domain</RootNamespace>
+
+    <!-- Pretend to be a private "canonical models" package. Used purely as
+         test material for TaskBlaster's External tab — never referenced by
+         the main app. -->
+    <PackageId>Acme.Domain</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Acme</Authors>
+    <Description>Acme's canonical domain model. Used as a third-party-style fixture for exercising TaskBlaster's External (NuGet/DLL) loader.</Description>
+
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)nupkg</PackageOutputPath>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

@@ -45,10 +45,16 @@ class Program
         config.Load();
         Directory.CreateDirectory(config.ScriptsFolder);
         Directory.CreateDirectory(config.FormsFolder);
+        var demoNugetsFolder = Path.Combine(
+            Path.GetDirectoryName(config.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "demo-nugets");
+        Directory.CreateDirectory(demoNugetsFolder);
 
         var copied = 0;
         copied += ForceCopyDemos("DemoScripts", config.ScriptsFolder, "*.csx");
         copied += ForceCopyDemos("DemoForms",   config.FormsFolder,   "*.json");
+        copied += ForceCopyDemos("DemoNugets",  demoNugetsFolder,     "*.nupkg");
         Console.WriteLine($"Done. {copied} file(s) written.");
         return 0;
     }

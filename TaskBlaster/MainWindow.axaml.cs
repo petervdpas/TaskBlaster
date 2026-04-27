@@ -90,8 +90,14 @@ public partial class MainWindow : Window
         _config.Load();
         Directory.CreateDirectory(_config.ScriptsFolder);
         Directory.CreateDirectory(_config.FormsFolder);
+        var demoNugetsFolder = Path.Combine(
+            Path.GetDirectoryName(_config.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "demo-nugets");
+        Directory.CreateDirectory(demoNugetsFolder);
         SeedMissingFromFolder("DemoScripts", _config.ScriptsFolder, "*.csx");
         SeedMissingFromFolder("DemoForms",   _config.FormsFolder,   "*.json");
+        SeedMissingFromFolder("DemoNugets",  demoNugetsFolder,      "*.nupkg");
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
         _connections.Initialize(_connectionStore, _prompts, line => _terminal.Log(line));
