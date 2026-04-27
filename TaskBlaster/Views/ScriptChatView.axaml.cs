@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -164,24 +165,73 @@ public partial class ScriptChatView : UserControl
         var fg = isUser
             ? TryBrush("BgBrush") ?? TryBrush("TextPrimaryBrush")  // contrast against accent
             : TryBrush("TextPrimaryBrush");
+
+        var text = new SelectableTextBlock
+        {
+            Text = m.Content,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = fg,
+            // Leave room on the right edge so the copy button doesn't
+            // overlap the text content.
+            Margin = new Thickness(0, 0, 28, 0),
+        };
+
+        // Wrap in a horizontal ScrollViewer so markdown tables / very long
+        // un-wrappable code tokens don't overflow the bubble silently —
+        // they get a scrollbar instead of being clipped off-screen.
+        var scroller = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility   = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = text,
+        };
+
+        var copyButton = new Button
+        {
+            Content = "📋",
+            FontSize = 11,
+            Padding = new Thickness(4, 1),
+            MinHeight = 0,
+            MinWidth = 0,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 2, 2, 0),
+            Background = Avalonia.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = fg,
+            Opacity = 0.6,
+            [ToolTip.TipProperty] = "Copy message",
+        };
+        copyButton.Click += async (_, _) => await CopyToClipboardAsync(m.Content);
+
+        var bubbleContent = new Grid();
+        bubbleContent.Children.Add(scroller);
+        bubbleContent.Children.Add(copyButton);
+
         var border = new Border
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 6),
+            // Assistant bubble fills the available column; user bubble
+            // hugs the right and caps so short asks don't span the whole
+            // panel like a banner.
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Stretch,
-            MaxWidth = 360,
+            MaxWidth = isUser ? 320 : double.PositiveInfinity,
             Background = bg,
             BorderBrush = TryBrush("BorderBrush"),
             BorderThickness = isUser ? new Thickness(0) : new Thickness(1),
-            Child = new SelectableTextBlock
-            {
-                Text = m.Content,
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                FontSize = 12,
-                Foreground = fg,
-            },
+            Child = bubbleContent,
         };
         _history.Children.Add(border);
+    }
+
+    private async Task CopyToClipboardAsync(string text)
+    {
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null) return;
+        await clipboard.SetTextAsync(text);
+        SetStatus("Copied to clipboard.", isError: false);
     }
 
     private IBrush? TryBrush(string key)
@@ -330,7 +380,11 @@ public partial class ScriptChatView : UserControl
         RenderMessage(AiMessage.Assistant(result.Text!));
         ScrollToBottom();
         var ms = result.Latency?.TotalMilliseconds ?? 0;
-        SetStatus($"Done in {ms:0} ms ({picked.Count} block(s) used).", isError: false);
+        var truncated = string.Equals(result.StopReason, "max_tokens", StringComparison.OrdinalIgnoreCase);
+        var status = truncated
+            ? $"Truncated at max_tokens after {ms:0} ms — raise 'maxTokens' on the provider connection."
+            : $"Done in {ms:0} ms ({picked.Count} block(s) used).";
+        SetStatus(status, isError: truncated);
         UpdateContextHint();
     }
 

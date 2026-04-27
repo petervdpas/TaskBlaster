@@ -52,19 +52,23 @@ public sealed record AiMessage(string Role, string Content)
 /// <summary>
 /// Outcome of one chat-completion call. <see cref="Text"/> is the model's
 /// response when <see cref="Success"/> is true; <see cref="Error"/> carries
-/// a user-facing failure message otherwise.
+/// a user-facing failure message otherwise. <see cref="StopReason"/> is
+/// the provider's hint about how the response ended — particularly
+/// <c>"max_tokens"</c>, which means the model ran out of budget mid-thought
+/// and the caller probably wants to raise the limit.
 /// </summary>
 public sealed record AiCompletionResult(
     bool Success,
     string? Text,
     string? Error,
     int? StatusCode,
-    TimeSpan? Latency)
+    TimeSpan? Latency,
+    string? StopReason = null)
 {
-    public static AiCompletionResult Ok(string text, TimeSpan latency, int? status = 200)
-        => new(true, text, null, status, latency);
+    public static AiCompletionResult Ok(string text, TimeSpan latency, int? status = 200, string? stopReason = null)
+        => new(true, text, null, status, latency, stopReason);
     public static AiCompletionResult Fail(string error, TimeSpan? latency = null, int? status = null)
-        => new(false, null, error, status, latency);
+        => new(false, null, error, status, latency, null);
 }
 
 /// <summary>

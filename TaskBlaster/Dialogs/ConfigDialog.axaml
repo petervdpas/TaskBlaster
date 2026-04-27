@@ -68,14 +68,14 @@
                         </Grid>
                         <TextBlock Name="AiTestStatus" FontSize="11" TextWrapping="Wrap" IsVisible="False" />
                         <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Pick a connection from the 🔗 Connections tab to use as the Directed-AI provider. The connection needs a 'kind' field (anthropic / openai / ollama), a baseUrl, a model, plus an apikey field backed by the vault for cloud providers." />
+                                   Text="Pick a connection from the 🔗 Connections tab to use as the Directed-AI provider. The connection needs a 'kind' field (anthropic / openai / ollama), a baseUrl, a model, plus an apikey field backed by the vault for cloud providers. Optional 'maxTokens' caps the per-response output; absent = the provider's built-in default." />
                     </StackPanel>
 
                     <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="10">
                         <StackPanel Spacing="6">
                             <TextBlock Text="Sample provider connection" FontWeight="SemiBold" FontSize="12" />
                             <TextBlock FontFamily="Consolas, Menlo, monospace" FontSize="11" TextWrapping="Wrap"
-                                       Text="&quot;anthropic&quot;: {&#10;  &quot;kind&quot;:    { &quot;value&quot;: &quot;anthropic&quot; },&#10;  &quot;baseUrl&quot;: { &quot;value&quot;: &quot;https://api.anthropic.com&quot; },&#10;  &quot;model&quot;:   { &quot;value&quot;: &quot;claude-opus-4-7&quot; },&#10;  &quot;apikey&quot;:  { &quot;fromVault&quot;: { &quot;category&quot;: &quot;ai-keys&quot;, &quot;key&quot;: &quot;anthropic&quot; } }&#10;}" />
+                                       Text="&quot;anthropic&quot;: {&#10;  &quot;kind&quot;:      { &quot;value&quot;: &quot;anthropic&quot; },&#10;  &quot;baseUrl&quot;:   { &quot;value&quot;: &quot;https://api.anthropic.com&quot; },&#10;  &quot;model&quot;:     { &quot;value&quot;: &quot;claude-opus-4-7&quot; },&#10;  &quot;apikey&quot;:    { &quot;fromVault&quot;: { &quot;category&quot;: &quot;ai-keys&quot;, &quot;key&quot;: &quot;anthropic&quot; } },&#10;  &quot;maxTokens&quot;: { &quot;value&quot;: &quot;8192&quot; }&#10;}" />
                         </StackPanel>
                     </Border>
 

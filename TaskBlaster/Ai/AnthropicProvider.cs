@@ -125,12 +125,21 @@ public sealed class AnthropicProvider : IAiProvider
             if (messages is null || messages.Count == 0)
                 return AiCompletionResult.Fail("Send requires at least one message.");
 
-            var maxTokens = 4096;
-            if (!string.IsNullOrEmpty(maxTokensRaw)
-                && int.TryParse(maxTokensRaw, System.Globalization.NumberStyles.Integer,
-                                System.Globalization.CultureInfo.InvariantCulture, out var parsed)
-                && parsed > 0)
+            // Per-provider default when the connection omits maxTokens.
+            // When the field IS present we validate strictly — silently
+            // falling back on bad input would mask typos like "8k" or
+            // accidental whitespace, and the user would never know why
+            // their cap wasn't being honoured.
+            var maxTokens = 8192;
+            if (!string.IsNullOrEmpty(maxTokensRaw))
             {
+                if (!int.TryParse(maxTokensRaw.Trim(), System.Globalization.NumberStyles.Integer,
+                                  System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                    || parsed <= 0)
+                {
+                    return AiCompletionResult.Fail(
+                        $"Connection 'maxTokens' must be a positive integer; got '{maxTokensRaw}'.");
+                }
                 maxTokens = parsed;
             }
 
@@ -170,10 +179,10 @@ public sealed class AnthropicProvider : IAiProvider
             if (!response.IsSuccessStatusCode)
                 return AiCompletionResult.Fail(MapErrorMessage(response.StatusCode, responseBody), sw.Elapsed, status);
 
-            var text = ExtractTextContent(responseBody);
+            var (text, stopReason) = ExtractTextAndStop(responseBody);
             return text is null
                 ? AiCompletionResult.Fail("Response had no text content.", sw.Elapsed, status)
-                : AiCompletionResult.Ok(text, sw.Elapsed, status);
+                : AiCompletionResult.Ok(text, sw.Elapsed, status, stopReason);
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
@@ -191,16 +200,27 @@ public sealed class AnthropicProvider : IAiProvider
 
     /// <summary>
     /// Concatenate every <c>{"type":"text","text":"..."}</c> block in the
-    /// response. Anthropic returns content as an array (so future tool-use
-    /// / image blocks slot alongside text) — we only care about text for now.
+    /// response and pull the top-level <c>stop_reason</c>. Anthropic returns
+    /// content as an array (so future tool-use / image blocks slot
+    /// alongside text) — we only care about text for now. <c>stop_reason</c>
+    /// values we expect: <c>end_turn</c> (natural finish), <c>max_tokens</c>
+    /// (response was truncated, caller should raise the budget),
+    /// <c>stop_sequence</c>, <c>tool_use</c>.
     /// </summary>
-    private static string? ExtractTextContent(string responseBody)
+    private static (string? Text, string? StopReason) ExtractTextAndStop(string responseBody)
     {
         try
         {
             using var doc = JsonDocument.Parse(responseBody);
-            if (!doc.RootElement.TryGetProperty("content", out var contentArr)) return null;
-            if (contentArr.ValueKind != JsonValueKind.Array) return null;
+            string? stopReason = null;
+            if (doc.RootElement.TryGetProperty("stop_reason", out var stopEl)
+                && stopEl.ValueKind == JsonValueKind.String)
+            {
+                stopReason = stopEl.GetString();
+            }
+
+            if (!doc.RootElement.TryGetProperty("content", out var contentArr)) return (null, stopReason);
+            if (contentArr.ValueKind != JsonValueKind.Array) return (null, stopReason);
 
             var sb = new StringBuilder();
             foreach (var part in contentArr.EnumerateArray())
@@ -213,11 +233,11 @@ public sealed class AnthropicProvider : IAiProvider
                     sb.Append(textEl.GetString());
                 }
             }
-            return sb.Length > 0 ? sb.ToString() : null;
+            return (sb.Length > 0 ? sb.ToString() : null, stopReason);
         }
         catch (JsonException)
         {
-            return null;
+            return (null, null);
         }
     }
 

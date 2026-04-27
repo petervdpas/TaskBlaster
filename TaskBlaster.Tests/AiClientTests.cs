@@ -345,6 +345,47 @@ public sealed class AiClientTests
     }
 
     [Fact]
+    public async Task SendAsync_InvalidMaxTokensField_FailsWithClearMessage()
+    {
+        // Silent fallback on bad input would hide typos like "8k" — a
+        // common mistake that's hard to debug otherwise. Strict fail.
+        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
+        var conn = new Connection("X", new Dictionary<string, ConnectionField>
+        {
+            ["kind"]      = ConnectionField.Plaintext("anthropic"),
+            ["baseUrl"]   = ConnectionField.Plaintext("https://api.anthropic.com"),
+            ["model"]     = ConnectionField.Plaintext("claude-opus-4-7"),
+            ["apikey"]    = ConnectionField.Plaintext("k"),
+            ["maxTokens"] = ConnectionField.Plaintext("8k"),
+        });
+
+        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+
+        Assert.False(result.Success);
+        Assert.Contains("maxTokens", result.Error);
+        Assert.Contains("positive integer", result.Error);
+    }
+
+    [Fact]
+    public async Task SendAsync_NegativeMaxTokensField_FailsWithClearMessage()
+    {
+        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
+        var conn = new Connection("X", new Dictionary<string, ConnectionField>
+        {
+            ["kind"]      = ConnectionField.Plaintext("anthropic"),
+            ["baseUrl"]   = ConnectionField.Plaintext("https://api.anthropic.com"),
+            ["model"]     = ConnectionField.Plaintext("claude-opus-4-7"),
+            ["apikey"]    = ConnectionField.Plaintext("k"),
+            ["maxTokens"] = ConnectionField.Plaintext("-1"),
+        });
+
+        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+
+        Assert.False(result.Success);
+        Assert.Contains("positive integer", result.Error);
+    }
+
+    [Fact]
     public async Task SendAsync_RespectsCustomMaxTokensField_WhenPresent()
     {
         string? capturedBody = null;
