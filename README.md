@@ -35,14 +35,16 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 
 ## Features
 
-* Integrated `.csx` editor with syntax highlighting (AvaloniaEdit + TextMate grammars)
-* Roslyn-based script host with live stdout/stderr streaming into a terminal panel
+* Integrated `.csx` editor with two switchable highlighters (AvaloniaEdit's native xshd, default; TextMateSharp + VS Code Dark+/Light+ as the richer alternative), brace-based code folding, and Ctrl+wheel font zoom
+* Roslyn-based script host with live stdout/stderr streaming into a terminal panel that can be toggled on or off from the toolbar
+* Inline filter box on the scripts/forms sidebar, the secrets grid, and the connections list — case-insensitive, all whitespace tokens must match
+* Status bar surfaces script errors in red so a failed run can't be missed at a glance
 * **Visual form designer** for GuiBlast JSON forms — field list, per-type property editor, visibility rules, action buttons, live preview
 * **Encrypted secrets vault** (Argon2id + AES-GCM), surfaced as a `Secrets` global inside scripts
 * **Named connections** — a `connections.json` file maps a friendly name to a bag of fields where each field is either a plaintext literal (URL, server, account name) or a pointer into the vault (token, password). Scripts grab the whole bag with `Secrets.GetConnection("name")` (dynamic) or `Secrets.GetConnection<T>("name")` (typed); Blast libraries that take a resolver delegate (NetworkBlast, AzureBlast) receive the wrapped resolver via `Secrets.Resolver`.
 * **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
 * Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
-* Configurable scripts folder, forms folder, vault folder, editor font size, and theme
+* Configurable scripts folder, forms folder, vault folder, theme, editor highlighter, code folding, and terminal visibility — all persisted in `~/.taskblaster/config.json`
 * Demo scripts and forms shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
 
 ## Stack
@@ -208,7 +210,7 @@ If a connection isn't in the file, the resolver falls through to the vault direc
     └── secrets/       # *.secret files, opaque GUID-named
 ```
 
-All three folders are configurable from the **Settings** dialog.
+All three folders, the active theme, the editor highlighter (Native / TextMate), and the code-folding toggle are configurable from the **Settings** dialog. The terminal panel toggle lives on the toolbar next to Settings; its state is persisted to `config.json` alongside the rest.
 
 ## Refreshing the bundled demos (developer)
 

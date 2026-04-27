@@ -28,7 +28,6 @@ section below). Still open:
    and the 👁 toggle in `SecretEntryDialog`. If we ever add a value column,
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
-5. **Search / filter box** on the Secrets DataGrid.
 
 ## Roadmap (separate repos)
 
@@ -36,6 +35,84 @@ section below). Still open:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-27 (cont.) — Editor + UX polish
+
+Grab-bag pass over the editor and the surrounding chrome. Closes the
+"Search / filter box on the Secrets DataGrid" item from the open list
+by generalising it into a shared component used in three places.
+
+Editor:
+
+- **Switchable highlighter backend.** `EditorView.SetHighlighter("Native"
+  | "TextMate")` toggles cleanly on the fly. Native uses
+  AvaloniaEdit's xshd highlighter (lighter, scrolls noticeably smoother
+  on larger files); TextMate keeps the VS Code Dark+/Light+ palette via
+  TextMateSharp. New installs default to Native; existing configs without
+  the key fall back to Native too. Plumbed through `IConfigStore.EditorHighlighter`,
+  `ConfigDialog` (Editor highlighter combo + one-line hint), and
+  `MainWindow` (applied at startup and re-applied on Settings save without
+  reloading the open file).
+- **Bundled native xshd files.** `Resources/Highlighting/CSharp.Dark.xshd`
+  and `CSharp.Light.xshd` shipped as `EmbeddedResource`s; loaded on demand
+  via `Assembly.GetManifestResourceStream` and `HighlightingLoader.Load`.
+  Palettes follow VS Code Dark+/Light+: comments green, strings rust,
+  numbers olive, methods sand, control-flow keywords magenta,
+  declaration / built-in keywords blue. `ApplyTheme(ThemeVariant)` swaps
+  the xshd file when the app theme flips so colours don't get stuck on
+  the wrong variant.
+- **Code folding (configurable).** `BraceFoldingStrategy` (inlined from
+  the AvaloniaEdit demo project; the published nuget only ships the XML
+  one) folds any `{ ... }` pair that crosses a newline. Wired via
+  `EditorView.SetCodeFoldingEnabled(bool)` which installs / uninstalls
+  `FoldingManager` on `_editor.TextArea` without recreating the editor.
+  Persisted as `IConfigStore.CodeFolding` (default on) with a checkbox
+  in `ConfigDialog`.
+- **Wider line-number gutter.** Added an `ae:LineNumberMargin` style in
+  `EditorView.axaml` with `Margin="4,0,8,0"` so the gutter doesn't crowd
+  the first column of code, and the folding triangles have somewhere to
+  sit.
+- **Ctrl + mouse-wheel font zoom.** `EditorView` listens for
+  `PointerWheelChangedEvent` with `Ctrl` held and routes to
+  `ZoomIn` / `ZoomOut`. Clamped 8-36, default 13. Status bar reflects the
+  current size live.
+
+Toolbar / status bar:
+
+- **Terminal panel toggle.** New right-side `ToggleSwitch` on the toolbar
+  ("Terminal") next to the Settings button. `MainWindow.ApplyTerminalVisibility`
+  caches the splitter row height when hidden so the next show restores
+  the user's previous panel size. Persisted as
+  `IConfigStore.TerminalVisible` (default on); legacy configs without
+  the key load cleanly. `TerminalView` header text relabeled "Output" →
+  "Terminal" to match the toggle.
+- **Errors in red.** `StatusBarView` grew `SetStatus(text, StatusLevel)`
+  with a `StatusLevel.Error` overload that pulls `DangerBrush` from the
+  theme. `MainWindow` calls it with `StatusLevel.Error` on
+  `BlastStatus.Error`, so a failed run no longer reads the same colour
+  as "Ready".
+
+Filter boxes (shared component):
+
+- **`Views/FilterBoxView`.** Reusable inline filter (TextBox +
+  PlaceholderText + × clear button + Esc-to-clear). `Matches(haystack)`
+  is the canonical predicate every host re-uses: case-insensitive,
+  whitespace-trimmed, all whitespace tokens must match (substring).
+  `FilterChanged` event surfaces the trimmed text. Static
+  `Matches(haystack, filter)` exposed for direct callers (DataGrid
+  filtering).
+- **Hosts.**
+  - `SidebarView` caches `_allFiles` and re-applies the predicate on
+    filter change.
+  - `ConnectionsView` keeps an `_allNames` source list and rebuilds the
+    bound `ObservableCollection<string>` on filter change.
+  - `SecretsView` lets the filter override the category-sidebar
+    selection while non-empty (matches across Category / Key /
+    Description); falls back to the category selection when the filter
+    clears.
+- Saved a feedback memory: default to extracting shared / reusable
+  components even when there's only one consumer, instead of waiting
+  for rule-of-three.
 
 ### 2026-04-27 — Ribbon toolbar + connection priming + friendlier failure UX
 
