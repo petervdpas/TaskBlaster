@@ -26,6 +26,11 @@
   </Target>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\Highlighting\CSharp.Dark.xshd" />
+    <EmbeddedResource Include="Resources\Highlighting\CSharp.Light.xshd" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AvaloniaResource Include="Images\taskblaster.ico" />
     <AvaloniaResource Include="Images\taskblaster.png" />
     <AvaloniaResource Include="Images\spacegun.png" />

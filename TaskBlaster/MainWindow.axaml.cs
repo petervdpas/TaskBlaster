@@ -125,6 +125,7 @@ public partial class MainWindow : Window
         SwitchMode(AppMode.Scripts);
         ApplyTerminalVisibility(_config.TerminalVisible);
         _toolbar.IsTerminalVisible = _config.TerminalVisible;
+        _editor.SetHighlighter(_config.EditorHighlighter);
         _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
         _terminal.Log($"Forms folder:   {_config.FormsFolder}");
     }
@@ -519,7 +520,8 @@ public partial class MainWindow : Window
             _config.FormsFolder,
             _config.VaultFolder,
             _themes.AvailableThemes,
-            _themes.CurrentTheme).ShowDialog<ConfigDialogResult?>(this);
+            _themes.CurrentTheme,
+            _config.EditorHighlighter).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(
@@ -543,7 +545,16 @@ public partial class MainWindow : Window
             themeChanged = true;
         }
 
-        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged) return;
+        var highlighterChanged = false;
+        if (!string.IsNullOrEmpty(result.Highlighter)
+            && !string.Equals(result.Highlighter, _config.EditorHighlighter, StringComparison.OrdinalIgnoreCase))
+        {
+            _config.EditorHighlighter = result.Highlighter;
+            _editor.SetHighlighter(result.Highlighter);
+            highlighterChanged = true;
+        }
+
+        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged && !highlighterChanged) return;
 
         // Changing the vault path invalidates the currently-unlocked vault;
         // next access will hit a locked view and re-prompt.
@@ -551,17 +562,20 @@ public partial class MainWindow : Window
 
         _config.Save();
 
-        // Any folder change invalidates the current selection.
-        _currentFilePath = null;
-        _editor.Text = string.Empty;
-        DetachCurrentFormDoc();
-        _designer.Document = null;
-        _scriptFormActions.CanModify = false;
-        _scriptFormActions.CanRun = false;
-        UpdateDirtyUi();
-
-        // Refresh the sidebar for the mode we're in.
-        _sidebar.Folder = _mode == AppMode.Forms ? _config.FormsFolder : _config.ScriptsFolder;
+        // Folder changes invalidate the current selection (different folder
+        // → different files). Theme/highlighter changes should leave the
+        // editor untouched.
+        if (scriptsChanged || formsChanged || vaultChanged)
+        {
+            _currentFilePath = null;
+            _editor.Text = string.Empty;
+            DetachCurrentFormDoc();
+            _designer.Document = null;
+            _scriptFormActions.CanModify = false;
+            _scriptFormActions.CanRun = false;
+            UpdateDirtyUi();
+            _sidebar.Folder = _mode == AppMode.Forms ? _config.FormsFolder : _config.ScriptsFolder;
+        }
     }
 
     private async System.Threading.Tasks.Task<bool> TryApplyFolder(string? raw, string current, string label, Action<string> apply)

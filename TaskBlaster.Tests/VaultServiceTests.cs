@@ -471,6 +471,7 @@ public sealed class VaultServiceTests : IDisposable
         public string VaultFolder   { get; set; }
         public string Theme         { get; set; } = "Industrial";
         public bool TerminalVisible { get; set; } = true;
+        public string EditorHighlighter { get; set; } = "Native";
         public void Load() { }
         public void Save() { }
     }

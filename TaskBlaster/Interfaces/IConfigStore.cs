@@ -24,6 +24,14 @@ public interface IConfigStore
     /// </summary>
     bool TerminalVisible { get; set; }
 
+    /// <summary>
+    /// Which highlighter the script editor uses: <c>"Native"</c> for
+    /// AvaloniaEdit's xshd highlighter (lighter, smoother scrolling) or
+    /// <c>"TextMate"</c> for the VS Code-style colours (richer, heavier).
+    /// Defaults to Native on a fresh install.
+    /// </summary>
+    string EditorHighlighter { get; set; }
+
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();
 
