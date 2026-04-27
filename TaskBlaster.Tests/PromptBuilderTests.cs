@@ -39,14 +39,20 @@ public sealed class PromptBuilderTests
     // ─────────────────────────── empty context ─────────────────────
 
     [Fact]
-    public void NoBlocks_NoReferences_SystemMessageIsEmpty()
+    public void NoBlocks_NoReferences_SystemMessageStillCarriesBaseInstructions()
     {
+        // Even with no directing context, the response-format header is
+        // always present so providers that don't default to Markdown
+        // (Ollama / OpenAI) get the same shape as Anthropic.
         var p = PromptBuilder.Build(
             Array.Empty<KnowledgeBlock>(),
             Array.Empty<LoadedReference>(),
             "do the thing");
 
-        Assert.Equal(string.Empty, p.SystemMessage);
+        Assert.Contains("# Response format", p.SystemMessage);
+        Assert.Contains("Respond in Markdown", p.SystemMessage);
+        Assert.DoesNotContain("# Directing context", p.SystemMessage);
+        Assert.DoesNotContain("# Available libraries", p.SystemMessage);
         Assert.Equal("do the thing", p.UserMessage);
     }
 
@@ -180,7 +186,10 @@ public sealed class PromptBuilderTests
             },
             "x");
 
-        Assert.Equal(string.Empty, p.SystemMessage);
+        // Only the base "response format" instruction survives — no
+        // directing context, no library section.
+        Assert.DoesNotContain("# Available libraries", p.SystemMessage);
+        Assert.DoesNotContain("# Directing context", p.SystemMessage);
     }
 
     [Fact]

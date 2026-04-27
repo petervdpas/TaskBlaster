@@ -166,47 +166,41 @@ public partial class ScriptChatView : UserControl
             ? TryBrush("BgBrush") ?? TryBrush("TextPrimaryBrush")  // contrast against accent
             : TryBrush("TextPrimaryBrush");
 
-        var text = new SelectableTextBlock
-        {
-            Text = m.Content,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = fg,
-            // Leave room on the right edge so the copy button doesn't
-            // overlap the text content.
-            Margin = new Thickness(0, 0, 28, 0),
-        };
-
-        // Wrap in a horizontal ScrollViewer so markdown tables / very long
-        // un-wrappable code tokens don't overflow the bubble silently —
-        // they get a scrollbar instead of being clipped off-screen.
-        var scroller = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility   = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Content = text,
-        };
+        // User bubble: plain text — they typed it, no markdown intended.
+        // Assistant bubble: render markdown so headings / code / tables /
+        // bold appear as the model meant them. Both keep the raw text on
+        // hand for the copy button.
+        Control body = isUser
+            ? BuildPlainBody(m.Content, fg)
+            : BuildMarkdownBody(m.Content, fg);
 
         var copyButton = new Button
         {
-            Content = "📋",
-            FontSize = 11,
-            Padding = new Thickness(4, 1),
+            Content = "📋 Copy",
+            FontSize = 10,
+            Padding = new Thickness(6, 1),
             MinHeight = 0,
             MinWidth = 0,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 2, 2, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 4, 0, 0),
             Background = Avalonia.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = fg,
-            Opacity = 0.6,
-            [ToolTip.TipProperty] = "Copy message",
+            Opacity = 0.55,
+            [ToolTip.TipProperty] = "Copy raw markdown to clipboard",
         };
+        // Always copy the RAW markdown text, even though the assistant
+        // body is a rendered tree — the rendered tree is the preview, the
+        // markdown source is what's useful to paste elsewhere.
         copyButton.Click += async (_, _) => await CopyToClipboardAsync(m.Content);
 
-        var bubbleContent = new Grid();
-        bubbleContent.Children.Add(scroller);
+        // Two-row grid so the button lives BELOW the text instead of
+        // overlaying it — keeps it clear of the chat's vertical scrollbar
+        // and never sits on top of message content.
+        var bubbleContent = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        Grid.SetRow(body,       0);
+        Grid.SetRow(copyButton, 1);
+        bubbleContent.Children.Add(body);
         bubbleContent.Children.Add(copyButton);
 
         var border = new Border
@@ -224,6 +218,36 @@ public partial class ScriptChatView : UserControl
             Child = bubbleContent,
         };
         _history.Children.Add(border);
+    }
+
+    private static Control BuildPlainBody(string text, IBrush? fg)
+    {
+        return new SelectableTextBlock
+        {
+            Text = text,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = fg,
+        };
+    }
+
+    private static Control BuildMarkdownBody(string markdown, IBrush? fg)
+    {
+        // Tiny in-tree renderer — no third-party dep, theme-friendly,
+        // cross-platform monospace font for code blocks (Markdown.Avalonia
+        // crashes on Linux because it hardcodes Consolas).
+        var rendered = MarkdownRenderer.Render(markdown ?? string.Empty);
+        if (fg is not null && rendered is StackPanel sp)
+        {
+            // Apply the bubble's foreground colour to every text-bearing
+            // child so prose stays readable; code blocks pull their own
+            // styling from the theme.
+            foreach (var child in sp.Children)
+            {
+                if (child is SelectableTextBlock stb) stb.Foreground = fg;
+            }
+        }
+        return rendered;
     }
 
     private async Task CopyToClipboardAsync(string text)

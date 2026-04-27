@@ -46,6 +46,7 @@ public static class PromptBuilder
         if (userMessage is null) throw new ArgumentNullException(nameof(userMessage));
 
         var sb = new StringBuilder();
+        AppendBaseInstructions(sb);
         AppendKnowledgeSection(sb, blocks);
         AppendLibrarySection(sb, references);
 
@@ -53,6 +54,17 @@ public static class PromptBuilder
         // hashing stay deterministic across edits.
         var system = sb.ToString().TrimEnd('\n', '\r', ' ', '\t');
         return new AssembledPrompt(system, userMessage);
+    }
+
+    private static void AppendBaseInstructions(StringBuilder sb)
+    {
+        // Always-on instructions that frame the response shape. The chat
+        // panel renders Markdown; asking explicitly keeps responses
+        // consistent across providers (Claude defaults to Markdown but
+        // Ollama / OpenAI may not).
+        sb.Append("# Response format\n\n");
+        sb.Append("Respond in Markdown. Use fenced code blocks with a language tag for any code (```csharp, ```json, ```bash). ");
+        sb.Append("Use headings, bullet lists, and tables where they help readability; keep prose tight.\n\n");
     }
 
     private static void AppendKnowledgeSection(StringBuilder sb, IReadOnlyList<KnowledgeBlock> blocks)

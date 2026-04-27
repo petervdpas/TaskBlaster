@@ -104,21 +104,13 @@
       <_SampleModelsProj>..\TaskBlaster.SampleModels\TaskBlaster.SampleModels.csproj</_SampleModelsProj>
       <_SampleModelsStrip>RuntimeIdentifier;RuntimeIdentifiers;TargetFramework;SelfContained;PublishSingleFile;PublishReadyToRun;PublishTrimmed;PublishDir</_SampleModelsStrip>
     </PropertyGroup>
-    <MSBuild Projects="$(_SampleModelsProj)"
-             Targets="Restore"
-             Properties="Configuration=$(Configuration)"
-             RemoveProperties="$(_SampleModelsStrip)" />
-    <MSBuild Projects="$(_SampleModelsProj)"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)"
-             RemoveProperties="$(_SampleModelsStrip)" />
+    <MSBuild Projects="$(_SampleModelsProj)" Targets="Restore" Properties="Configuration=$(Configuration)" RemoveProperties="$(_SampleModelsStrip)" />
+    <MSBuild Projects="$(_SampleModelsProj)" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="$(_SampleModelsStrip)" />
     <ItemGroup>
       <_StagedNupkgs Include="..\TaskBlaster.SampleModels\nupkg\*.nupkg" />
     </ItemGroup>
     <MakeDir Directories="$(MSBuildThisFileDirectory)DemoNugets" />
-    <Copy SourceFiles="@(_StagedNupkgs)"
-          DestinationFolder="$(MSBuildThisFileDirectory)DemoNugets"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_StagedNupkgs)" DestinationFolder="$(MSBuildThisFileDirectory)DemoNugets" SkipUnchangedFiles="true" />
     <ItemGroup>
       <Content Include="DemoNugets\*.nupkg" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
