@@ -83,9 +83,32 @@
     added inside the target (not as a static Include up top) because on a fresh
     clone the staged file doesn't exist yet at item-evaluation time.
   -->
+  <!--
+    SampleModels is intentionally NOT a ProjectReference (it would drag a
+    real compile-time dep into TaskBlaster). Instead we restore + build it
+    here as a side-effect, then stage its produced .nupkg into DemoNugets/
+    so it ships with the app.
+
+    The RemoveProperties dance strips the parent's publish-time properties
+    so the portable class lib stays portable. Without it, `dotnet publish
+    -r linux-x64` propagates RuntimeIdentifier into the sub-build and
+    restore fails with NETSDK1047 (no `net10.0/linux-x64` target — and
+    there shouldn't be one, it's a models package). Restore is its own
+    target invocation because MSBuild requires it to run alone.
+  -->
   <Target Name="StageSampleModelsNupkg" BeforeTargets="AssignTargetPaths">
-    <MSBuild Projects="..\TaskBlaster.SampleModels\TaskBlaster.SampleModels.csproj"
-             Properties="Configuration=$(Configuration)" />
+    <PropertyGroup>
+      <_SampleModelsProj>..\TaskBlaster.SampleModels\TaskBlaster.SampleModels.csproj</_SampleModelsProj>
+      <_SampleModelsStrip>RuntimeIdentifier;RuntimeIdentifiers;TargetFramework;SelfContained;PublishSingleFile;PublishReadyToRun;PublishTrimmed;PublishDir</_SampleModelsStrip>
+    </PropertyGroup>
+    <MSBuild Projects="$(_SampleModelsProj)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="$(_SampleModelsStrip)" />
+    <MSBuild Projects="$(_SampleModelsProj)"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="$(_SampleModelsStrip)" />
     <ItemGroup>
       <_StagedNupkgs Include="..\TaskBlaster.SampleModels\nupkg\*.nupkg" />
     </ItemGroup>
