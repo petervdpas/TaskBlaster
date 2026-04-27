@@ -26,6 +26,7 @@
                 </Grid>
                 <views:SecretsView Name="Secrets" IsVisible="False" />
                 <views:ConnectionsView Name="Connections" IsVisible="False" />
+                <views:AssistantView Name="Assistant" IsVisible="False" />
             </Grid>
             <GridSplitter Grid.Row="1" Name="TerminalSplitter" Classes="niceH" />
             <views:TerminalView Grid.Row="2" Name="Terminal" />

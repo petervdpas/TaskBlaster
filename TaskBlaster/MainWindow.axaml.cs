@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly StatusBarView _statusBar;
     private readonly SecretsView _secrets;
     private readonly ConnectionsView _connections;
+    private readonly AssistantView _assistant;
     private readonly Grid _scriptsFormsWorkspace;
     private readonly Grid _workspaceGrid;
     private readonly GridSplitter _terminalSplitter;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
     private readonly IVaultService _vaultService;
     private readonly IConnectionStore _connectionStore;
     private readonly ExternalReferenceManager _externals;
+    private readonly IKnowledgeBlockStore _knowledge;
     private readonly AiClient _ai;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
@@ -65,6 +67,7 @@ public partial class MainWindow : Window
         IVaultService vaultService,
         IConnectionStore connectionStore,
         ExternalReferenceManager externals,
+        IKnowledgeBlockStore knowledge,
         AiClient ai)
     {
         InitializeComponent();
@@ -76,6 +79,7 @@ public partial class MainWindow : Window
         _vaultService = vaultService;
         _connectionStore = connectionStore;
         _externals = externals;
+        _knowledge = knowledge;
         _ai = ai;
         _prompts = promptFactory.Create(this);
 
@@ -87,6 +91,7 @@ public partial class MainWindow : Window
         _statusBar = this.FindControl<StatusBarView>("StatusBar")!;
         _secrets     = this.FindControl<SecretsView>("Secrets")!;
         _connections = this.FindControl<ConnectionsView>("Connections")!;
+        _assistant   = this.FindControl<AssistantView>("Assistant")!;
         _scriptsFormsWorkspace = this.FindControl<Grid>("ScriptsFormsWorkspace")!;
         _workspaceGrid    = this.FindControl<Grid>("WorkspaceGrid")!;
         _terminalSplitter = this.FindControl<GridSplitter>("TerminalSplitter")!;
@@ -105,6 +110,7 @@ public partial class MainWindow : Window
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
         _connections.Initialize(_connectionStore, _prompts, line => _terminal.Log(line));
+        _assistant.Initialize(_knowledge, _prompts, line => _terminal.Log(line));
         _secrets.UnlockRequested += OnVaultUnlockRequested;
         _designer.Initialize(_vaultService, EnsureVaultUnlockedAsync);
 
@@ -221,6 +227,7 @@ public partial class MainWindow : Window
                 _scriptsFormsWorkspace.IsVisible = true;
                 _secrets.IsVisible = false;
                 _connections.IsVisible = false;
+                _assistant.IsVisible = false;
                 _editor.IsVisible = true;
                 _designer.IsVisible = false;
                 _sidebar.Header = "Scripts";
@@ -235,6 +242,7 @@ public partial class MainWindow : Window
                 _scriptsFormsWorkspace.IsVisible = true;
                 _secrets.IsVisible = false;
                 _connections.IsVisible = false;
+                _assistant.IsVisible = false;
                 _editor.IsVisible = false;
                 _designer.IsVisible = true;
                 _sidebar.Header = "Forms";
@@ -249,6 +257,7 @@ public partial class MainWindow : Window
                 _scriptsFormsWorkspace.IsVisible = false;
                 _secrets.IsVisible = true;
                 _connections.IsVisible = false;
+                _assistant.IsVisible = false;
                 _toolbar.ActionsContent = _secrets.ToolbarActions;
                 await _secrets.ActivateAsync();
                 break;
@@ -257,8 +266,18 @@ public partial class MainWindow : Window
                 _scriptsFormsWorkspace.IsVisible = false;
                 _secrets.IsVisible = false;
                 _connections.IsVisible = true;
+                _assistant.IsVisible = false;
                 _toolbar.ActionsContent = _connections.ToolbarActions;
                 _connections.Reload();
+                break;
+
+            case AppMode.Assistant:
+                _scriptsFormsWorkspace.IsVisible = false;
+                _secrets.IsVisible = false;
+                _connections.IsVisible = false;
+                _assistant.IsVisible = true;
+                _toolbar.ActionsContent = _assistant.ToolbarActions;
+                _assistant.Reload();
                 break;
         }
     }

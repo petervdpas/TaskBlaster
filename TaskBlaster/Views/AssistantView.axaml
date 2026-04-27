@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:views="clr-namespace:TaskBlaster.Views"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
+             x:Class="TaskBlaster.Views.AssistantView">
+    <Grid ColumnDefinitions="240,6,*">
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
+            <TextBlock Grid.Row="0" Text="Knowledge blocks" FontWeight="SemiBold" Padding="10,8" />
+            <views:FilterBoxView Grid.Row="1" Name="Filter" Margin="8,0,8,6" />
+            <ListBox Grid.Row="2" Name="BlocksList" SelectionChanged="OnBlockSelectionChanged" />
+        </Grid>
+
+        <GridSplitter Grid.Column="1" Classes="niceV" />
+
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto,*" Margin="12,8">
+            <TextBlock Grid.Row="0" Name="Header"
+                       Text="Pick a block on the left, or add a new one."
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="1" FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                       Margin="0,0,0,8"
+                       Text="Knowledge blocks are markdown notes that direct the AI assistant. The 'when' rule decides when a block is in scope (e.g. a Blast namespace, a script tag, or 'always'). Priority breaks ties when multiple blocks fight for the same context window." />
+
+            <Grid Grid.Row="2" Name="MetadataGrid"
+                  ColumnDefinitions="120,*"
+                  RowDefinitions="Auto,Auto,Auto,Auto"
+                  Margin="0,0,0,8"
+                  IsVisible="False">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Id"        VerticalAlignment="Center" Margin="0,4" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Name="IdLabel"   VerticalAlignment="Center" Margin="4,4" Opacity="0.8" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Title"     VerticalAlignment="Center" Margin="0,4" />
+                <TextBox   Grid.Row="1" Grid.Column="1" Name="TitleBox"  TextChanged="OnEditorChanged" Margin="4,4" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="When"      VerticalAlignment="Center" Margin="0,4" />
+                <TextBox   Grid.Row="2" Grid.Column="1" Name="WhenBox"   TextChanged="OnEditorChanged" Margin="4,4"
+                           ToolTip.Tip="When this block is in scope. Examples: 'always', 'AzureBlast.MssqlDatabase', 'tag:db'." />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Priority"  VerticalAlignment="Center" Margin="0,4" />
+                <TextBox   Grid.Row="3" Grid.Column="1" Name="PriorityBox" TextChanged="OnEditorChanged" Margin="4,4"
+                           ToolTip.Tip="Higher wins when blocks compete for context. Leave empty for the default." />
+            </Grid>
+
+            <Border Grid.Row="3" Name="BodyBorder"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1"
+                    IsVisible="False">
+                <TextBox Name="BodyBox"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas, Menlo, monospace"
+                         FontSize="13"
+                         TextChanged="OnEditorChanged"
+                         BorderThickness="0"
+                         Background="Transparent" />
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

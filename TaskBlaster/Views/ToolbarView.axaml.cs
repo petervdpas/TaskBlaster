@@ -6,7 +6,7 @@ using Avalonia.Interactivity;
 
 namespace TaskBlaster.Views;
 
-public enum AppMode { Scripts, Forms, Secrets, Connections }
+public enum AppMode { Scripts, Forms, Secrets, Connections, Assistant }
 
 public partial class ToolbarView : UserControl
 {
@@ -16,6 +16,7 @@ public partial class ToolbarView : UserControl
     private readonly ToggleButton _formsMode;
     private readonly ToggleButton _secretsMode;
     private readonly ToggleButton _connectionsMode;
+    private readonly ToggleButton _assistantMode;
     private readonly ToggleSwitch _terminalToggle;
 
     private bool _suppressModeEvent;
@@ -34,6 +35,7 @@ public partial class ToolbarView : UserControl
         _formsMode       = this.FindControl<ToggleButton>("FormsMode")!;
         _secretsMode     = this.FindControl<ToggleButton>("SecretsMode")!;
         _connectionsMode = this.FindControl<ToggleButton>("ConnectionsMode")!;
+        _assistantMode   = this.FindControl<ToggleButton>("AssistantMode")!;
         _terminalToggle  = this.FindControl<ToggleSwitch>("TerminalToggle")!;
     }
 
@@ -72,6 +74,7 @@ public partial class ToolbarView : UserControl
     {
         get
         {
+            if (_assistantMode.IsChecked   == true) return AppMode.Assistant;
             if (_connectionsMode.IsChecked == true) return AppMode.Connections;
             if (_secretsMode.IsChecked     == true) return AppMode.Secrets;
             if (_formsMode.IsChecked       == true) return AppMode.Forms;
@@ -84,6 +87,7 @@ public partial class ToolbarView : UserControl
             _formsMode.IsChecked       = value == AppMode.Forms;
             _secretsMode.IsChecked     = value == AppMode.Secrets;
             _connectionsMode.IsChecked = value == AppMode.Connections;
+            _assistantMode.IsChecked   = value == AppMode.Assistant;
             _suppressModeEvent = false;
         }
     }
@@ -92,6 +96,7 @@ public partial class ToolbarView : UserControl
     private void OnFormsModeClicked      (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Forms);
     private void OnSecretsModeClicked    (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Secrets);
     private void OnConnectionsModeClicked(object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Connections);
+    private void OnAssistantModeClicked  (object? sender, RoutedEventArgs e) => SwitchTo(AppMode.Assistant);
 
     private void SwitchTo(AppMode mode)
     {
@@ -101,6 +106,7 @@ public partial class ToolbarView : UserControl
         _formsMode.IsChecked       = mode == AppMode.Forms;
         _secretsMode.IsChecked     = mode == AppMode.Secrets;
         _connectionsMode.IsChecked = mode == AppMode.Connections;
+        _assistantMode.IsChecked   = mode == AppMode.Assistant;
         _suppressModeEvent = false;
         ModeChanged?.Invoke(this, mode);
     }

@@ -37,6 +37,7 @@
                     <ToggleButton Name="FormsMode"       Content="📋 Forms"                        Click="OnFormsModeClicked" />
                     <ToggleButton Name="SecretsMode"     Content="🔐 Secrets"                      Click="OnSecretsModeClicked" />
                     <ToggleButton Name="ConnectionsMode" Content="🔗 Connections"                  Click="OnConnectionsModeClicked" />
+                    <ToggleButton Name="AssistantMode"   Content="🧠 Assistant"                    Click="OnAssistantModeClicked" />
                 </StackPanel>
             </DockPanel>
 

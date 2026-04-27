@@ -10,6 +10,7 @@ using TaskBlaster.Engine;
 using TaskBlaster.Externals;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
+using TaskBlaster.Knowledge;
 using TaskBlaster.Secrets;
 using TaskBlaster.UI;
 using TaskBlaster.Views;
@@ -128,6 +129,15 @@ class Program
             return new ExternalReferenceManager(cfg, Path.Combine(anchor, "packages"));
         });
         services.AddSingleton<LoadedReferenceCatalog>();
+        services.AddSingleton<IKnowledgeBlockStore>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IConfigStore>();
+            // Knowledge blocks live under ~/.taskblaster/knowledge/ following
+            // the same VaultFolder-parent anchoring as connections + packages.
+            var anchor = Path.GetDirectoryName(cfg.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return new KnowledgeBlockStore(Path.Combine(anchor, "knowledge"));
+        });
 
         // AI providers + dispatcher. Each provider self-describes its
         // kind and known models; new providers (OpenAI, Ollama, ...)
