@@ -2,11 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using TaskBlaster.Ai;
+using TaskBlaster.Connections;
 using TaskBlaster.Externals;
+using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Dialogs;
 
@@ -23,7 +29,9 @@ public sealed record ConfigDialogResult(
     string? VaultFolder,
     string? Theme,
     string? Highlighter,
-    bool? CodeFolding);
+    bool? CodeFolding,
+    string? AiDefaultProvider,
+    bool AiDefaultProviderCleared);
 
 public partial class ConfigDialog : Window
 {
@@ -37,8 +45,18 @@ public partial class ConfigDialog : Window
     private readonly ListBox _dllsList;
     private readonly Button _removeNugetButton;
     private readonly Button _removeDllButton;
+    private readonly ComboBox _aiProviderBox;
+    private readonly Button _aiTestButton;
+    private readonly TextBlock _aiTestStatus;
 
     private readonly ExternalReferenceManager? _externals;
+    private readonly IConnectionStore? _connectionStore;
+    private readonly IVaultService? _vault;
+    private readonly AiClient? _ai;
+    private readonly Func<CancellationToken, System.Threading.Tasks.Task>? _ensureVaultUnlocked;
+
+    /// <summary>Sentinel item shown in the AI provider dropdown when no connection is selected.</summary>
+    private const string AiProviderNone = "(none — AI disabled)";
 
     public ConfigDialog() : this(
         currentScriptsFolder: "",
@@ -48,7 +66,13 @@ public partial class ConfigDialog : Window
         currentTheme:         "Industrial",
         currentHighlighter:   "Native",
         currentCodeFolding:   true,
-        externals:            null)
+        externals:            null,
+        availableAiProviders: Array.Empty<string>(),
+        currentAiProvider:    null,
+        connectionStore:      null,
+        vault:                null,
+        ai:                   null,
+        ensureVaultUnlocked:  null)
     { }
 
     public ConfigDialog(
@@ -59,7 +83,13 @@ public partial class ConfigDialog : Window
         string currentTheme,
         string currentHighlighter,
         bool currentCodeFolding,
-        ExternalReferenceManager? externals)
+        ExternalReferenceManager? externals,
+        IReadOnlyList<string> availableAiProviders,
+        string? currentAiProvider,
+        IConnectionStore? connectionStore,
+        IVaultService? vault,
+        AiClient? ai,
+        Func<CancellationToken, System.Threading.Tasks.Task>? ensureVaultUnlocked)
     {
         InitializeComponent();
         _themeBox        = this.FindControl<ComboBox>("ThemeBox")!;
@@ -72,8 +102,15 @@ public partial class ConfigDialog : Window
         _dllsList        = this.FindControl<ListBox>("DllsList")!;
         _removeNugetButton = this.FindControl<Button>("RemoveNugetButton")!;
         _removeDllButton   = this.FindControl<Button>("RemoveDllButton")!;
+        _aiProviderBox     = this.FindControl<ComboBox>("AiProviderBox")!;
+        _aiTestButton      = this.FindControl<Button>("AiTestButton")!;
+        _aiTestStatus      = this.FindControl<TextBlock>("AiTestStatus")!;
 
-        _externals = externals;
+        _externals           = externals;
+        _connectionStore     = connectionStore;
+        _vault               = vault;
+        _ai                  = ai;
+        _ensureVaultUnlocked = ensureVaultUnlocked;
 
         _themeBox.ItemsSource = availableThemes;
         _themeBox.SelectedItem = availableThemes.Contains(currentTheme) ? currentTheme : availableThemes[0];
@@ -84,6 +121,20 @@ public partial class ConfigDialog : Window
         _scriptsBox.Text = currentScriptsFolder;
         _formsBox.Text   = currentFormsFolder;
         _vaultBox.Text   = currentVaultFolder;
+
+        // AI provider dropdown — list every connection name plus a sentinel
+        // "(none)" entry so the user can explicitly disable AI without
+        // having to delete a connection.
+        var aiItems = new List<string> { AiProviderNone };
+        aiItems.AddRange(availableAiProviders);
+        _aiProviderBox.ItemsSource = aiItems;
+        _aiProviderBox.SelectedItem = !string.IsNullOrEmpty(currentAiProvider) && aiItems.Contains(currentAiProvider)
+            ? currentAiProvider
+            : AiProviderNone;
+        // Test only makes sense when we have the runtime services AND a
+        // real (non-sentinel) selection. Wire IsEnabled accordingly.
+        _aiProviderBox.SelectionChanged += (_, _) => UpdateAiTestEnabled();
+        UpdateAiTestEnabled();
 
         RefreshExternalsLists();
 
@@ -132,13 +183,22 @@ public partial class ConfigDialog : Window
         var theme       = _themeBox.SelectedItem as string;
         var highlighter = (_highlighterBox.SelectedItem as ComboBoxItem)?.Tag as string;
 
+        // AI provider: sentinel "(none)" means the user explicitly cleared
+        // the selection, distinct from "leave existing alone". Use the
+        // separate Cleared flag so the result record doesn't conflate them.
+        var aiPicked = _aiProviderBox.SelectedItem as string;
+        var aiCleared = string.Equals(aiPicked, AiProviderNone, StringComparison.Ordinal);
+        var aiProvider = aiCleared ? null : aiPicked;
+
         Close(new ConfigDialogResult(
             ScriptsFolder: string.IsNullOrEmpty(scripts)     ? null : scripts,
             FormsFolder:   string.IsNullOrEmpty(forms)       ? null : forms,
             VaultFolder:   string.IsNullOrEmpty(vault)       ? null : vault,
             Theme:         string.IsNullOrEmpty(theme)       ? null : theme,
             Highlighter:   string.IsNullOrEmpty(highlighter) ? null : highlighter,
-            CodeFolding:   _codeFoldingBox.IsChecked));
+            CodeFolding:   _codeFoldingBox.IsChecked,
+            AiDefaultProvider: aiProvider,
+            AiDefaultProviderCleared: aiCleared));
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close((ConfigDialogResult?)null);
@@ -287,6 +347,94 @@ public partial class ConfigDialog : Window
         RefreshExternalsLists();
     }
 
+    // ---------- AI tab ----------
+
+    private void UpdateAiTestEnabled()
+    {
+        // Disable test when we don't have the runtime services (e.g. the
+        // designer-less default ctor) or when no real connection is picked.
+        var picked = _aiProviderBox.SelectedItem as string;
+        var realPick = !string.IsNullOrEmpty(picked) && !string.Equals(picked, AiProviderNone, StringComparison.Ordinal);
+        _aiTestButton.IsEnabled = realPick && _ai is not null && _connectionStore is not null && _vault is not null;
+    }
+
+    private async void OnAiTest(object? sender, RoutedEventArgs e)
+    {
+        if (_ai is null || _connectionStore is null || _vault is null) return;
+        if (_aiProviderBox.SelectedItem is not string name
+            || string.Equals(name, AiProviderNone, StringComparison.Ordinal)) return;
+
+        var conn = _connectionStore.Get(name);
+        if (conn is null)
+        {
+            ShowAiTestStatus(false, $"Connection '{name}' not found in connections.json.");
+            return;
+        }
+
+        // Lock the relevant controls while the request is in flight so
+        // the user can't queue overlapping pings or change the picked
+        // connection out from under us.
+        _aiTestButton.IsEnabled = false;
+        _aiProviderBox.IsEnabled = false;
+        ShowAiTestStatus(null, "Pinging…");
+
+        AiPingResult result;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+
+            // If the connection touches the vault and the vault is locked,
+            // ask the host to pop the unlock prompt before we start the
+            // ping. Cancelling the prompt either throws or leaves the
+            // vault locked; we handle both as "couldn't unlock".
+            if (ConnectionUsesVault(conn) && !_vault.IsUnlocked && _ensureVaultUnlocked is not null)
+            {
+                ShowAiTestStatus(null, "Unlocking vault…");
+                await _ensureVaultUnlocked(cts.Token).ConfigureAwait(true);
+                if (!_vault.IsUnlocked)
+                {
+                    ShowAiTestStatus(false, "Vault unlock cancelled.");
+                    return;
+                }
+                ShowAiTestStatus(null, "Pinging…");
+            }
+
+            result = await _ai.PingAsync(conn, _vault, cts.Token).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            result = AiPingResult.Fail($"Test crashed: {ex.Message}");
+        }
+        finally
+        {
+            _aiProviderBox.IsEnabled = true;
+            UpdateAiTestEnabled();
+        }
+
+        ShowAiTestStatus(result.Success, result.Message);
+    }
+
+    private static bool ConnectionUsesVault(Connection conn)
+        => conn.Fields.Values.Any(f => f.IsFromVault);
+
+    private void ShowAiTestStatus(bool? success, string message)
+    {
+        _aiTestStatus.IsVisible = true;
+        _aiTestStatus.Text = success switch
+        {
+            true  => "✓ " + message,
+            false => "✗ " + message,
+            null  => message,
+        };
+        var brushKey = success switch
+        {
+            true  => "SuccessBrush",
+            false => "DangerBrush",
+            null  => "TextMutedBrush",
+        };
+        if (this.TryFindResource(brushKey, out var brush) && brush is IBrush b)
+            _aiTestStatus.Foreground = b;
+    }
 }
 
 internal static class WindowExtensions

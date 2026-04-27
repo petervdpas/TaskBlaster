@@ -32,6 +32,7 @@ public sealed class ConfigStore : IConfigStore
         CodeFolding       = true;
         ExternalDlls      = new List<string>();
         ExternalPackages  = new List<ExternalPackageRef>();
+        AiDefaultProvider = null;
     }
 
     public string ScriptsFolder     { get; set; }
@@ -43,6 +44,7 @@ public sealed class ConfigStore : IConfigStore
     public bool   CodeFolding       { get; set; }
     public IList<string> ExternalDlls           { get; }
     public IList<ExternalPackageRef> ExternalPackages { get; }
+    public string? AiDefaultProvider { get; set; }
 
     private string ConfigPath => Path.Combine(_baseDirectory, "config.json");
 
@@ -73,6 +75,8 @@ public sealed class ConfigStore : IConfigStore
                     if (!string.IsNullOrWhiteSpace(p?.Id) && !string.IsNullOrWhiteSpace(p.Version))
                         ExternalPackages.Add(new ExternalPackageRef(p.Id, p.Version));
             }
+            if (!string.IsNullOrWhiteSpace(data.AiDefaultProvider))
+                AiDefaultProvider = data.AiDefaultProvider;
         }
         catch
         {
@@ -94,6 +98,7 @@ public sealed class ConfigStore : IConfigStore
             CodeFolding       = CodeFolding,
             ExternalDlls      = ExternalDlls.ToList(),
             ExternalPackages  = ExternalPackages.Select(p => new PackageData { Id = p.Id, Version = p.Version }).ToList(),
+            AiDefaultProvider = AiDefaultProvider,
         };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
@@ -110,6 +115,7 @@ public sealed class ConfigStore : IConfigStore
         public bool?   CodeFolding       { get; set; }
         public List<string>?      ExternalDlls     { get; set; }
         public List<PackageData>? ExternalPackages { get; set; }
+        public string? AiDefaultProvider { get; set; }
     }
 
     private sealed class PackageData

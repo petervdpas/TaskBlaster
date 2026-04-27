@@ -159,6 +159,7 @@ public sealed class LoadedReferenceCatalogTests : IDisposable
         public bool   CodeFolding       { get; set; } = true;
         public IList<string> ExternalDlls           { get; } = new List<string>();
         public IList<ExternalPackageRef> ExternalPackages { get; } = new List<ExternalPackageRef>();
+        public string? AiDefaultProvider { get; set; }
         public void Load() { }
         public void Save() { }
     }

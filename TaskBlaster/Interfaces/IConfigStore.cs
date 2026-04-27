@@ -56,6 +56,17 @@ public interface IConfigStore
     /// </summary>
     IList<ExternalPackageRef> ExternalPackages { get; }
 
+    /// <summary>
+    /// Connection name used as the Directed-AI provider. A connection in
+    /// <c>connections.json</c> with this name is expected to expose
+    /// <c>baseUrl</c> / <c>model</c> fields and (for cloud providers) an
+    /// <c>apiKey</c> field backed by the vault. Null means "no AI provider
+    /// configured" and the assistant feature is disabled. Other AI-specific
+    /// knobs (cost limits, prompt tuning, etc.) live in a dedicated AI
+    /// screen rather than Settings.
+    /// </summary>
+    string? AiDefaultProvider { get; set; }
+
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();
 

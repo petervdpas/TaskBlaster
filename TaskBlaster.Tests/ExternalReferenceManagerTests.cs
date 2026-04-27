@@ -205,6 +205,7 @@ public sealed class ExternalReferenceManagerTests : IDisposable
         public bool   CodeFolding       { get; set; } = true;
         public IList<string> ExternalDlls           { get; } = new List<string>();
         public IList<ExternalPackageRef> ExternalPackages { get; } = new List<ExternalPackageRef>();
+        public string? AiDefaultProvider { get; set; }
 
         public int SaveCalls { get; private set; }
         public void Load() { }

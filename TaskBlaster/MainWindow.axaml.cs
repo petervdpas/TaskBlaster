@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using GuiBlast.Forms.Rendering;
 using GuiBlast.Forms.Result;
 using SecretBlast;
+using TaskBlaster.Ai;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Externals;
@@ -47,6 +48,7 @@ public partial class MainWindow : Window
     private readonly IVaultService _vaultService;
     private readonly IConnectionStore _connectionStore;
     private readonly ExternalReferenceManager _externals;
+    private readonly AiClient _ai;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -62,7 +64,8 @@ public partial class MainWindow : Window
         IFormDocumentFactory formDocFactory,
         IVaultService vaultService,
         IConnectionStore connectionStore,
-        ExternalReferenceManager externals)
+        ExternalReferenceManager externals,
+        AiClient ai)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -73,6 +76,7 @@ public partial class MainWindow : Window
         _vaultService = vaultService;
         _connectionStore = connectionStore;
         _externals = externals;
+        _ai = ai;
         _prompts = promptFactory.Create(this);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
@@ -532,6 +536,7 @@ public partial class MainWindow : Window
 
     private async void OnConfigClicked(object? sender, EventArgs e)
     {
+        var connectionNames = _connectionStore.List().Select(c => c.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
         var result = await new ConfigDialog(
             _config.ScriptsFolder,
             _config.FormsFolder,
@@ -540,7 +545,13 @@ public partial class MainWindow : Window
             _themes.CurrentTheme,
             _config.EditorHighlighter,
             _config.CodeFolding,
-            _externals).ShowDialog<ConfigDialogResult?>(this);
+            _externals,
+            connectionNames,
+            _config.AiDefaultProvider,
+            _connectionStore,
+            _vaultService,
+            _ai,
+            EnsureVaultUnlockedAsync).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(
@@ -581,7 +592,24 @@ public partial class MainWindow : Window
             foldingChanged = true;
         }
 
-        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged && !highlighterChanged && !foldingChanged) return;
+        // AI provider: AiDefaultProviderCleared distinguishes "user picked
+        // (none)" from "user didn't touch this", so we only overwrite when
+        // the user actually moved the dropdown.
+        var aiProviderChanged = false;
+        if (result.AiDefaultProviderCleared && _config.AiDefaultProvider is not null)
+        {
+            _config.AiDefaultProvider = null;
+            aiProviderChanged = true;
+        }
+        else if (!result.AiDefaultProviderCleared
+                 && !string.IsNullOrEmpty(result.AiDefaultProvider)
+                 && !string.Equals(result.AiDefaultProvider, _config.AiDefaultProvider, StringComparison.Ordinal))
+        {
+            _config.AiDefaultProvider = result.AiDefaultProvider;
+            aiProviderChanged = true;
+        }
+
+        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged && !highlighterChanged && !foldingChanged && !aiProviderChanged) return;
 
         // Changing the vault path invalidates the currently-unlocked vault;
         // next access will hit a locked view and re-prompt.

@@ -236,6 +236,7 @@ public sealed class ScriptSecretsConnectionsTests : IDisposable
         public IList<string> ExternalDlls { get; } = new List<string>();
         public IList<TaskBlaster.Externals.ExternalPackageRef> ExternalPackages { get; }
             = new List<TaskBlaster.Externals.ExternalPackageRef>();
+        public string? AiDefaultProvider { get; set; }
         public void Load() { }
         public void Save() { }
     }

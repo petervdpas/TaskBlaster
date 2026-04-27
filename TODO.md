@@ -259,6 +259,38 @@ Open questions for the AI assistant in general:
 - Telemetry: do we log which suggestions were accepted / rejected so
   we can tune the prompts? Local-only if so.
 
+### TaskBlaster as an MCP server (future stage)
+
+Once Directed AI is shipped (consumer side: TaskBlaster calls Claude /
+GPT / Ollama via API key in vault), the natural extension is the
+**other direction**: TaskBlaster becomes an MCP (Model Context
+Protocol) server that Claude Desktop / Claude Code can connect to.
+
+What it'd expose to a connecting client:
+
+- **Loaded references** — the same `LoadedReferenceCatalog` snapshot
+  we built for the consumer side. Claude in another window asks "what
+  Acme.Domain types exist" and gets the answer from TaskBlaster's
+  AppDomain.
+- **Vault structure** — categories + key names (never values), same
+  as the consumer side already permits.
+- **Connections inventory** — names + field names, no resolved values.
+- **Knowledge blocks** — once the directing layer exists, TaskBlaster's
+  knowledge folder becomes available to any MCP client. A team's
+  `~/.taskblaster/knowledge/` checked into git suddenly informs not
+  just TaskBlaster but every Claude session anyone runs.
+- **Optional tools** — "run script X with these inputs", "preview
+  this form spec", with explicit per-tool consent.
+
+Why it's worth the future investment: the same primitives we're
+building for in-app Directed AI become a multiplier when other AI
+tools can read them too. The user gets value from TaskBlaster even
+when they're not writing scripts inside it.
+
+Sparked by user observation 2026-04-27 after seeing Anthropic's
+Connect surface in their dashboard. Not for the v1 cycle; revisit
+once the consumer-side Directed AI ships and stabilises.
+
 ## Roadmap (separate repos)
 
 *(empty; all currently-planned siblings have shipped: NetworkBlast 1.0.2,

@@ -477,6 +477,7 @@ public sealed class VaultServiceTests : IDisposable
             = new System.Collections.Generic.List<string>();
         public System.Collections.Generic.IList<TaskBlaster.Externals.ExternalPackageRef> ExternalPackages { get; }
             = new System.Collections.Generic.List<TaskBlaster.Externals.ExternalPackageRef>();
+        public string? AiDefaultProvider { get; set; }
         public void Load() { }
         public void Save() { }
     }

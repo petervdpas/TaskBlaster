@@ -2,6 +2,8 @@ using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
+using System.Net.Http;
+using TaskBlaster.Ai;
 using TaskBlaster.Connections;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
@@ -126,6 +128,13 @@ class Program
             return new ExternalReferenceManager(cfg, Path.Combine(anchor, "packages"));
         });
         services.AddSingleton<LoadedReferenceCatalog>();
+
+        // AI providers + dispatcher. Each provider self-describes its
+        // kind and known models; new providers (OpenAI, Ollama, ...)
+        // plug in by adding another IAiProvider registration here.
+        services.AddSingleton<IAiProvider, AnthropicProvider>();
+        services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = System.TimeSpan.FromSeconds(20) });
+        services.AddSingleton<AiClient>();
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();
