@@ -32,6 +32,12 @@ public interface IConfigStore
     /// </summary>
     string EditorHighlighter { get; set; }
 
+    /// <summary>
+    /// Whether the editor shows the folding margin and collapses multi-line
+    /// brace pairs. Defaults to on.
+    /// </summary>
+    bool CodeFolding { get; set; }
+
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();
 

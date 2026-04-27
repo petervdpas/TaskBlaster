@@ -126,6 +126,7 @@ public partial class MainWindow : Window
         ApplyTerminalVisibility(_config.TerminalVisible);
         _toolbar.IsTerminalVisible = _config.TerminalVisible;
         _editor.SetHighlighter(_config.EditorHighlighter);
+        _editor.SetCodeFoldingEnabled(_config.CodeFolding);
         _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
         _terminal.Log($"Forms folder:   {_config.FormsFolder}");
     }
@@ -521,7 +522,8 @@ public partial class MainWindow : Window
             _config.VaultFolder,
             _themes.AvailableThemes,
             _themes.CurrentTheme,
-            _config.EditorHighlighter).ShowDialog<ConfigDialogResult?>(this);
+            _config.EditorHighlighter,
+            _config.CodeFolding).ShowDialog<ConfigDialogResult?>(this);
         if (result is null) return;
 
         var scriptsChanged = await TryApplyFolder(
@@ -554,7 +556,15 @@ public partial class MainWindow : Window
             highlighterChanged = true;
         }
 
-        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged && !highlighterChanged) return;
+        var foldingChanged = false;
+        if (result.CodeFolding.HasValue && result.CodeFolding.Value != _config.CodeFolding)
+        {
+            _config.CodeFolding = result.CodeFolding.Value;
+            _editor.SetCodeFoldingEnabled(result.CodeFolding.Value);
+            foldingChanged = true;
+        }
+
+        if (!scriptsChanged && !formsChanged && !vaultChanged && !themeChanged && !highlighterChanged && !foldingChanged) return;
 
         // Changing the vault path invalidates the currently-unlocked vault;
         // next access will hit a locked view and re-prompt.

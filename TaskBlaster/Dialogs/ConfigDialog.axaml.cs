@@ -17,17 +17,19 @@ public sealed record ConfigDialogResult(
     string? FormsFolder,
     string? VaultFolder,
     string? Theme,
-    string? Highlighter);
+    string? Highlighter,
+    bool? CodeFolding);
 
 public partial class ConfigDialog : Window
 {
     private readonly ComboBox _themeBox;
     private readonly ComboBox _highlighterBox;
+    private readonly CheckBox _codeFoldingBox;
     private readonly TextBox _scriptsBox;
     private readonly TextBox _formsBox;
     private readonly TextBox _vaultBox;
 
-    public ConfigDialog() : this("", "", "", new[] { "Industrial" }, "Industrial", "Native") { }
+    public ConfigDialog() : this("", "", "", new[] { "Industrial" }, "Industrial", "Native", true) { }
 
     public ConfigDialog(
         string currentScriptsFolder,
@@ -35,19 +37,22 @@ public partial class ConfigDialog : Window
         string currentVaultFolder,
         IReadOnlyList<string> availableThemes,
         string currentTheme,
-        string currentHighlighter)
+        string currentHighlighter,
+        bool currentCodeFolding)
     {
         InitializeComponent();
-        _themeBox       = this.FindControl<ComboBox>("ThemeBox")!;
-        _highlighterBox = this.FindControl<ComboBox>("HighlighterBox")!;
-        _scriptsBox     = this.FindControl<TextBox>("ScriptsFolderBox")!;
-        _formsBox       = this.FindControl<TextBox>("FormsFolderBox")!;
-        _vaultBox       = this.FindControl<TextBox>("VaultFolderBox")!;
+        _themeBox        = this.FindControl<ComboBox>("ThemeBox")!;
+        _highlighterBox  = this.FindControl<ComboBox>("HighlighterBox")!;
+        _codeFoldingBox  = this.FindControl<CheckBox>("CodeFoldingBox")!;
+        _scriptsBox      = this.FindControl<TextBox>("ScriptsFolderBox")!;
+        _formsBox        = this.FindControl<TextBox>("FormsFolderBox")!;
+        _vaultBox        = this.FindControl<TextBox>("VaultFolderBox")!;
 
         _themeBox.ItemsSource = availableThemes;
         _themeBox.SelectedItem = availableThemes.Contains(currentTheme) ? currentTheme : availableThemes[0];
 
         SelectHighlighter(currentHighlighter);
+        _codeFoldingBox.IsChecked = currentCodeFolding;
 
         _scriptsBox.Text = currentScriptsFolder;
         _formsBox.Text   = currentFormsFolder;
@@ -103,7 +108,8 @@ public partial class ConfigDialog : Window
             FormsFolder:   string.IsNullOrEmpty(forms)       ? null : forms,
             VaultFolder:   string.IsNullOrEmpty(vault)       ? null : vault,
             Theme:         string.IsNullOrEmpty(theme)       ? null : theme,
-            Highlighter:   string.IsNullOrEmpty(highlighter) ? null : highlighter));
+            Highlighter:   string.IsNullOrEmpty(highlighter) ? null : highlighter,
+            CodeFolding:   _codeFoldingBox.IsChecked));
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close((ConfigDialogResult?)null);

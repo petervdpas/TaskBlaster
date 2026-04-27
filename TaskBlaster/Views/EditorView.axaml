@@ -5,6 +5,11 @@
              xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
              x:Class="TaskBlaster.Views.EditorView">
+    <UserControl.Styles>
+        <Style Selector="ae|LineNumberMargin">
+            <Setter Property="Margin" Value="4,0,8,0" />
+        </Style>
+    </UserControl.Styles>
     <ae:TextEditor Name="Editor"
                    FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
                    FontSize="13"

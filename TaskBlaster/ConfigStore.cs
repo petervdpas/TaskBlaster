@@ -26,6 +26,7 @@ public sealed class ConfigStore : IConfigStore
         Theme             = "Industrial";
         TerminalVisible   = true;
         EditorHighlighter = "Native";
+        CodeFolding       = true;
     }
 
     public string ScriptsFolder     { get; set; }
@@ -34,6 +35,7 @@ public sealed class ConfigStore : IConfigStore
     public string Theme             { get; set; }
     public bool   TerminalVisible   { get; set; }
     public string EditorHighlighter { get; set; }
+    public bool   CodeFolding       { get; set; }
 
     private string ConfigPath => Path.Combine(_baseDirectory, "config.json");
 
@@ -50,6 +52,7 @@ public sealed class ConfigStore : IConfigStore
             if (!string.IsNullOrWhiteSpace(data.Theme))         Theme         = data.Theme;
             if (data.TerminalVisible.HasValue)                  TerminalVisible   = data.TerminalVisible.Value;
             if (!string.IsNullOrWhiteSpace(data.EditorHighlighter)) EditorHighlighter = data.EditorHighlighter;
+            if (data.CodeFolding.HasValue)                          CodeFolding       = data.CodeFolding.Value;
         }
         catch
         {
@@ -68,6 +71,7 @@ public sealed class ConfigStore : IConfigStore
             Theme              = Theme,
             TerminalVisible    = TerminalVisible,
             EditorHighlighter = EditorHighlighter,
+            CodeFolding       = CodeFolding,
         };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
@@ -81,5 +85,6 @@ public sealed class ConfigStore : IConfigStore
         public string? Theme             { get; set; }
         public bool?   TerminalVisible   { get; set; }
         public string? EditorHighlighter { get; set; }
+        public bool?   CodeFolding       { get; set; }
     }
 }

@@ -5,8 +5,10 @@ using System.Xml;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
+using System.Collections.Generic;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Folding;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Highlighting.Xshd;
 using AvaloniaEdit.TextMate;
@@ -17,6 +19,8 @@ namespace TaskBlaster.Views;
 public partial class EditorView : UserControl
 {
     private readonly TextEditor _editor;
+    private FoldingManager? _foldingManager;
+    private readonly BraceFoldingStrategy _foldingStrategy = new();
     private RegistryOptions? _tmRegistry;
     private TextMate.Installation? _tmInstallation;
     private string _highlighter = HighlighterNative;
@@ -58,6 +62,24 @@ public partial class EditorView : UserControl
         _editor.AddHandler(PointerWheelChangedEvent, OnPointerWheelChanged, handledEventsToo: true);
     }
 
+    /// <summary>
+    /// Turn the folding margin on or off. Switches cleanly on the fly so
+    /// the Settings dialog can flip it without restarting the editor.
+    /// </summary>
+    public void SetCodeFoldingEnabled(bool enabled)
+    {
+        if (enabled && _foldingManager is null)
+        {
+            _foldingManager = FoldingManager.Install(_editor.TextArea);
+            UpdateFoldings();
+        }
+        else if (!enabled && _foldingManager is not null)
+        {
+            FoldingManager.Uninstall(_foldingManager);
+            _foldingManager = null;
+        }
+    }
+
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if ((e.KeyModifiers & KeyModifiers.Control) == 0) return;
@@ -68,9 +90,16 @@ public partial class EditorView : UserControl
 
     private void OnDocumentTextChanged(object? sender, EventArgs e)
     {
+        UpdateFoldings();
         if (IsDirty) return;
         IsDirty = true;
         DirtyChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateFoldings()
+    {
+        if (_foldingManager is null || _editor.Document is null) return;
+        _foldingStrategy.UpdateFoldings(_foldingManager, _editor.Document);
     }
 
     public string Text
@@ -181,6 +210,51 @@ public partial class EditorView : UserControl
         doc.TextChanged -= OnDocumentTextChanged;
         doc.Text = value;
         doc.TextChanged += OnDocumentTextChanged;
+        UpdateFoldings();
         MarkClean();
+    }
+}
+
+/// <summary>
+/// Brace-based folding strategy: any matching <c>{ … }</c> pair that spans
+/// more than one line becomes a foldable region. Naive about strings and
+/// comments — braces inside them are still counted, which can occasionally
+/// produce odd foldings but never crashes.
+/// </summary>
+internal sealed class BraceFoldingStrategy
+{
+    public void UpdateFoldings(FoldingManager manager, TextDocument document)
+    {
+        var foldings = CreateNewFoldings(document);
+        manager.UpdateFoldings(foldings, firstErrorOffset: -1);
+    }
+
+    private static IEnumerable<NewFolding> CreateNewFoldings(TextDocument document)
+    {
+        var foldings = new List<NewFolding>();
+        var startOffsets = new Stack<int>();
+        var lastNewLineOffset = 0;
+        for (var i = 0; i < document.TextLength; i++)
+        {
+            var c = document.GetCharAt(i);
+            if (c == '{')
+            {
+                startOffsets.Push(i);
+            }
+            else if (c == '}' && startOffsets.Count > 0)
+            {
+                var startOffset = startOffsets.Pop();
+                // Only fold spans that cross a newline; single-line { ... }
+                // would just collapse to the same row and confuse the user.
+                if (startOffset < lastNewLineOffset)
+                    foldings.Add(new NewFolding(startOffset, i + 1));
+            }
+            else if (c == '\n' || c == '\r')
+            {
+                lastNewLineOffset = i + 1;
+            }
+        }
+        foldings.Sort((a, b) => a.StartOffset.CompareTo(b.StartOffset));
+        return foldings;
     }
 }
