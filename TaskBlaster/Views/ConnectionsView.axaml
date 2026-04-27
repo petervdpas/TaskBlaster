@@ -3,12 +3,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conns="clr-namespace:TaskBlaster.Connections"
+             xmlns:views="clr-namespace:TaskBlaster.Views"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="500"
              x:Class="TaskBlaster.Views.ConnectionsView">
     <Grid ColumnDefinitions="220,6,*">
-        <Grid Grid.Column="0" RowDefinitions="Auto,*">
+        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
             <TextBlock Grid.Row="0" Text="Connections" FontWeight="SemiBold" Padding="10,8" />
-            <ListBox  Grid.Row="1" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
+            <views:FilterBoxView Grid.Row="1" Name="Filter" Margin="8,0,8,6" />
+            <ListBox  Grid.Row="2" Name="ConnectionsList" SelectionChanged="OnConnectionSelectionChanged" />
         </Grid>
 
         <GridSplitter Grid.Column="1" Classes="niceV" />

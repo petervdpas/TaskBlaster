@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="220" d:DesignHeight="32"
+             x:Class="TaskBlaster.Views.FilterBoxView">
+    <Grid ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0" Name="FilterBox"
+                 PlaceholderText="Filter…"
+                 FontSize="12"
+                 MinHeight="0"
+                 Padding="6,3"
+                 TextChanged="OnFilterTextChanged"
+                 KeyDown="OnFilterKeyDown" />
+        <Button Grid.Column="1" Name="ClearButton"
+                Content="×"
+                FontSize="12"
+                Padding="8,2"
+                Margin="4,0,0,0"
+                IsVisible="False"
+                Click="OnClearClicked"
+                ToolTip.Tip="Clear filter (Esc)" />
+    </Grid>
+</UserControl>

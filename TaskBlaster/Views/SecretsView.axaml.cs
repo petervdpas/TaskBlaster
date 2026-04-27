@@ -23,6 +23,7 @@ public partial class SecretsView : UserControl
     private readonly TextBlock _emptyLabel;
     private readonly TextBlock _lockedHint;
     private readonly Button _resetButton;
+    private readonly FilterBoxView _filter;
     private readonly SecretsActionsView _toolbarActions;
     private string? _hintBeforeVerifying;
 
@@ -48,6 +49,9 @@ public partial class SecretsView : UserControl
         _emptyLabel    = this.FindControl<TextBlock>("EmptyLabel")!;
         _lockedHint    = this.FindControl<TextBlock>("LockedHint")!;
         _resetButton   = this.FindControl<Button>("ResetButton")!;
+        _filter        = this.FindControl<FilterBoxView>("Filter")!;
+        _filter.Watermark = "Filter secrets…";
+        _filter.FilterChanged += (_, _) => RefreshGrid();
 
         _toolbarActions = new SecretsActionsView();
         _toolbarActions.UnlockClicked         += (_, _) => UnlockRequested?.Invoke(this, EventArgs.Empty);
@@ -185,11 +189,24 @@ public partial class SecretsView : UserControl
 
     private void RefreshGrid()
     {
-        var selectedCat = _categoriesListBox.SelectedItem as string ?? AllCategoriesLabel;
         IEnumerable<SecretEntry> filtered = _all;
-        if (!string.Equals(selectedCat, AllCategoriesLabel, StringComparison.Ordinal))
+
+        // Free-text filter overrides the category sidebar: when the user
+        // is searching, we want to find the secret regardless of which
+        // category they last clicked.
+        var filterText = _filter.FilterText;
+        if (string.IsNullOrEmpty(filterText))
         {
-            filtered = filtered.Where(e => string.Equals(e.Category, selectedCat, StringComparison.OrdinalIgnoreCase));
+            var selectedCat = _categoriesListBox.SelectedItem as string ?? AllCategoriesLabel;
+            if (!string.Equals(selectedCat, AllCategoriesLabel, StringComparison.Ordinal))
+                filtered = filtered.Where(e => string.Equals(e.Category, selectedCat, StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            filtered = filtered.Where(e =>
+                FilterBoxView.Matches(e.Category,    filterText) ||
+                FilterBoxView.Matches(e.Key,         filterText) ||
+                FilterBoxView.Matches(e.Description, filterText));
         }
 
         var rows = filtered

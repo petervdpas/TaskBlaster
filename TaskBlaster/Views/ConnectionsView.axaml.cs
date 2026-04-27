@@ -23,12 +23,14 @@ public partial class ConnectionsView : UserControl
     private readonly ListBox _list;
     private readonly TextBlock _header;
     private readonly DataGrid _grid;
+    private readonly FilterBoxView _filter;
     private readonly ConnectionsActionsView _toolbarActions;
 
     private IConnectionStore? _store;
     private IPromptService? _prompts;
     private Action<string>? _log;
 
+    private readonly List<string> _allNames = new();
     private readonly ObservableCollection<string> _connectionNames = new();
     private readonly ObservableCollection<ConnectionFieldEditor> _fields = new();
     private string? _selectedConnectionName;
@@ -40,6 +42,8 @@ public partial class ConnectionsView : UserControl
         _list           = this.FindControl<ListBox>("ConnectionsList")!;
         _header         = this.FindControl<TextBlock>("ConnectionHeader")!;
         _grid           = this.FindControl<DataGrid>("FieldsGrid")!;
+        _filter         = this.FindControl<FilterBoxView>("Filter")!;
+        _filter.FilterChanged += (_, _) => ApplyFilter();
 
         _list.ItemsSource = _connectionNames;
         _grid.ItemsSource = _fields;
@@ -69,14 +73,24 @@ public partial class ConnectionsView : UserControl
         _store.Reload();
         var keepName = _selectedConnectionName;
 
-        _connectionNames.Clear();
+        _allNames.Clear();
         foreach (var c in _store.List())
-            _connectionNames.Add(c.Name);
+            _allNames.Add(c.Name);
+        ApplyFilter();
 
         if (keepName is not null && _connectionNames.Contains(keepName))
             _list.SelectedItem = keepName;
         else
             _list.SelectedItem = null;
+    }
+
+    private void ApplyFilter()
+    {
+        _connectionNames.Clear();
+        foreach (var n in _allNames)
+        {
+            if (_filter.Matches(n)) _connectionNames.Add(n);
+        }
     }
 
     private void OnConnectionSelectionChanged(object? sender, SelectionChangedEventArgs e)
