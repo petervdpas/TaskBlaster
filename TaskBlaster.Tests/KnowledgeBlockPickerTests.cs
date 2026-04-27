@@ -314,4 +314,42 @@ public sealed class KnowledgeBlockPickerTests
         Assert.Throws<ArgumentNullException>(() =>
             KnowledgeBlockPicker.Pick(Array.Empty<KnowledgeBlock>(), null!));
     }
+
+    // ─────────────────────── reasons ───────────────────────────────
+
+    [Fact]
+    public void PickWithReasons_DirectMatch_HasMatchedReason()
+    {
+        var picked = KnowledgeBlockPicker.PickWithReasons(
+            new[] { Block("a", when: "always") },
+            PickerContext.Empty);
+
+        Assert.Single(picked);
+        Assert.Equal("a", picked[0].Block.Id);
+        Assert.Contains("matched", picked[0].Reason);
+        Assert.Contains("always", picked[0].Reason);
+    }
+
+    [Fact]
+    public void PickWithReasons_TransitiveInclude_NamesParent()
+    {
+        var entry = Block("entry", when: "always", includes: new[] { "base" });
+        var basis = Block("base");
+
+        var picked = KnowledgeBlockPicker.PickWithReasons(new[] { entry, basis }, PickerContext.Empty);
+        var baseReason = picked.Single(p => p.Block.Id == "base").Reason;
+
+        Assert.Contains("included via", baseReason);
+        Assert.Contains("entry", baseReason);
+    }
+
+    [Fact]
+    public void PickWithReasons_FqnMatch_QuotesTheRule()
+    {
+        var picked = KnowledgeBlockPicker.PickWithReasons(
+            new[] { Block("a", when: "AzureBlast.MssqlDatabase") },
+            Ctx(types: new[] { "AzureBlast.MssqlDatabase" }));
+
+        Assert.Contains("AzureBlast.MssqlDatabase", picked[0].Reason);
+    }
 }

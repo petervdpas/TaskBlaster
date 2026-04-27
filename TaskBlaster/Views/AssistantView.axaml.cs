@@ -7,6 +7,8 @@ using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.TextMate;
+using TaskBlaster.Ai;
+using TaskBlaster.Engine;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Knowledge;
 using TextMateSharp.Grammars;
@@ -40,6 +42,8 @@ public partial class AssistantView : UserControl
     private IKnowledgeBlockStore? _store;
     private IPromptService? _prompts;
     private Action<string>? _log;
+    private LoadedReferenceCatalog? _catalog;
+    private PromptArtifactWriter? _artifacts;
 
     private readonly List<KnowledgeBlock> _allBlocks = new();
     private readonly ObservableCollection<BlockListItem> _visible = new();
@@ -72,9 +76,10 @@ public partial class AssistantView : UserControl
         ActualThemeVariantChanged += (_, _) => ApplyMarkdownTheme();
 
         _toolbarActions = new AssistantActionsView();
-        _toolbarActions.AddClicked    += OnAddClicked;
-        _toolbarActions.SaveClicked   += OnSaveClicked;
-        _toolbarActions.DeleteClicked += OnDeleteClicked;
+        _toolbarActions.AddClicked     += OnAddClicked;
+        _toolbarActions.SaveClicked    += OnSaveClicked;
+        _toolbarActions.DeleteClicked  += OnDeleteClicked;
+        _toolbarActions.PreviewClicked += OnPreviewClicked;
     }
 
     private ThemeName CurrentTmTheme() =>
@@ -98,11 +103,18 @@ public partial class AssistantView : UserControl
     public Control ToolbarActions => _toolbarActions;
 
     /// <summary>Wire the view to its dependencies.</summary>
-    public void Initialize(IKnowledgeBlockStore store, IPromptService prompts, Action<string> log)
+    public void Initialize(
+        IKnowledgeBlockStore store,
+        IPromptService prompts,
+        Action<string> log,
+        LoadedReferenceCatalog catalog,
+        PromptArtifactWriter artifacts)
     {
         _store = store;
         _prompts = prompts;
         _log = log;
+        _catalog = catalog;
+        _artifacts = artifacts;
         Reload();
     }
 
@@ -322,6 +334,36 @@ public partial class AssistantView : UserControl
 
         _header.Text = title;
         MarkClean();
+    }
+
+    private void OnPreviewClicked(object? sender, EventArgs e)
+    {
+        if (_store is null || _catalog is null || _artifacts is null) return;
+
+        var refs = _catalog.Snapshot();
+
+        // Build the picker context from the live catalog. The picker matches
+        // type-FQN rules against PrimaryFacades (the front doors blocks
+        // would actually name) — random internal types aren't useful as
+        // match targets and would only inflate the set.
+        var typeFqns = new HashSet<string>(StringComparer.Ordinal);
+        var namespaces = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var r in refs)
+        {
+            foreach (var fqn in r.PrimaryFacades) typeFqns.Add(fqn);
+            foreach (var ns in r.Namespaces) namespaces.Add(ns);
+        }
+        var ctx = new PickerContext(typeFqns, namespaces, Array.Empty<string>());
+
+        var allBlocks = _store.List();
+        var picked = KnowledgeBlockPicker.PickWithReasons(allBlocks, ctx);
+        var pickedOnly = picked.Select(p => p.Block).ToList();
+        var prompt = PromptBuilder.Build(pickedOnly, refs, userMessage: string.Empty);
+
+        var path = _artifacts.Write("preview", ctx, refs, picked, prompt);
+        _log?.Invoke($"Preview: {picked.Count}/{allBlocks.Count} block(s) picked. Wrote {path}");
+        foreach (var p in picked)
+            _log?.Invoke($"  • {p.Block.Id} — {p.Reason}");
     }
 
     private async void OnDeleteClicked(object? sender, EventArgs e)

@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="600"
+             x:Class="TaskBlaster.Views.ScriptChatView">
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
+        <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+            <Border Grid.Row="0" Padding="10,8" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource BorderBrush}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Name="HeaderText"
+                               Text="🤖 Assistant"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Right" Name="ClearButton"
+                            Content="Clear"
+                            FontSize="11"
+                            Padding="8,2"
+                            Click="OnClearClicked"
+                            ToolTip.Tip="Clear the conversation for the current script" />
+                    <TextBlock />
+                </DockPanel>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" Name="HistoryScroll"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="10">
+                <StackPanel Name="HistoryPanel" Spacing="10" />
+            </ScrollViewer>
+
+            <TextBlock Grid.Row="2" Name="StatusText"
+                       Text="Ready"
+                       Padding="10,2"
+                       FontSize="11"
+                       Opacity="0.7" />
+
+            <Border Grid.Row="3" Padding="10,6,10,10" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrush}">
+                <Grid RowDefinitions="*,Auto" RowSpacing="6">
+                    <TextBox Grid.Row="0" Name="InputBox"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             MinHeight="60"
+                             MaxHeight="160"
+                             FontSize="12"
+                             VerticalContentAlignment="Top"
+                             PlaceholderText="Ask about this script… (Ctrl+Enter to send)"
+                             KeyDown="OnInputKeyDown" />
+                    <DockPanel Grid.Row="1">
+                        <TextBlock DockPanel.Dock="Left" Name="ContextHint"
+                                   FontSize="11" Opacity="0.6"
+                                   VerticalAlignment="Center" />
+                        <Button DockPanel.Dock="Right" Name="SendButton"
+                                Content="Send"
+                                Padding="14,4"
+                                Click="OnSendClicked" />
+                        <TextBlock />
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

@@ -18,13 +18,17 @@ public partial class ToolbarView : UserControl
     private readonly ToggleButton _connectionsMode;
     private readonly ToggleButton _assistantMode;
     private readonly ToggleSwitch _terminalToggle;
+    private readonly ToggleSwitch _chatToggle;
+    private readonly TextBlock _chatToggleLabel;
 
     private bool _suppressModeEvent;
     private bool _suppressTerminalEvent;
+    private bool _suppressChatEvent;
 
     public event EventHandler? ConfigClicked;
     public event EventHandler<AppMode>? ModeChanged;
     public event EventHandler<bool>? TerminalVisibilityChanged;
+    public event EventHandler<bool>? ChatVisibilityChanged;
 
     public ToolbarView()
     {
@@ -35,8 +39,39 @@ public partial class ToolbarView : UserControl
         _formsMode       = this.FindControl<ToggleButton>("FormsMode")!;
         _secretsMode     = this.FindControl<ToggleButton>("SecretsMode")!;
         _connectionsMode = this.FindControl<ToggleButton>("ConnectionsMode")!;
-        _assistantMode   = this.FindControl<ToggleButton>("AssistantMode")!;
-        _terminalToggle  = this.FindControl<ToggleSwitch>("TerminalToggle")!;
+        _assistantMode    = this.FindControl<ToggleButton>("AssistantMode")!;
+        _terminalToggle   = this.FindControl<ToggleSwitch>("TerminalToggle")!;
+        _chatToggle       = this.FindControl<ToggleSwitch>("ChatToggle")!;
+        _chatToggleLabel  = this.FindControl<TextBlock>("ChatToggleLabel")!;
+    }
+
+    /// <summary>Whether the script-scoped chat side panel is visible.</summary>
+    public bool IsChatVisible
+    {
+        get => _chatToggle.IsChecked == true;
+        set
+        {
+            _suppressChatEvent = true;
+            _chatToggle.IsChecked = value;
+            _suppressChatEvent = false;
+        }
+    }
+
+    /// <summary>Hide the chat toggle entirely (for modes where it doesn't apply).</summary>
+    public bool IsChatToggleVisible
+    {
+        get => _chatToggle.IsVisible;
+        set
+        {
+            _chatToggle.IsVisible = value;
+            _chatToggleLabel.IsVisible = value;
+        }
+    }
+
+    private void OnChatToggleChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressChatEvent) return;
+        ChatVisibilityChanged?.Invoke(this, IsChatVisible);
     }
 
     /// <summary>

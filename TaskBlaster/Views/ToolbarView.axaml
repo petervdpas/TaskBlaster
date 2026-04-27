@@ -20,6 +20,16 @@
         <StackPanel Orientation="Vertical">
             <DockPanel Margin="8">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="Chat" FontSize="12" VerticalAlignment="Center" Name="ChatToggleLabel" />
+                    <ToggleSwitch Name="ChatToggle"
+                                  IsChecked="False"
+                                  OnContent=""
+                                  OffContent=""
+                                  MinWidth="0"
+                                  Padding="0"
+                                  VerticalAlignment="Center"
+                                  IsCheckedChanged="OnChatToggleChanged"
+                                  ToolTip.Tip="Show or hide the script-scoped Assistant chat panel" />
                     <TextBlock Text="Terminal" FontSize="12" VerticalAlignment="Center" />
                     <ToggleSwitch Name="TerminalToggle"
                                   IsChecked="True"

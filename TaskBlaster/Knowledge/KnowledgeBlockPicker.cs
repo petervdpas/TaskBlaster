@@ -34,8 +34,19 @@ namespace TaskBlaster.Knowledge;
 /// </summary>
 public static class KnowledgeBlockPicker
 {
-    /// <summary>Pick the relevant blocks for the given context.</summary>
+    /// <summary>Pick the relevant blocks for the given context (block-only view).</summary>
     public static IReadOnlyList<KnowledgeBlock> Pick(
+        IEnumerable<KnowledgeBlock> blocks,
+        PickerContext context)
+        => PickWithReasons(blocks, context).Select(p => p.Block).ToList();
+
+    /// <summary>
+    /// Pick the relevant blocks plus a human-readable reason per block
+    /// (the rule that fired, or the parent block that pulled it in).
+    /// Used by the Preview button and the future audit log; the
+    /// non-reason <see cref="Pick"/> is a thin wrapper.
+    /// </summary>
+    public static IReadOnlyList<PickedBlock> PickWithReasons(
         IEnumerable<KnowledgeBlock> blocks,
         PickerContext context)
     {
@@ -51,50 +62,63 @@ public static class KnowledgeBlockPicker
             byId[b.Id] = b;
         }
 
-        var picked = new Dictionary<string, KnowledgeBlock>(StringComparer.OrdinalIgnoreCase);
+        var pickedReasons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var pickedBlocks = new Dictionary<string, KnowledgeBlock>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var entry in byId.Values)
         {
-            if (Matches(entry, context))
-                ExpandIncludes(entry, byId, picked);
+            var entryMatch = MatchReason(entry, context);
+            if (entryMatch is null) continue;
+            ExpandIncludes(entry, parentReason: $"matched {entryMatch}", byId, pickedBlocks, pickedReasons);
         }
 
-        return picked.Values
+        return pickedBlocks.Values
             .OrderByDescending(b => b.Priority ?? int.MinValue)
             .ThenBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(b => new PickedBlock(b, pickedReasons[b.Id]))
             .ToList();
     }
 
     private static void ExpandIncludes(
         KnowledgeBlock block,
+        string parentReason,
         IReadOnlyDictionary<string, KnowledgeBlock> byId,
-        Dictionary<string, KnowledgeBlock> picked)
+        Dictionary<string, KnowledgeBlock> pickedBlocks,
+        Dictionary<string, string> pickedReasons)
     {
-        // TryAdd doubles as the visited set: a block already in `picked`
+        // TryAdd doubles as the visited set: a block already in `pickedBlocks`
         // is either a real prior pick or a node in the current DFS — either
         // way we stop, which makes cycles safe (A includes B includes A).
-        if (!picked.TryAdd(block.Id, block)) return;
+        if (!pickedBlocks.TryAdd(block.Id, block)) return;
+        pickedReasons[block.Id] = parentReason;
+
         foreach (var includeId in block.Includes)
         {
             if (string.IsNullOrWhiteSpace(includeId)) continue;
             if (byId.TryGetValue(includeId, out var sub))
-                ExpandIncludes(sub, byId, picked);
+                ExpandIncludes(sub, parentReason: $"included via '{block.Id}'", byId, pickedBlocks, pickedReasons);
             // Dangling include id — silently dropped for now. A later
             // diagnostic pass could surface these in the audit panel.
         }
     }
 
-    private static bool Matches(KnowledgeBlock block, PickerContext context)
+    /// <summary>
+    /// Returns the rule string that triggered the match (e.g. <c>"always"</c>,
+    /// <c>"tag:db"</c>, <c>"AzureBlast.MssqlDatabase"</c>) or null if no
+    /// rule on this block matched. Used to author the reason text.
+    /// </summary>
+    private static string? MatchReason(KnowledgeBlock block, PickerContext context)
     {
-        if (!block.Frontmatter.TryGetValue("when", out var whenRaw)) return false;
-        if (string.IsNullOrWhiteSpace(whenRaw)) return false;
+        if (!block.Frontmatter.TryGetValue("when", out var whenRaw)) return null;
+        if (string.IsNullOrWhiteSpace(whenRaw)) return null;
 
         foreach (var ruleRaw in whenRaw.Split(','))
         {
             var rule = ruleRaw.Trim();
             if (rule.Length == 0) continue;
-            if (RuleMatches(rule, context)) return true;
+            if (RuleMatches(rule, context)) return $"'{rule}'";
         }
-        return false;
+        return null;
     }
 
     private static bool RuleMatches(string rule, PickerContext context)

@@ -33,10 +33,13 @@ public partial class MainWindow : Window
     private readonly SecretsView _secrets;
     private readonly ConnectionsView _connections;
     private readonly AssistantView _assistant;
+    private readonly ScriptChatView _chat;
+    private readonly GridSplitter _chatSplitter;
     private readonly Grid _scriptsFormsWorkspace;
     private readonly Grid _workspaceGrid;
     private readonly GridSplitter _terminalSplitter;
     private GridLength _lastTerminalRowHeight = new(180, GridUnitType.Pixel);
+    private GridLength _lastChatColumnWidth = new(380, GridUnitType.Pixel);
 
     private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
@@ -50,6 +53,8 @@ public partial class MainWindow : Window
     private readonly IConnectionStore _connectionStore;
     private readonly ExternalReferenceManager _externals;
     private readonly IKnowledgeBlockStore _knowledge;
+    private readonly LoadedReferenceCatalog _catalog;
+    private readonly PromptArtifactWriter _artifacts;
     private readonly AiClient _ai;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
@@ -68,6 +73,8 @@ public partial class MainWindow : Window
         IConnectionStore connectionStore,
         ExternalReferenceManager externals,
         IKnowledgeBlockStore knowledge,
+        LoadedReferenceCatalog catalog,
+        PromptArtifactWriter artifacts,
         AiClient ai)
     {
         InitializeComponent();
@@ -80,6 +87,8 @@ public partial class MainWindow : Window
         _connectionStore = connectionStore;
         _externals = externals;
         _knowledge = knowledge;
+        _catalog = catalog;
+        _artifacts = artifacts;
         _ai = ai;
         _prompts = promptFactory.Create(this);
 
@@ -92,6 +101,8 @@ public partial class MainWindow : Window
         _secrets     = this.FindControl<SecretsView>("Secrets")!;
         _connections = this.FindControl<ConnectionsView>("Connections")!;
         _assistant   = this.FindControl<AssistantView>("Assistant")!;
+        _chat        = this.FindControl<ScriptChatView>("Chat")!;
+        _chatSplitter = this.FindControl<GridSplitter>("ChatSplitter")!;
         _scriptsFormsWorkspace = this.FindControl<Grid>("ScriptsFormsWorkspace")!;
         _workspaceGrid    = this.FindControl<Grid>("WorkspaceGrid")!;
         _terminalSplitter = this.FindControl<GridSplitter>("TerminalSplitter")!;
@@ -112,7 +123,9 @@ public partial class MainWindow : Window
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
         _connections.Initialize(_connectionStore, _prompts, line => _terminal.Log(line));
-        _assistant.Initialize(_knowledge, _prompts, line => _terminal.Log(line));
+        _assistant.Initialize(_knowledge, _prompts, line => _terminal.Log(line), _catalog, _artifacts);
+        _chat.Initialize(_config, _connectionStore, _knowledge, _catalog, _ai, _vaultService,
+            EnsureVaultUnlockedAsync, line => _terminal.Log(line));
         _secrets.UnlockRequested += OnVaultUnlockRequested;
         _designer.Initialize(_vaultService, EnsureVaultUnlockedAsync);
 
@@ -129,6 +142,7 @@ public partial class MainWindow : Window
         _toolbar.ConfigClicked             += OnConfigClicked;
         _toolbar.ModeChanged               += (_, mode)    => SwitchMode(mode);
         _toolbar.TerminalVisibilityChanged += (_, visible) => OnTerminalVisibilityChanged(visible);
+        _toolbar.ChatVisibilityChanged     += (_, visible) => ApplyChatVisibility(visible);
 
         _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
         _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
@@ -164,6 +178,31 @@ public partial class MainWindow : Window
         ApplyTerminalVisibility(visible);
         _config.TerminalVisible = visible;
         _config.Save();
+    }
+
+    private void ApplyChatVisibility(bool visible)
+    {
+        // The chat panel only makes sense in Scripts mode (it's tied to
+        // the open .csx). Forms / Secrets / Connections / Assistant don't
+        // have a "current script" to chat about.
+        var enabled = visible && _mode == AppMode.Scripts;
+        _chat.IsVisible = enabled;
+        _chatSplitter.IsVisible = enabled;
+
+        // Collapse the column itself when hidden — otherwise the splitter
+        // is gone but the 380 px slot stays reserved. When re-showing,
+        // restore the user's last chosen width so dragging the splitter
+        // wider survives a hide/show cycle.
+        var chatColumn = _scriptsFormsWorkspace.ColumnDefinitions[4];
+        if (enabled)
+        {
+            if (chatColumn.Width.Value == 0) chatColumn.Width = _lastChatColumnWidth;
+        }
+        else
+        {
+            if (chatColumn.Width.Value > 0) _lastChatColumnWidth = chatColumn.Width;
+            chatColumn.Width = new GridLength(0);
+        }
     }
 
     private void ApplyTerminalVisibility(bool visible)
@@ -238,6 +277,8 @@ public partial class MainWindow : Window
                 _scriptFormActions.SetRunLabel("▶ Run");
                 _scriptFormActions.CanRun = false;
                 _toolbar.ActionsContent = _scriptFormActions;
+                _toolbar.IsChatToggleVisible = true;
+                ApplyChatVisibility(_toolbar.IsChatVisible);
                 break;
 
             case AppMode.Forms:
@@ -253,6 +294,8 @@ public partial class MainWindow : Window
                 _scriptFormActions.SetRunLabel("👁 Preview");
                 _scriptFormActions.CanRun = false;
                 _toolbar.ActionsContent = _scriptFormActions;
+                _toolbar.IsChatToggleVisible = false;
+                ApplyChatVisibility(false);
                 break;
 
             case AppMode.Secrets:
@@ -261,6 +304,8 @@ public partial class MainWindow : Window
                 _connections.IsVisible = false;
                 _assistant.IsVisible = false;
                 _toolbar.ActionsContent = _secrets.ToolbarActions;
+                _toolbar.IsChatToggleVisible = false;
+                ApplyChatVisibility(false);
                 await _secrets.ActivateAsync();
                 break;
 
@@ -270,6 +315,8 @@ public partial class MainWindow : Window
                 _connections.IsVisible = true;
                 _assistant.IsVisible = false;
                 _toolbar.ActionsContent = _connections.ToolbarActions;
+                _toolbar.IsChatToggleVisible = false;
+                ApplyChatVisibility(false);
                 _connections.Reload();
                 break;
 
@@ -279,6 +326,8 @@ public partial class MainWindow : Window
                 _connections.IsVisible = false;
                 _assistant.IsVisible = true;
                 _toolbar.ActionsContent = _assistant.ToolbarActions;
+                _toolbar.IsChatToggleVisible = false;
+                ApplyChatVisibility(false);
                 _assistant.Reload();
                 break;
         }
@@ -299,6 +348,7 @@ public partial class MainWindow : Window
         {
             _editor.LoadFile(path);
             _terminal.Log($"Loaded: {Path.GetFileName(path)} ({_editor.Text.Length} chars)");
+            _chat.SetCurrentScript(path, () => _editor.Text);
         }
         else
         {
@@ -756,6 +806,7 @@ public partial class MainWindow : Window
         if (_mode == AppMode.Scripts)
         {
             _editor.Text = string.Empty;
+            _chat.SetCurrentScript(null, null);
         }
         else
         {

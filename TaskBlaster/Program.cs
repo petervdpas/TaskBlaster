@@ -140,6 +140,16 @@ class Program
                 ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return new KnowledgeBlockStore(Path.Combine(anchor, "knowledge"));
         });
+        services.AddSingleton<PromptArtifactWriter>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IConfigStore>();
+            // Preview + (later) AI-call artifacts go under ~/.taskblaster/ai-history/
+            // — same anchoring convention so users can find them next to the
+            // other TaskBlaster state.
+            var anchor = Path.GetDirectoryName(cfg.VaultFolder)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return new PromptArtifactWriter(Path.Combine(anchor, "ai-history"));
+        });
 
         // AI providers + dispatcher. Each provider self-describes its
         // kind and known models; new providers (OpenAI, Ollama, ...)

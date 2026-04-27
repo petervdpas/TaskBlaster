@@ -17,6 +17,7 @@ public partial class AssistantActionsView : UserControl
     public event EventHandler? AddClicked;
     public event EventHandler? SaveClicked;
     public event EventHandler? DeleteClicked;
+    public event EventHandler? PreviewClicked;
 
     public AssistantActionsView()
     {
@@ -39,7 +40,8 @@ public partial class AssistantActionsView : UserControl
         set => _saveButton.IsEnabled = value;
     }
 
-    private void OnAddClicked(object? sender, RoutedEventArgs e)    => AddClicked?.Invoke(this, EventArgs.Empty);
-    private void OnSaveClicked(object? sender, RoutedEventArgs e)   => SaveClicked?.Invoke(this, EventArgs.Empty);
-    private void OnDeleteClicked(object? sender, RoutedEventArgs e) => DeleteClicked?.Invoke(this, EventArgs.Empty);
+    private void OnAddClicked(object? sender, RoutedEventArgs e)     => AddClicked?.Invoke(this, EventArgs.Empty);
+    private void OnSaveClicked(object? sender, RoutedEventArgs e)    => SaveClicked?.Invoke(this, EventArgs.Empty);
+    private void OnDeleteClicked(object? sender, RoutedEventArgs e)  => DeleteClicked?.Invoke(this, EventArgs.Empty);
+    private void OnPreviewClicked(object? sender, RoutedEventArgs e) => PreviewClicked?.Invoke(this, EventArgs.Empty);
 }

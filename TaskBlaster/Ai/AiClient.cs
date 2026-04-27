@@ -37,6 +37,37 @@ public sealed record AiPingResult(
 public sealed record AiModelInfo(string Id, string DisplayName, string? Notes = null);
 
 /// <summary>
+/// One turn in a chat. Role is <c>"user"</c> or <c>"assistant"</c>;
+/// the system prompt lives outside this collection on
+/// <see cref="IAiProvider.SendAsync"/>.
+/// </summary>
+public sealed record AiMessage(string Role, string Content)
+{
+    /// <summary>Convenience: a user turn.</summary>
+    public static AiMessage User(string content) => new("user", content);
+    /// <summary>Convenience: an assistant turn.</summary>
+    public static AiMessage Assistant(string content) => new("assistant", content);
+}
+
+/// <summary>
+/// Outcome of one chat-completion call. <see cref="Text"/> is the model's
+/// response when <see cref="Success"/> is true; <see cref="Error"/> carries
+/// a user-facing failure message otherwise.
+/// </summary>
+public sealed record AiCompletionResult(
+    bool Success,
+    string? Text,
+    string? Error,
+    int? StatusCode,
+    TimeSpan? Latency)
+{
+    public static AiCompletionResult Ok(string text, TimeSpan latency, int? status = 200)
+        => new(true, text, null, status, latency);
+    public static AiCompletionResult Fail(string error, TimeSpan? latency = null, int? status = null)
+        => new(false, null, error, status, latency);
+}
+
+/// <summary>
 /// One AI provider. Implementations are stateless and registered in
 /// DI; <see cref="AiClient"/> dispatches to whichever one matches the
 /// connection's <c>kind</c> field. Future verbs (ChatAsync,
@@ -60,6 +91,20 @@ public interface IAiProvider
 
     /// <summary>Send a minimal request and classify the response into success / friendly failure.</summary>
     Task<AiPingResult> PingAsync(Connection connection, IVaultService vault, HttpClient http, CancellationToken ct);
+
+    /// <summary>
+    /// Send a chat completion. <paramref name="systemPrompt"/> is the
+    /// stable directing context; <paramref name="messages"/> is the
+    /// turn-by-turn conversation history (oldest first), with the latest
+    /// user message as the final entry.
+    /// </summary>
+    Task<AiCompletionResult> SendAsync(
+        Connection connection,
+        string systemPrompt,
+        IReadOnlyList<AiMessage> messages,
+        IVaultService vault,
+        HttpClient http,
+        CancellationToken ct);
 }
 
 /// <summary>
@@ -114,6 +159,32 @@ public sealed class AiClient
                 + string.Join(", ", _providersByKind.Keys));
 
         return await provider.PingAsync(connection, vault, _http, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Send a chat completion via the configured provider. Same dispatch
+    /// rules as <see cref="PingAsync"/>: the connection's <c>kind</c>
+    /// field selects the provider.
+    /// </summary>
+    public async Task<AiCompletionResult> SendAsync(
+        Connection connection,
+        string systemPrompt,
+        IReadOnlyList<AiMessage> messages,
+        IVaultService vault,
+        CancellationToken ct = default)
+    {
+        var kind = await ResolveFieldAsync(connection, "kind", vault, ct).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(kind))
+            return AiCompletionResult.Fail(
+                "Connection has no 'kind' field. Add a plaintext field 'kind' with one of: "
+                + string.Join(", ", _providersByKind.Keys));
+
+        if (!_providersByKind.TryGetValue(kind, out var provider))
+            return AiCompletionResult.Fail(
+                $"No provider registered for kind '{kind}'. Known kinds: "
+                + string.Join(", ", _providersByKind.Keys));
+
+        return await provider.SendAsync(connection, systemPrompt, messages, vault, _http, ct).ConfigureAwait(false);
     }
 
     /// <summary>

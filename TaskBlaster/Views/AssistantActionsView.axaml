@@ -5,8 +5,11 @@
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="32"
              x:Class="TaskBlaster.Views.AssistantActionsView">
     <StackPanel Orientation="Horizontal" Spacing="4">
-        <Button Name="AddButton"    Content="➕ Add"    Click="OnAddClicked" />
-        <Button Name="SaveButton"   Content="💾 Save"   IsEnabled="False" Click="OnSaveClicked" />
-        <Button Name="DeleteButton" Content="🗑 Delete" IsEnabled="False" Click="OnDeleteClicked" />
+        <Button Name="AddButton"     Content="➕ Add"     Click="OnAddClicked" />
+        <Button Name="SaveButton"    Content="💾 Save"    IsEnabled="False" Click="OnSaveClicked" />
+        <Button Name="DeleteButton"  Content="🗑 Delete"  IsEnabled="False" Click="OnDeleteClicked" />
+        <Rectangle Width="1" Fill="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Margin="6,2" />
+        <Button Name="PreviewButton" Content="👁 Preview" Click="OnPreviewClicked"
+                ToolTip.Tip="Run picker + prompt builder against the live loaded references; write the artifact to ai-history/" />
     </StackPanel>
 </UserControl>

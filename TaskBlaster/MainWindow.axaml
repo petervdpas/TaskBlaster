@@ -16,13 +16,15 @@
 
         <Grid Grid.Row="1" Name="WorkspaceGrid" RowDefinitions="*,6,180">
             <Grid Grid.Row="0">
-                <Grid Name="ScriptsFormsWorkspace" ColumnDefinitions="240,6,*">
+                <Grid Name="ScriptsFormsWorkspace" ColumnDefinitions="240,6,*,6,380">
                     <views:SidebarView Grid.Column="0" Name="Sidebar" />
                     <GridSplitter Grid.Column="1" Classes="niceV" />
                     <Panel Grid.Column="2">
                         <views:EditorView       Name="Editor"   IsVisible="True"  />
                         <views:FormDesignerView Name="Designer" IsVisible="False" />
                     </Panel>
+                    <GridSplitter Grid.Column="3" Name="ChatSplitter" Classes="niceV" IsVisible="False" />
+                    <views:ScriptChatView Grid.Column="4" Name="Chat" IsVisible="False" />
                 </Grid>
                 <views:SecretsView Name="Secrets" IsVisible="False" />
                 <views:ConnectionsView Name="Connections" IsVisible="False" />
