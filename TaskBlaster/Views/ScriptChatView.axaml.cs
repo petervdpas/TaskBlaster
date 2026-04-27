@@ -52,6 +52,15 @@ public partial class ScriptChatView : UserControl
     /// <summary>Per-script chat history, keyed by absolute file path.</summary>
     private readonly Dictionary<string, List<AiMessage>> _historyByScript = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Invisible padding at the bottom of the chat panel. Always lives
+    /// as the last child of <see cref="_history"/>. ScrollToEnd targets
+    /// the bottom of THIS, so the real copy button (sitting above it)
+    /// is guaranteed to be inside the viewport — no more fighting
+    /// layout-pass timing for the scroll position.
+    /// </summary>
+    private readonly Border _bottomSpacer = new() { Height = 60 };
+
     private CancellationTokenSource? _sendCts;
 
     public ScriptChatView()
@@ -112,6 +121,7 @@ public partial class ScriptChatView : UserControl
             _sendButton.IsEnabled = false;
             _history.Children.Clear();
             RenderInfo("Open a script to start a conversation.");
+            _history.Children.Add(_bottomSpacer);
             return;
         }
 
@@ -134,10 +144,14 @@ public partial class ScriptChatView : UserControl
 
     private void RenderHistory(IReadOnlyList<AiMessage> history)
     {
+        // Clear() drops the spacer too — RenderMessage re-pins it via
+        // PinSpacerToEnd, but we add it back here for the empty-state
+        // path so the layout stays predictable.
         _history.Children.Clear();
         if (history.Count == 0)
         {
             RenderInfo("No messages yet. Ask anything about the open script.");
+            _history.Children.Add(_bottomSpacer);
             return;
         }
         foreach (var m in history)
@@ -206,19 +220,38 @@ public partial class ScriptChatView : UserControl
         };
         _history.Children.Add(copyButton);
 
-        // Scroll AFTER the chat StackPanel has actually re-measured to
-        // include the new bubble + copy button. SizeChanged on the panel
-        // fires AFTER the layout cycle that grew it — at that moment the
-        // ScrollViewer's Extent is fresh and ScrollToEnd lands on the
-        // real bottom (= where the new copy button sits). One-shot
-        // handler so we don't fight the user's manual scroll later.
+        // Re-pin the ghost spacer to the very end so ScrollToEnd has a
+        // stable, never-clipped scroll target below the real copy button.
+        PinSpacerToEnd();
+
+        // Persistent SizeChanged listener for ~1.5s — each layout pass
+        // (nested tables, code blocks) re-asserts the bottom. The
+        // spacer guarantees the copy button is above where we scroll to.
+        var deadline = DateTime.UtcNow.AddSeconds(1.5);
         EventHandler<SizeChangedEventArgs>? onPanelGrew = null;
         onPanelGrew = (_, _) =>
         {
-            _history.SizeChanged -= onPanelGrew!;
+            if (DateTime.UtcNow > deadline)
+            {
+                _history.SizeChanged -= onPanelGrew!;
+                return;
+            }
             _historyScroll.ScrollToEnd();
         };
         _history.SizeChanged += onPanelGrew;
+        _historyScroll.ScrollToEnd();
+    }
+
+    private void PinSpacerToEnd()
+    {
+        // Move the spacer to be the LAST child of the chat history. It's
+        // an invisible Border — provides 60 px of dead space below the
+        // latest copy button so ScrollToEnd has somewhere safe to land
+        // (the bottom of the spacer = viewport bottom = copy button is
+        // 60 px above the viewport bottom = always visible).
+        if (_history.Children.Contains(_bottomSpacer))
+            _history.Children.Remove(_bottomSpacer);
+        _history.Children.Add(_bottomSpacer);
     }
 
     private IBrush? FindBrush(string key)
