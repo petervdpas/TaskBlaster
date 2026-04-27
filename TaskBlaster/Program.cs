@@ -125,6 +125,7 @@ class Program
                 ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return new ExternalReferenceManager(cfg, Path.Combine(anchor, "packages"));
         });
+        services.AddSingleton<LoadedReferenceCatalog>();
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

@@ -71,9 +71,19 @@ Operating principles:
   auto-suggest, never auto-apply. Output is a diff the user reviews.
 - **Never auto-execute.** Suggestions modify text only; running is still a
   deliberate user action via the Run button.
-- **Bring your own key.** API key persisted in the vault (very on-brand,
-  reuses the existing encrypted store). Provider configurable so the
-  locally-paranoid can point at Ollama instead of OpenAI / Anthropic.
+- **Bring your own key, with local model as a peer.** API key persisted
+  in the vault (very on-brand, reuses the existing encrypted store).
+  Provider dropdown lists OpenAI, Anthropic, **and Ollama as first-class
+  peers** — not "cloud + power-user fallback". This audience often runs
+  in regulated environments where the corp-approved key (or
+  no-cloud-at-all) is the only viable option, so local must feel
+  intentional, not vestigial. No TaskBlaster-hosted proxy: we stay out
+  of the data path.
+- **Friction-softeners for BYOK.** Feature shows a clear "no key
+  configured → disabled" state instead of a broken button. First-run
+  wizard walks through getting a key (links + screenshots per provider).
+  Cost guardrails surfaced in Settings: max tokens per request, max
+  requests per session, optional "warn before each call" confirmation.
 - **Send structure, not secrets.** Vault context = category + key names
   (already non-sensitive, surface organisation). Connections context =
   field names + plaintext values (server / baseUrl) but never resolved
@@ -104,19 +114,11 @@ First operations worth building:
    `$"  {k,-20} = {v}"` lines; offer the equivalent `Blast.WriteHeading`
    / `Blast.WriteKv` / `Blast.WriteTable` rewrite.
 
-Supporting work in the Blast nugets (cross-cutting):
-
-- **`[AssemblyMetadata("Blast.PrimaryFacade", "...")]` convention.** Each
-  Blast package's main assembly declares the 1-3 entry-point type names
-  the AI should treat as front doors (e.g. `NetworkBlast.NetClient,
-  NetworkBlast.ODataClient`; `AzureBlast.MssqlDatabase,
-  AzureBlast.AzureServiceBus, AzureBlast.AzureKeyVault`). Three lines
-  per package, optional, falls back to scanning all public types when
-  absent. The win: when the LLM gets handed an unfamiliar Blast assembly
-  it instantly knows the canonical entry points instead of guessing from
-  dozens of public types. Everything else (signatures, descriptions,
-  examples) stays in xmldoc — already required, already shipped in the
-  nupkgs, no new contract needed.
+Supporting work in the Blast nugets (cross-cutting): **shipped**
+(2026-04-27). Each Blast nuget's main assembly now stamps an
+`[AssemblyMetadata("Blast.PrimaryFacade", "FQN1,FQN2,...")]` attribute
+naming its 1-4 canonical entry points; consumed by
+`LoadedReferenceCatalog` (also shipped). See the Done log for details.
 
 Open questions before any code:
 
@@ -136,6 +138,68 @@ Open questions before any code:
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-27 (cont. 3) — Blast.PrimaryFacade convention + LoadedReferenceCatalog
+
+Foundation work for the AI-assistant roadmap entry. Two pieces, both
+useful immediately as diagnostics, both load-bearing for the eventual
+AI context-builder.
+
+Blast-family convention (lives in 6 separate repos):
+
+- **`[AssemblyMetadata("Blast.PrimaryFacade", "FQN1,FQN2,...")]`** stamped
+  on each Blast nuget's main assembly via `<AssemblyAttribute>` in the
+  csproj (or, for GuiBlast which sets `GenerateAssemblyInfo=false`,
+  via a hand-rolled `AssemblyAttributes.cs`). Names the canonical
+  front-door type(s) so any consumer (an AI helper, an IDE, a doc
+  generator) can identify entry points without scanning every public
+  type.
+
+  | Package | Front doors |
+  |---|---|
+  | UtilBlast 1.2.1 | `Tabular.Blast`, `UtilBlastFactory` |
+  | AzureBlast 2.1.1 | `MssqlDatabase`, `AzureServiceBus`, `AzureTableStorage`, `AzureKeyVault` |
+  | GuiBlast 2.1.1 | `Prompts`, `Forms.Rendering.DynamicForm` |
+  | NetworkBlast 1.0.1 | `NetClient` |
+  | SqliteBlast 1.0.1 | `SqliteStore`, `SqliteBlastFactory` |
+  | SecretBlast 1.0.3 | `SecretVault` |
+
+- Each Blast README grew a **🤖 AI assistants** section explaining the
+  convention, listing the package's facades in a table, and showing the
+  reflection snippet to read the value back. Patch-version bump on each
+  (additive change, no API surface broken). All published to nuget.org.
+- TaskBlaster's csproj bumped to consume the new versions.
+
+`LoadedReferenceCatalog` (in TaskBlaster):
+
+- **`Engine/LoadedReferenceCatalog.cs`** walks `AppDomain.GetAssemblies()`,
+  filters out ghosts (file deleted out from under us — same hardening
+  `ScriptBlaster.GetLoadableAssemblies` got this morning), and produces
+  a `LoadedReference` record per loaded assembly: name, version,
+  location, origin classification, primary facades, exported namespaces.
+- **`LoadedReferenceOrigin`** enum: `Framework` (runtime BCL),
+  `Application` (TaskBlaster's bin), `Blast` (carries the
+  PrimaryFacade attribute), `External` (under our package store or in
+  `IConfigStore.ExternalDlls`), `Other`. Classification order is
+  attribute-first: a Blast nuget restored to `~/.nuget/packages/`
+  reads as Blast, not Other.
+- **Static `ReadPrimaryFacades(asm)`** so anything else (a future
+  editor toolbar, a `references` terminal command) can parse facades
+  from any assembly without instantiating the catalog.
+- Registered as a singleton in `Program.cs`.
+
+Tests: 8 new in `LoadedReferenceCatalogTests`. Snapshot non-empty +
+all locations are real files; `System.Runtime` classified as
+Framework; UtilBlast classified as Blast and surfaces both declared
+facades; loose DLLs registered in `ExternalDlls` classify as External
+even when their path is outside the package store; static
+`ReadPrimaryFacades` parses comma-separated trimmed names; assembly
+without the attribute returns empty. 233/233 green.
+
+What this unlocks: when the AI assistant work starts, the "what's in
+scope right now" question is already answered as a structured snapshot.
+No further package updates needed; everything for AI context-building
+is metadata-already-on-disk.
 
 ### 2026-04-27 (cont. 2) — External references (NuGet + loose DLL) tab
 
