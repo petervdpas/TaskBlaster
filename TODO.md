@@ -56,14 +56,21 @@ section below). Still open:
 
 ## Roadmap (in-app)
 
-### Context-aware AI script assistant
+### Directed AI (script assistant)
 
-The differentiator vs Copilot / Cursor / general LLM chat is **state Copilot
-can't see**: TaskBlaster knows what's in the vault (categories + keys, never
-values), what's in `connections.json`, which externals are loaded
-(`Acme.Domain.Customer` etc.), what forms exist nearby, and what Blast
-helpers are available. A generic LLM doesn't and will happily suggest
-hardcoded credentials or reinvent helpers we already have.
+Working name: **Directed AI**. The pattern is: the user actively
+*directs* the AI's behavior via explicit, visible knowledge — and can
+see exactly which knowledge fired on any given suggestion. "Directed"
+carries both halves: you can't direct what you can't see, so the
+visibility is implicit in the verb.
+
+The differentiator vs Copilot / Cursor / general LLM chat is **state
+Copilot can't see**: TaskBlaster knows what's in the vault (categories
++ keys, never values), what's in `connections.json`, which externals
+are loaded (`Acme.Domain.Customer` etc.), what forms exist nearby, and
+what Blast helpers are available. A generic LLM doesn't and will
+happily suggest hardcoded credentials or reinvent helpers we already
+have.
 
 Operating principles:
 
@@ -120,12 +127,15 @@ Supporting work in the Blast nugets (cross-cutting): **shipped**
 naming its 1-4 canonical entry points; consumed by
 `LoadedReferenceCatalog` (also shipped). See the Done log for details.
 
-### Knowledge blocks (graph-shaped library) — the bigger idea
+### Knowledge blocks — the directing layer
 
 A user-curated library of small text blocks that get injected into AI
-context. The reframing that makes this important: **it's not just "make
-the AI smarter" — it's "make the AI auditable"**. With explicit,
-user-visible blocks of influence:
+context. **This is what makes the AI directed**: the blocks are how
+the user steers, and they're how the user audits.
+
+The reframing that makes this important: **it's not just "make the AI
+smarter" — it's "make the AI auditable"**. With explicit, user-visible
+blocks of influence:
 
 - The AI's output shows which blocks fired.
 - The user can read the blocks → understand *why* the suggestion
