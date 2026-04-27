@@ -18,6 +18,12 @@ public interface IConfigStore
     /// </summary>
     string Theme { get; set; }
 
+    /// <summary>
+    /// Whether the bottom Terminal panel is shown. Persists across sessions
+    /// so the user's last choice is restored on next launch.
+    /// </summary>
+    bool TerminalVisible { get; set; }
+
     /// <summary>Load values from the backing store. No-op if nothing persisted yet.</summary>
     void Load();
 

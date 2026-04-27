@@ -3,6 +3,8 @@ using Avalonia.Media;
 
 namespace TaskBlaster.Views;
 
+public enum StatusLevel { Normal, Error }
+
 public partial class StatusBarView : UserControl
 {
     private readonly TextBlock _fileLabel;
@@ -44,7 +46,23 @@ public partial class StatusBarView : UserControl
     public string Status
     {
         get => _statusLabel.Text ?? string.Empty;
-        set => _statusLabel.Text = value;
+        set => SetStatus(value, StatusLevel.Normal);
+    }
+
+    /// <summary>
+    /// Set the status text along with a severity level so the label can be
+    /// coloured (red for errors, amber for warnings, default otherwise).
+    /// </summary>
+    public void SetStatus(string text, StatusLevel level)
+    {
+        _statusLabel.Text = text;
+
+        var brushKey = level == StatusLevel.Error
+            ? "DangerBrush"
+            : "SystemControlForegroundBaseMediumBrush";
+
+        if (this.TryFindResource(brushKey, out var brush) && brush is IBrush b)
+            _statusLabel.Foreground = b;
     }
 
     /// <summary>

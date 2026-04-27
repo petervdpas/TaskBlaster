@@ -207,6 +207,7 @@ public sealed class ScriptSecretsTests : IDisposable
         public string FormsFolder   { get; set; } = "";
         public string VaultFolder   { get; set; }
         public string Theme         { get; set; } = "Industrial";
+        public bool TerminalVisible { get; set; } = true;
         public void Load() { }
         public void Save() { }
     }

@@ -31,6 +31,9 @@ public partial class MainWindow : Window
     private readonly SecretsView _secrets;
     private readonly ConnectionsView _connections;
     private readonly Grid _scriptsFormsWorkspace;
+    private readonly Grid _workspaceGrid;
+    private readonly GridSplitter _terminalSplitter;
+    private GridLength _lastTerminalRowHeight = new(180, GridUnitType.Pixel);
 
     private AppMode _mode = AppMode.Scripts;
     private string? _currentFilePath;
@@ -77,6 +80,8 @@ public partial class MainWindow : Window
         _secrets     = this.FindControl<SecretsView>("Secrets")!;
         _connections = this.FindControl<ConnectionsView>("Connections")!;
         _scriptsFormsWorkspace = this.FindControl<Grid>("ScriptsFormsWorkspace")!;
+        _workspaceGrid    = this.FindControl<Grid>("WorkspaceGrid")!;
+        _terminalSplitter = this.FindControl<GridSplitter>("TerminalSplitter")!;
 
         _config.Load();
         Directory.CreateDirectory(_config.ScriptsFolder);
@@ -99,8 +104,9 @@ public partial class MainWindow : Window
         _scriptFormActions.RenameClicked += OnRenameClicked;
         _scriptFormActions.DeleteClicked += OnDeleteClicked;
 
-        _toolbar.ConfigClicked += OnConfigClicked;
-        _toolbar.ModeChanged   += (_, mode) => SwitchMode(mode);
+        _toolbar.ConfigClicked             += OnConfigClicked;
+        _toolbar.ModeChanged               += (_, mode)    => SwitchMode(mode);
+        _toolbar.TerminalVisibilityChanged += (_, visible) => OnTerminalVisibilityChanged(visible);
 
         _editor.DirtyChanged   += (_, _) => UpdateDirtyUi();
         _editor.FontSizeChanged += (_, _) => UpdateFontSizeUi();
@@ -117,8 +123,35 @@ public partial class MainWindow : Window
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.L, KeyModifiers.Control),        Command = new Command(_terminal.Clear) });
 
         SwitchMode(AppMode.Scripts);
+        ApplyTerminalVisibility(_config.TerminalVisible);
+        _toolbar.IsTerminalVisible = _config.TerminalVisible;
         _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
         _terminal.Log($"Forms folder:   {_config.FormsFolder}");
+    }
+
+    private void OnTerminalVisibilityChanged(bool visible)
+    {
+        ApplyTerminalVisibility(visible);
+        _config.TerminalVisible = visible;
+        _config.Save();
+    }
+
+    private void ApplyTerminalVisibility(bool visible)
+    {
+        var terminalRow = _workspaceGrid.RowDefinitions[2];
+        if (visible)
+        {
+            terminalRow.Height = _lastTerminalRowHeight;
+        }
+        else
+        {
+            // Cache the user's current size so the next show restores it
+            // instead of reverting to the original 180px default.
+            if (terminalRow.Height.Value > 0) _lastTerminalRowHeight = terminalRow.Height;
+            terminalRow.Height = new GridLength(0);
+        }
+        _terminal.IsVisible         = visible;
+        _terminalSplitter.IsVisible = visible;
     }
 
     protected override void OnOpened(EventArgs e)
@@ -340,7 +373,7 @@ public partial class MainWindow : Window
                 break;
             case BlastStatus.Error:
                 _terminal.LogError($"{name} failed: {result.Message}", result.Details);
-                _statusBar.Status = "Error";
+                _statusBar.SetStatus("Error", StatusLevel.Error);
                 break;
         }
     }

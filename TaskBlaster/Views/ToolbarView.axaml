@@ -19,7 +19,19 @@
     <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}">
         <StackPanel Orientation="Vertical">
             <DockPanel Margin="8">
-                <Button Name="ConfigButton" DockPanel.Dock="Right" Content="⚙ Settings" Click="OnConfigClicked" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="Terminal" FontSize="12" VerticalAlignment="Center" />
+                    <ToggleSwitch Name="TerminalToggle"
+                                  IsChecked="True"
+                                  OnContent=""
+                                  OffContent=""
+                                  MinWidth="0"
+                                  Padding="0"
+                                  VerticalAlignment="Center"
+                                  IsCheckedChanged="OnTerminalToggleChanged"
+                                  ToolTip.Tip="Show or hide the Terminal panel" />
+                    <Button Name="ConfigButton" Content="⚙ Settings" Click="OnConfigClicked" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <ToggleButton Name="ScriptsMode"     Content="📜 Scripts"     IsChecked="True" Click="OnScriptsModeClicked" />
                     <ToggleButton Name="FormsMode"       Content="📋 Forms"                        Click="OnFormsModeClicked" />

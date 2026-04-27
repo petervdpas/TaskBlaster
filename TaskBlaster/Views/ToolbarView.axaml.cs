@@ -16,11 +16,14 @@ public partial class ToolbarView : UserControl
     private readonly ToggleButton _formsMode;
     private readonly ToggleButton _secretsMode;
     private readonly ToggleButton _connectionsMode;
+    private readonly ToggleSwitch _terminalToggle;
 
     private bool _suppressModeEvent;
+    private bool _suppressTerminalEvent;
 
     public event EventHandler? ConfigClicked;
     public event EventHandler<AppMode>? ModeChanged;
+    public event EventHandler<bool>? TerminalVisibilityChanged;
 
     public ToolbarView()
     {
@@ -31,6 +34,23 @@ public partial class ToolbarView : UserControl
         _formsMode       = this.FindControl<ToggleButton>("FormsMode")!;
         _secretsMode     = this.FindControl<ToggleButton>("SecretsMode")!;
         _connectionsMode = this.FindControl<ToggleButton>("ConnectionsMode")!;
+        _terminalToggle  = this.FindControl<ToggleSwitch>("TerminalToggle")!;
+    }
+
+    /// <summary>
+    /// Whether the Terminal panel toggle is on. Setting the value updates
+    /// the switch without raising <see cref="TerminalVisibilityChanged"/>,
+    /// so callers can sync the UI to a persisted value at startup.
+    /// </summary>
+    public bool IsTerminalVisible
+    {
+        get => _terminalToggle.IsChecked == true;
+        set
+        {
+            _suppressTerminalEvent = true;
+            _terminalToggle.IsChecked = value;
+            _suppressTerminalEvent = false;
+        }
     }
 
     /// <summary>
@@ -86,4 +106,10 @@ public partial class ToolbarView : UserControl
     }
 
     private void OnConfigClicked(object? sender, RoutedEventArgs e) => ConfigClicked?.Invoke(this, EventArgs.Empty);
+
+    private void OnTerminalToggleChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressTerminalEvent) return;
+        TerminalVisibilityChanged?.Invoke(this, IsTerminalVisible);
+    }
 }

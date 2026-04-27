@@ -14,7 +14,7 @@
 
         <views:ToolbarView Grid.Row="0" Name="Toolbar" />
 
-        <Grid Grid.Row="1" RowDefinitions="*,6,180">
+        <Grid Grid.Row="1" Name="WorkspaceGrid" RowDefinitions="*,6,180">
             <Grid Grid.Row="0">
                 <Grid Name="ScriptsFormsWorkspace" ColumnDefinitions="240,6,*">
                     <views:SidebarView Grid.Column="0" Name="Sidebar" />
@@ -27,7 +27,7 @@
                 <views:SecretsView Name="Secrets" IsVisible="False" />
                 <views:ConnectionsView Name="Connections" IsVisible="False" />
             </Grid>
-            <GridSplitter Grid.Row="1" Classes="niceH" />
+            <GridSplitter Grid.Row="1" Name="TerminalSplitter" Classes="niceH" />
             <views:TerminalView Grid.Row="2" Name="Terminal" />
         </Grid>
 

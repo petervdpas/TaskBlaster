@@ -7,7 +7,7 @@
     <Border>
         <Grid RowDefinitions="Auto,*">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,4,6,0">
-                <TextBlock Grid.Column="0" Text="Output" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="0" Text="Terminal" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Button   Grid.Column="1"
                           Name="ClearButton"
                           Content="Clear"
