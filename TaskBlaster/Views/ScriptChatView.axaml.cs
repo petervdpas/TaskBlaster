@@ -239,7 +239,15 @@ public partial class ScriptChatView : UserControl
 
     private void ScrollToBottom()
     {
-        Dispatcher.UIThread.Post(() => _historyScroll.ScrollToEnd(), DispatcherPriority.Background);
+        // Background priority fires too early — the freshly-added bubble
+        // hasn't been measured yet so ScrollToEnd targets the OLD end.
+        // Loaded priority + an explicit UpdateLayout forces the measure
+        // pass to complete before we ask the scroller for its new extent.
+        Dispatcher.UIThread.Post(() =>
+        {
+            _historyScroll.UpdateLayout();
+            _historyScroll.ScrollToEnd();
+        }, DispatcherPriority.Loaded);
     }
 
     private void UpdateContextHint()
