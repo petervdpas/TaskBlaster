@@ -29,8 +29,10 @@ section below). Still open:
    gate it behind per-row reveal or a "reveal for 30 s" pattern. Otherwise
    close this item.
 5. **Per-script (project-style) external references.** Today's External tab is
-   global: every imported nupkg/dll loads into the AppDomain at startup and
-   is visible to every script. That model has two real pain points:
+   global: every imported nupkg/dll loads into the AppDomain on first
+   scripting-ready trigger (first script Run / first chat send / first
+   Assistant Preview — see the lazy-load sweep in the Done log) and is
+   visible to every script after that. That model has two real pain points:
 
    - Two scripts that need different versions of the same package can't
      coexist (the default `AssemblyLoadContext` refuses two same-simple-name
@@ -63,6 +65,17 @@ Working name: **Directed AI**. The pattern is: the user actively
 see exactly which knowledge fired on any given suggestion. "Directed"
 carries both halves: you can't direct what you can't see, so the
 visibility is implicit in the verb.
+
+> **Status snapshot (2026-04-28):** Foundation shipped — see the Done log
+> for the AgentBlast 1.0.0 extraction + Phase B consumption. Live today:
+> `AgentClient` + Anthropic provider, knowledge-block store + Assistant
+> tab, picker + prompt builder, audit trail under `~/.taskblaster/ai-history/`,
+> per-script chat panel, "(none — Agent disabled)" sentinel that hides
+> the 🧠 Assistant button + 💬 Chat toggle when no provider is configured,
+> connection-driven config (`kind` / `baseUrl` / `model` / `apikey` /
+> `maxTokens`). Still open: the named operations below, OpenAI / Ollama
+> providers, first-run BYOK wizard, per-session cost guardrails, the MCP
+> server stage.
 
 The differentiator vs Copilot / Cursor / general LLM chat is **state
 Copilot can't see**: TaskBlaster knows what's in the vault (categories
@@ -297,6 +310,129 @@ once the consumer-side Directed AI ships and stabilises.
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-28 — AgentBlast 1.0.0 extraction + agent UI rename + lazy-load sweep
+
+Big consolidation day. The Directed-AI work that had been growing inside
+TaskBlaster moved to its own nuget, the user-facing terminology shifted
+from "AI" to "Agent", and the cold-start path got a thorough lazy-load pass.
+
+**AgentBlast 1.0.0 — new sibling Blast nuget at `~/Projects/AgentBlast/`,
+published to nuget.org.**
+
+- Carved out `TaskBlaster/Ai/` (`AiClient`, `AnthropicProvider`,
+  `AssembledPrompt`, `PromptBuilder`, `PromptArtifactWriter`),
+  `TaskBlaster/Knowledge/*` (block model + store + picker + picker
+  context + picked-block reason), `TaskBlaster/Interfaces/IKnowledgeBlockStore.cs`,
+  and the `LoadedReference` record + `LoadedReferenceOrigin` enum
+  extracted from `Engine/LoadedReferenceCatalog.cs`. Catalog (the
+  AppDomain walker) stays in TaskBlaster as the producer; AgentBlast
+  defines the shape.
+- Renames: `AiClient → AgentClient`, `IAiProvider → IAgentProvider`,
+  `AiMessage → AgentMessage`, `AiPingResult → AgentPingResult`,
+  `AiCompletionResult → AgentCompletionResult`, `AiModelInfo → AgentModelInfo`.
+  `ConnectionFieldResolver` delegate name kept (it's the cross-Blast
+  resolver shape, not AI-specific).
+- Pre-extraction provider decoupling: `IAiProvider` was already
+  refactored to take a `ConnectionFieldResolver` delegate instead of
+  `Connection` + `IVaultService`, so the lift to AgentBlast carried
+  zero TaskBlaster types. DI in TaskBlaster wires the resolver from
+  `ConnectionsResolver` over a locked-state-tolerant `vault.ResolveAsync`
+  (returns empty when locked rather than throwing — UI does the unlock
+  pre-flight).
+- AgentBlast layout: `AgentClient.cs` (records + delegate + dispatcher),
+  `AnthropicProvider.cs`, `Interfaces/IAgentProvider.cs`,
+  `Interfaces/IKnowledgeBlockStore.cs`, `Knowledge/{KnowledgeBlock,
+  KnowledgeBlockPicker, KnowledgeBlockStore, PickedBlock, PickerContext}.cs`,
+  `Prompts/{PromptBuilder, AssembledPrompt, PromptArtifactWriter,
+  LoadedReference}.cs`. `Blast.PrimaryFacade` attribute lists three
+  entries: `AgentBlast.AgentClient`, `AgentBlast.Knowledge.KnowledgeBlockPicker`,
+  `AgentBlast.Prompts.PromptBuilder`.
+- Tests: 105 in AgentBlast.Tests (24 AgentClient, 30 picker, 30 store,
+  14 prompt-builder, 7 artifact-writer). Strict Release build with
+  `TreatWarningsAsErrors=true` is clean — every public member documented.
+- TaskBlaster Phase B: dropped the local copies, added
+  `<PackageReference Include="AgentBlast" Version="1.0.0" />`,
+  retargeted `Program.cs` / `MainWindow` / `Dialogs/ConfigDialog` /
+  `Views/ScriptChatView` / `Views/AssistantView` / `Engine/LoadedReferenceCatalog`
+  to the AgentBlast types. 244 TaskBlaster tests + 105 AgentBlast tests
+  = 349 green across both repos.
+- New demo knowledge block: `DemoKnowledge/agentblast-when-loaded.md`.
+  Fires when any `AgentBlast.*` namespace is in scope. Tells the model
+  what AgentBlast is (it post-dates the training cutoff), the
+  connection schema, the host-glue pattern via `Secrets.Resolver`, and
+  the rules of thumb for the API surface.
+
+**Agent UI rename — "AI" → "Agent" in user-visible strings.**
+
+- Settings tab `Header="AI"` → `"Agent"`; "AI provider connection" →
+  "Agent provider connection"; "Directed-AI provider" → "Agent provider";
+  "Other AI specifics" → "Other Agent specifics"; sentinel
+  `"(none — AI disabled)"` → `"(none — Agent disabled)"`.
+- ScriptChatView errors: "No AI provider configured. Open Settings → AI"
+  → "No Agent provider configured. Open Settings → Agent"; "AI provider
+  'X' not found" → "Agent provider 'X' not found".
+- Internal `AiDefaultProvider` C# property + JSON key kept for
+  back-compat with existing `~/.taskblaster/config.json` files.
+
+**Toolbar visibility gating.**
+
+- `IsAiEnabled()` helper checks both `AiDefaultProvider` is set AND that
+  the named connection still exists. New `ApplyAiAvailability()`:
+  hides the 🧠 Assistant mode button + 💬 Chat toggle when no provider
+  is configured, and bumps the user back to Scripts mode if they were
+  sitting on the Assistant tab when the provider got cleared. Runs on
+  startup and after every Settings save where the AI provider changed.
+- New `IsAssistantModeVisible` property on `ToolbarView` mirrors
+  `IsChatToggleVisible`. Scripts-mode chat toggle is now also gated on
+  `IsAiEnabled()`.
+
+**Lazy-load sweep.**
+
+- `Lazy<AgentClient>` and `Lazy<IKnowledgeBlockStore>` registered in DI
+  alongside their unwrapped counterparts. `MainWindow` / `ScriptChatView`
+  / `AssistantView` / `ConfigDialog` field types and ctor / Initialize
+  parameters changed accordingly. `.Value` accessed only on actual
+  user-triggered work (chat send, Settings → Agent Test, Assistant tab
+  Reload, AssistantView preview). On Agent-disabled launches none of
+  the AgentBlast machinery (HttpClient, AnthropicProvider, resolver
+  delegate) is instantiated; the KnowledgeBlockStore folder scan
+  doesn't run.
+- `ScriptBlaster`'s static constructor moved to `WarmupBlasts()` (a
+  public static method, Interlocked-guarded). Was force-loading
+  UtilBlast / AzureBlast / GuiBlast / NetworkBlast / SqliteBlast at
+  type-load time (= startup, since DI resolves `IScriptBlaster` for
+  MainWindow.ctor). Now deferred to first call site that actually
+  needs them — first script `RunAsync`, or the host's
+  `EnsureScriptingReady()` gate.
+- `ExternalReferenceManager.LoadAll()` moved out of MainWindow.ctor
+  body into a one-shot `EnsureScriptingReady()` method. Called from
+  `OnRunClicked`, and via an `Action ensureScriptingReady` callback
+  plumbed into `ScriptChatView.Initialize` (`UpdateContextHint`,
+  `BuildPickerContext`) and `AssistantView.Initialize` (`OnPreviewClicked`).
+  External-load terminal logs now appear at the moment the user first
+  triggers scripting work, not at app launch.
+- `AssistantView.InstallMarkdownHighlighter` moved out of the ctor.
+  TextMate registry construction (loads TextMateSharp.Grammars — multi-MB
+  of grammar JSON) now happens on first `Reload()` (= first time the
+  user enters the Assistant tab), via an idempotent
+  `EnsureMarkdownHighlighter()` guard. The eager `Reload()` call in
+  `Initialize` was dropped; SwitchMode(Assistant) is the trigger.
+- Net cold-start path on Agent-off / default-highlighter / no-Assistant-visit
+  launches: Avalonia bootstrap, ConfigStore.Load (tiny JSON),
+  ConnectionStore.Reload (tiny JSON), SeedMissingFromFolder stat() loop,
+  view XAML parse + event wiring, ApplyTerminalVisibility,
+  SwitchMode(Scripts). Everything else is on-demand.
+
+**Docs.**
+
+- README: Stack section bumped to current Blast versions and added
+  `AgentBlast 1.0.0`. "How it works" got a step 6 for the agent. The
+  "AI assistant (Directed AI)" heading became "Agent assistant
+  (Directed AI)" with assistant→agent prose updates throughout, plus
+  a mention that the tab + chat toggle are hidden until a provider is
+  configured. The bundled-demos table grew the
+  `agentblast-when-loaded.md` row.
 
 ### 2026-04-27 (cont. 5) — Knowledge blocks: store + Assistant tab + typed model
 

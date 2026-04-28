@@ -40,11 +40,12 @@ public partial class AssistantView : UserControl
     private readonly FilterBoxView _filter;
     private readonly AssistantActionsView _toolbarActions;
 
-    private IKnowledgeBlockStore? _store;
+    private Lazy<IKnowledgeBlockStore>? _store;
     private IPromptService? _prompts;
     private Action<string>? _log;
     private LoadedReferenceCatalog? _catalog;
     private PromptArtifactWriter? _artifacts;
+    private Action? _ensureScriptingReady;
 
     private readonly List<KnowledgeBlock> _allBlocks = new();
     private readonly ObservableCollection<BlockListItem> _visible = new();
@@ -73,7 +74,11 @@ public partial class AssistantView : UserControl
         _bodyEditor.Document ??= new TextDocument();
         _bodyEditor.Document.TextChanged += (_, _) => MarkDirty();
 
-        InstallMarkdownHighlighter(CurrentTmTheme());
+        // TextMate markdown highlighter is deferred to first Reload() (=
+        // first time the user enters the Assistant tab). Loading the
+        // grammar registry pulls in TextMateSharp.Grammars, which is
+        // multi-MB of grammar JSON — paying for that at app startup is
+        // pure waste for users who never touch this tab.
         ActualThemeVariantChanged += (_, _) => ApplyMarkdownTheme();
 
         _toolbarActions = new AssistantActionsView();
@@ -94,6 +99,13 @@ public partial class AssistantView : UserControl
         _tmInstallation.SetGrammar(_tmRegistry.GetScopeByLanguageId("markdown"));
     }
 
+    /// <summary>Install the TextMate markdown highlighter once, on first need. No-op after that.</summary>
+    private void EnsureMarkdownHighlighter()
+    {
+        if (_tmInstallation is not null) return;
+        InstallMarkdownHighlighter(CurrentTmTheme());
+    }
+
     private void ApplyMarkdownTheme()
     {
         if (_tmInstallation is null || _tmRegistry is null) return;
@@ -105,29 +117,36 @@ public partial class AssistantView : UserControl
 
     /// <summary>Wire the view to its dependencies.</summary>
     public void Initialize(
-        IKnowledgeBlockStore store,
+        Lazy<IKnowledgeBlockStore> store,
         IPromptService prompts,
         Action<string> log,
         LoadedReferenceCatalog catalog,
-        PromptArtifactWriter artifacts)
+        PromptArtifactWriter artifacts,
+        Action ensureScriptingReady)
     {
         _store = store;
         _prompts = prompts;
         _log = log;
         _catalog = catalog;
         _artifacts = artifacts;
-        Reload();
+        _ensureScriptingReady = ensureScriptingReady;
+        // Don't Reload() here — the host calls Reload() when the user
+        // actually enters the Assistant tab (via SwitchMode), which is the
+        // moment we want to pay the file-scan + TextMate-grammar load cost.
+        // Wiring time is too early.
     }
 
     /// <summary>Re-read the store and rebuild the list. Preserves the current selection if it still exists.</summary>
     public void Reload()
     {
         if (_store is null) return;
-        _store.Reload();
+        // First call pays the TextMate grammar registry load; subsequent calls are no-op.
+        EnsureMarkdownHighlighter();
+        _store.Value.Reload();
         var keepId = _selectedId;
 
         _allBlocks.Clear();
-        _allBlocks.AddRange(_store.List());
+        _allBlocks.AddRange(_store.Value.List());
         ApplyFilter();
 
         if (keepId is not null)
@@ -182,7 +201,7 @@ public partial class AssistantView : UserControl
                 return;
             }
 
-            var block = _store.Get(id);
+            var block = _store.Value.Get(id);
             if (block is null)
             {
                 // Block vanished (deleted on disk between reload and selection).
@@ -273,7 +292,7 @@ public partial class AssistantView : UserControl
             return;
         }
 
-        if (_store.Get(id) is not null)
+        if (_store.Value.Get(id) is not null)
         {
             await _prompts.MessageAsync("Already exists", $"A block with id '{id}' already exists.");
             return;
@@ -287,7 +306,7 @@ public partial class AssistantView : UserControl
             Array.Empty<string>(),
             Array.Empty<string>(),
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-        _store.Save(block);
+        _store.Value.Save(block);
         _log?.Invoke($"Knowledge block '{id}' created.");
         Reload();
 
@@ -301,7 +320,7 @@ public partial class AssistantView : UserControl
 
         var fm = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         // Preserve any extra frontmatter keys the user added by hand.
-        var existing = _store.Get(_selectedId);
+        var existing = _store.Value.Get(_selectedId);
         if (existing is not null)
         {
             foreach (var (k, v) in existing.Frontmatter)
@@ -323,7 +342,7 @@ public partial class AssistantView : UserControl
         var includes = KnowledgeBlockStore.ParseList(_includesBox.Text);
 
         var block = new KnowledgeBlock(_selectedId, title, _bodyEditor.Document.Text ?? string.Empty, priority, tags, includes, fm);
-        _store.Save(block);
+        _store.Value.Save(block);
 
         _log?.Invoke($"Knowledge block '{_selectedId}' saved.");
 
@@ -341,6 +360,11 @@ public partial class AssistantView : UserControl
     {
         if (_store is null || _catalog is null || _artifacts is null) return;
 
+        // Make sure Blast assemblies + previously-imported externals are in
+        // the AppDomain before we snapshot — otherwise the prompt's
+        // "Available libraries" section comes back empty on a cold launch.
+        _ensureScriptingReady?.Invoke();
+
         var refs = _catalog.Snapshot();
 
         // Build the picker context from the live catalog. The picker matches
@@ -356,7 +380,7 @@ public partial class AssistantView : UserControl
         }
         var ctx = new PickerContext(typeFqns, namespaces, Array.Empty<string>());
 
-        var allBlocks = _store.List();
+        var allBlocks = _store.Value.List();
         var picked = KnowledgeBlockPicker.PickWithReasons(allBlocks, ctx);
         var pickedOnly = picked.Select(p => p.Block).ToList();
         var prompt = PromptBuilder.Build(pickedOnly, refs, userMessage: string.Empty);
@@ -378,7 +402,7 @@ public partial class AssistantView : UserControl
             $"Delete block '{id}'? This removes the markdown file from disk.");
         if (!ok) return;
 
-        _store.Delete(id);
+        _store.Value.Delete(id);
         _log?.Invoke($"Knowledge block '{id}' deleted.");
         _selectedId = null;
         _toolbarActions.HasSelection = false;

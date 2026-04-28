@@ -30,9 +30,22 @@ public sealed class ScriptBlaster : IScriptBlaster
         "System.Threading.Tasks",
     };
 
-    static ScriptBlaster()
+    private static int _warmedUp;
+
+    /// <summary>
+    /// Force-load the Blast-family assemblies so Roslyn can see them via
+    /// <see cref="AppDomain.GetAssemblies"/> (and so
+    /// <c>LoadedReferenceCatalog</c> includes them in its snapshot). Idempotent;
+    /// safe to call from multiple sites. Was previously a static constructor
+    /// running at app startup; now deferred to the first call site that
+    /// actually needs the assemblies — first script <see cref="RunAsync"/> or
+    /// the host's first scripting-ready gate. Saves cold-start cost on slow
+    /// systems for users who only browse / edit / manage secrets without
+    /// running a script.
+    /// </summary>
+    public static void WarmupBlasts()
     {
-        // Force-load Blast assemblies so Roslyn can see them via AppDomain.GetAssemblies().
+        if (Interlocked.CompareExchange(ref _warmedUp, 1, 0) != 0) return;
         _ = typeof(UtilBlast.UtilBlastFactory).Assembly;
         _ = typeof(AzureBlast.MssqlDatabase).Assembly;
         _ = typeof(GuiBlast.Prompts).Assembly;
@@ -47,6 +60,7 @@ public sealed class ScriptBlaster : IScriptBlaster
         ScriptGlobals? globals,
         CancellationToken cancellationToken)
     {
+        WarmupBlasts();
         var originalOut = Console.Out;
         var originalErr = Console.Error;
         var writer = new LineBufferingWriter(onOutput);

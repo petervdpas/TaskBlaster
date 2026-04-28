@@ -23,6 +23,7 @@ TaskBlaster takes a middle path: you write a plain `.csx` file, optionally pair 
 3. **Store credentials in the local vault.** Add API tokens, connection strings, or anything else into the **Secrets** tab. Everything is encrypted at rest with Argon2id + AES-GCM via [SecretBlast](https://www.nuget.org/packages/SecretBlast).
 4. **Run it.** TaskBlaster prompts the user with the form, injects the answers, executes the script via Roslyn, and streams stdout/stderr live to the terminal panel. Scripts pull secrets from the vault on demand via the `Secrets` global; the user is prompted to unlock if the vault is locked.
 5. **Connect to Azure without secrets in code.** Scripts can call into [AzureBlast](https://www.nuget.org/packages/AzureBlast) to talk to Azure SQL, Service Bus, and Key Vault, handing it the vault resolver instead of a hard-coded connection string.
+6. **Direct an agent against your code.** Add an Anthropic API key to the vault, point the **Settings → Agent** tab at it, and a per-script chat panel powered by [AgentBlast](https://www.nuget.org/packages/AgentBlast) becomes available. User-authored **knowledge blocks** (markdown files under `~/.taskblaster/knowledge/`) steer the model with project-specific conventions; every assembled prompt is audited to disk. The agent only emits text, never auto-applies — you copy what you want into the editor yourself.
 
 This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .NET 10 + Avalonia 12 and the **Blast** library family.
 
@@ -44,7 +45,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * **Named connections** — a `connections.json` file maps a friendly name to a bag of fields where each field is either a plaintext literal (URL, server, account name) or a pointer into the vault (token, password). Scripts grab the whole bag with `Secrets.GetConnection("name")` (dynamic) or `Secrets.GetConnection<T>("name")` (typed); Blast libraries that take a resolver delegate (NetworkBlast, AzureBlast) receive the wrapped resolver via `Secrets.Resolver`.
 * **Vault-backed select fields** in forms — declare a select's options as "vault keys in category X" and TaskBlaster materialises them at form-load time
 * **External references** — drop a `.nupkg` (or a loose `.dll`) into Settings → External and TaskBlaster validates it (TFM compatibility, unresolved deps, version conflicts against already-loaded assemblies), extracts to `~/.taskblaster/packages/`, and surfaces the types to scripts as standard `using` namespaces
-* **Directed AI assistant** — per-script chat panel (💬) and a knowledge-blocks editor under a dedicated 🧠 Assistant tab. Bring-your-own-key against Anthropic; every assembled prompt is audited to disk; the assistant never auto-applies — it can only emit text you copy-paste yourself
+* **Directed AI agent** — per-script chat panel (💬) and a knowledge-blocks editor under a dedicated 🧠 Assistant tab, powered by [AgentBlast](https://www.nuget.org/packages/AgentBlast). Bring-your-own-key against Anthropic; every assembled prompt is audited to disk; the agent never auto-applies — it can only emit text you copy-paste yourself. Both surfaces are hidden until a provider is configured
 * Graceful abort when the user cancels a vault-unlock prompt mid-script (no stack dump; the run ends as `Cancelled`)
 * Configurable scripts folder, forms folder, vault folder, theme, editor highlighter, code folding, and terminal visibility — all persisted in `~/.taskblaster/config.json`
 * Demo scripts, forms, and a sample `.nupkg` (the `Acme.Domain` canonical-models fixture) shipped out of the box, plus a dev-only `--seed-demos` flag to refresh them in place
@@ -55,12 +56,13 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Avalonia 12, Avalonia.Controls.DataGrid, AvaloniaEdit + TextMateSharp.Grammars
 * Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
 * Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
-* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.2.0 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output
-* [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.0 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
-* [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.0 — form specs and modal prompts
-* [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.0 — REST / OData / SOAP, vault-aware via the same resolver shape
-* [SqliteBlast](https://www.nuget.org/packages/SqliteBlast) 1.0.0 — local SQLite for staging/caching/migrations, vault-aware path
-* [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.2 — encrypted local vault
+* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.2.1 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output
+* [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.1 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
+* [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.1 — form specs and modal prompts
+* [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.1 — REST / OData / SOAP, vault-aware via the same resolver shape
+* [SqliteBlast](https://www.nuget.org/packages/SqliteBlast) 1.0.1 — local SQLite for staging/caching/migrations, vault-aware path
+* [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.3 — encrypted local vault
+* [AgentBlast](https://www.nuget.org/packages/AgentBlast) 1.0.0 — programmable LLM client + directing layer (knowledge blocks, picker, prompt builder, audit log); vault-agnostic via the same resolver shape
 
 ## Quick start
 
@@ -199,15 +201,15 @@ var api = new NetClient(Secrets.Resolver, "github");
 
 If a connection isn't in the file, the resolver falls through to the vault directly so all-vault setups keep working unchanged. `Secrets.Connections()` returns the registered names so a script can build a quick picker.
 
-## AI assistant (Directed AI)
+## Agent assistant (Directed AI)
 
-TaskBlaster has an in-app AI assistant for writing and refining scripts, called **Directed AI**. The pattern: the user actively *directs* the assistant via explicit, visible **knowledge blocks**, and can see exactly which blocks fired on any given response. The assistant runs against your own API key — there's no TaskBlaster-hosted proxy and prompts never leave your machine except to the configured provider.
+TaskBlaster has an in-app **agent** for writing and refining scripts, called **Directed AI**. The pattern: the user actively *directs* the agent via explicit, visible **knowledge blocks**, and can see exactly which blocks fired on any given response. The agent runs against your own API key — there's no TaskBlaster-hosted proxy and prompts never leave your machine except to the configured provider.
 
-Today the assistant is wired up against **Anthropic** (Claude Opus 4.7, Sonnet 4.6, Haiku 4.5). Other providers (OpenAI, Ollama) are on the roadmap; the architecture is provider-agnostic.
+The transport, knowledge-block store, picker, prompt builder, and audit log all live in [AgentBlast](https://www.nuget.org/packages/AgentBlast); TaskBlaster is the host that wires them up. Today the agent is configured against **Anthropic** (Claude Opus 4.7, Sonnet 4.6, Haiku 4.5). Other providers (OpenAI, Ollama) are on the roadmap; the architecture is provider-agnostic.
 
 ### Provider setup
 
-The assistant talks to a provider via a regular entry in `connections.json`. Add a connection with these fields:
+The agent talks to a provider via a regular entry in `connections.json`. Add a connection with these fields:
 
 ```jsonc
 "ai-anthropic": {
@@ -219,7 +221,7 @@ The assistant talks to a provider via a regular entry in `connections.json`. Add
 }
 ```
 
-Then point `aiDefaultProvider` in `config.json` at the connection name. Field semantics:
+Then pick the connection name in **Settings → Agent**. The choice is persisted as `AiDefaultProvider` in `~/.taskblaster/config.json` (the JSON key kept the `Ai` prefix for back-compat with existing user configs; the UI label is "Agent"). Field semantics:
 
 * **`kind`** — selects the provider (`anthropic` today).
 * **`baseUrl`** — endpoint root. Anthropic's is `https://api.anthropic.com`; the provider tolerates `/v1/messages` either appended or omitted.
@@ -227,11 +229,11 @@ Then point `aiDefaultProvider` in `config.json` at the connection name. Field se
 * **`maxTokens`** — optional; defaults to 8192 when omitted, validated strictly when present (positive integer).
 * **`apikey`** — vault-backed; the API key never lives in plaintext on disk.
 
-The Connections tab includes a **Test** button that does a 5-token round-trip ping so you can verify connectivity before opening the chat panel.
+The Settings → Agent tab includes a **Test** button that does a 5-token round-trip ping so you can verify connectivity before opening the chat panel.
 
 ### 🧠 Assistant tab — knowledge blocks
 
-The Assistant tab manages **knowledge blocks**: small markdown files under `~/.taskblaster/knowledge/` that get injected into the AI's system prompt. Each block is a `.md` with YAML frontmatter:
+The Assistant tab manages **knowledge blocks**: small markdown files under `~/.taskblaster/knowledge/` that get injected into the agent's system prompt. Each block is a `.md` with YAML frontmatter:
 
 ```markdown
 ---
@@ -257,11 +259,13 @@ Frontmatter keys:
 * **`includes`** — comma-separated block ids to pull in transitively (cycle-safe).
 * **`tags`** — comma-separated; lowercased and deduplicated on save.
 
-The editor pane lets you add, save, and delete blocks; switching selections discards pending edits, same convention as Scripts and Forms. Six demo blocks ship in `~/.taskblaster/knowledge/` on first launch — see the bundled-demos table below.
+The editor pane lets you add, save, and delete blocks; switching selections discards pending edits, same convention as Scripts and Forms. Seven demo blocks ship in `~/.taskblaster/knowledge/` on first launch — see the bundled-demos table below.
+
+> **Note:** the 🧠 Assistant tab and the 💬 Chat toggle on the toolbar are hidden when no agent provider is configured. Pick one in **Settings → Agent** to surface them.
 
 ### Per-script chat (💬)
 
-Each `.csx` gets its own chat panel, toggled by the **Chat** switch on the toolbar (visible in Scripts mode only). Each turn:
+Each `.csx` gets its own chat panel, toggled by the **Chat** switch on the toolbar (visible in Scripts mode when an agent provider is configured). Each turn:
 
 1. Runs the **`KnowledgeBlockPicker`** against the open script + loaded references (Blast facades, namespaces, vault category names, connection names from `LoadedReferenceCatalog`) and selects the matching blocks plus their transitive includes.
 2. Composes a system prompt from those blocks plus the loaded-reference summary via `PromptBuilder`.
@@ -293,7 +297,7 @@ Every assembled prompt is written to `~/.taskblaster/ai-history/` as a Markdown 
 ├── scripts/           # your .csx scripts
 ├── forms/             # your .json form specs
 ├── knowledge/         # markdown directing-context blocks (Assistant tab)
-├── ai-history/        # audit trail of every assembled AI prompt
+├── ai-history/        # audit trail of every assembled agent prompt
 ├── packages/          # imported .nupkgs, one folder per id/version (External tab)
 ├── demo-nugets/       # bundled sample .nupkgs (Acme.Domain) seeded on first launch
 └── vault/

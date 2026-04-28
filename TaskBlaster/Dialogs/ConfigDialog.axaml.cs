@@ -52,11 +52,11 @@ public partial class ConfigDialog : Window
     private readonly ExternalReferenceManager? _externals;
     private readonly IConnectionStore? _connectionStore;
     private readonly IVaultService? _vault;
-    private readonly AgentClient? _ai;
+    private readonly Lazy<AgentClient>? _ai;
     private readonly Func<CancellationToken, System.Threading.Tasks.Task>? _ensureVaultUnlocked;
 
-    /// <summary>Sentinel item shown in the AI provider dropdown when no connection is selected.</summary>
-    private const string AiProviderNone = "(none — AI disabled)";
+    /// <summary>Sentinel item shown in the Agent provider dropdown when no connection is selected.</summary>
+    private const string AiProviderNone = "(none — Agent disabled)";
 
     public ConfigDialog() : this(
         currentScriptsFolder: "",
@@ -88,7 +88,7 @@ public partial class ConfigDialog : Window
         string? currentAiProvider,
         IConnectionStore? connectionStore,
         IVaultService? vault,
-        AgentClient? ai,
+        Lazy<AgentClient>? ai,
         Func<CancellationToken, System.Threading.Tasks.Task>? ensureVaultUnlocked)
     {
         InitializeComponent();
@@ -399,7 +399,7 @@ public partial class ConfigDialog : Window
                 ShowAiTestStatus(null, "Pinging…");
             }
 
-            result = await _ai.PingAsync(conn.Name, cts.Token).ConfigureAwait(true);
+            result = await _ai.Value.PingAsync(conn.Name, cts.Token).ConfigureAwait(true);
         }
         catch (Exception ex)
         {

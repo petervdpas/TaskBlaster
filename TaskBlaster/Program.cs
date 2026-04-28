@@ -144,6 +144,13 @@ class Program
                 ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return new KnowledgeBlockStore(Path.Combine(anchor, "knowledge"));
         });
+        // KnowledgeBlockStore's ctor calls Reload() which file-scans every
+        // *.md in the knowledge folder + parses frontmatter. Lazy-wrap so
+        // the scan doesn't run until the user opens the Assistant tab or
+        // sends a chat turn — both Agent-gated, so on Agent-disabled
+        // launches the scan never happens at all.
+        services.AddSingleton<Lazy<IKnowledgeBlockStore>>(sp =>
+            new Lazy<IKnowledgeBlockStore>(() => sp.GetRequiredService<IKnowledgeBlockStore>()));
         services.AddSingleton<PromptArtifactWriter>(sp =>
         {
             var cfg = sp.GetRequiredService<IConfigStore>();
@@ -186,6 +193,16 @@ class Program
             return new ConnectionFieldResolver(connectionsResolver.ResolveAsync);
         });
         services.AddSingleton<AgentClient>();
+        // Wrap AgentClient in Lazy so consumers (MainWindow, ScriptChatView,
+        // ConfigDialog) can hold a reference without forcing instantiation.
+        // First .Value access triggers AgentClient + AnthropicProvider +
+        // HttpClient + ConnectionFieldResolver construction. Until then, on
+        // an Agent-disabled launch (the common case for users without an
+        // API key configured) none of those allocations happen — meaningful
+        // on slow systems where HttpClient setup, the DNS resolver thread,
+        // and the JIT cost of provider methods all add up.
+        services.AddSingleton<Lazy<AgentClient>>(sp =>
+            new Lazy<AgentClient>(() => sp.GetRequiredService<AgentClient>()));
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

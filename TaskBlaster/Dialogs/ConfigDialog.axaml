@@ -58,17 +58,17 @@
                 </StackPanel>
             </TabItem>
 
-            <TabItem Header="AI">
+            <TabItem Header="Agent">
                 <StackPanel Margin="4,12,4,4" Spacing="14">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="AI provider connection" FontWeight="SemiBold" />
+                        <TextBlock Text="Agent provider connection" FontWeight="SemiBold" />
                         <Grid ColumnDefinitions="*,Auto">
                             <ComboBox Grid.Column="0" Name="AiProviderBox" HorizontalAlignment="Stretch" />
                             <Button   Grid.Column="1" Name="AiTestButton" Content="Test" Margin="8,0,0,0" Click="OnAiTest" />
                         </Grid>
                         <TextBlock Name="AiTestStatus" FontSize="11" TextWrapping="Wrap" IsVisible="False" />
                         <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Pick a connection from the 🔗 Connections tab to use as the Directed-AI provider. The connection needs a 'kind' field (anthropic / openai / ollama), a baseUrl, a model, plus an apikey field backed by the vault for cloud providers. Optional 'maxTokens' caps the per-response output; absent = the provider's built-in default." />
+                                   Text="Pick a connection from the 🔗 Connections tab to use as the Agent provider. The connection needs a 'kind' field (anthropic / openai / ollama), a baseUrl, a model, plus an apikey field backed by the vault for cloud providers. Optional 'maxTokens' caps the per-response output; absent = the provider's built-in default." />
                     </StackPanel>
 
                     <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="10">
@@ -80,7 +80,7 @@
                     </Border>
 
                     <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
-                               Text="Other AI specifics (cost limits, prompt tuning, knowledge blocks) live in their own dedicated screens, not here." />
+                               Text="Other Agent specifics (cost limits, prompt tuning, knowledge blocks) live in their own dedicated screens, not here." />
                 </StackPanel>
             </TabItem>
 

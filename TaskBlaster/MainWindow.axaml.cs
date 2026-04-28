@@ -54,10 +54,10 @@ public partial class MainWindow : Window
     private readonly IVaultService _vaultService;
     private readonly IConnectionStore _connectionStore;
     private readonly ExternalReferenceManager _externals;
-    private readonly IKnowledgeBlockStore _knowledge;
+    private readonly Lazy<IKnowledgeBlockStore> _knowledge;
     private readonly LoadedReferenceCatalog _catalog;
     private readonly PromptArtifactWriter _artifacts;
-    private readonly AgentClient _ai;
+    private readonly Lazy<AgentClient> _ai;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -74,10 +74,10 @@ public partial class MainWindow : Window
         IVaultService vaultService,
         IConnectionStore connectionStore,
         ExternalReferenceManager externals,
-        IKnowledgeBlockStore knowledge,
+        Lazy<IKnowledgeBlockStore> knowledge,
         LoadedReferenceCatalog catalog,
         PromptArtifactWriter artifacts,
-        AgentClient ai)
+        Lazy<AgentClient> ai)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -125,9 +125,9 @@ public partial class MainWindow : Window
 
         _secrets.Initialize(_vaultService, _prompts, line => _terminal.Log(line));
         _connections.Initialize(_connectionStore, _prompts, line => _terminal.Log(line));
-        _assistant.Initialize(_knowledge, _prompts, line => _terminal.Log(line), _catalog, _artifacts);
+        _assistant.Initialize(_knowledge, _prompts, line => _terminal.Log(line), _catalog, _artifacts, EnsureScriptingReady);
         _chat.Initialize(_config, _connectionStore, _knowledge, _catalog, _ai, _vaultService,
-            EnsureVaultUnlockedAsync, line => _terminal.Log(line));
+            EnsureVaultUnlockedAsync, line => _terminal.Log(line), EnsureScriptingReady);
         _secrets.UnlockRequested += OnVaultUnlockRequested;
         _designer.Initialize(_vaultService, EnsureVaultUnlockedAsync);
 
@@ -168,6 +168,30 @@ public partial class MainWindow : Window
         _editor.SetCodeFoldingEnabled(_config.CodeFolding);
         _terminal.Log($"Scripts folder: {_config.ScriptsFolder}");
         _terminal.Log($"Forms folder:   {_config.FormsFolder}");
+        // External references + Blast-family force-loads are deferred to
+        // EnsureScriptingReady() — first script Run, first chat send, or
+        // first Assistant Preview. Users who only browse / edit / manage
+        // secrets pay none of that cost. See EnsureScriptingReady below.
+    }
+
+    private bool _scriptingWarmed;
+
+    /// <summary>
+    /// One-shot warmup that prepares the AppDomain for scripting and
+    /// directing-context features: force-loads the Blast-family assemblies
+    /// (so Roslyn + LoadedReferenceCatalog see them) and runs the
+    /// previously-eager <c>ExternalReferenceManager.LoadAll()</c> to
+    /// restore user-imported nupkgs/DLLs from prior sessions. Idempotent;
+    /// the body runs at most once per app launch. Called from
+    /// <see cref="OnRunClicked"/> and from the chat / Assistant flows
+    /// (via the callback plumbed into ScriptChatView / AssistantView).
+    /// </summary>
+    private void EnsureScriptingReady()
+    {
+        if (_scriptingWarmed) return;
+        _scriptingWarmed = true;
+
+        ScriptBlaster.WarmupBlasts();
 
         var externalLoad = _externals.LoadAll();
         if (externalLoad.LoadedDllCount > 0)
@@ -449,6 +473,8 @@ public partial class MainWindow : Window
             _terminal.Log(_mode == AppMode.Forms ? "No form selected." : "No script selected.");
             return;
         }
+
+        EnsureScriptingReady();
 
         if (_mode == AppMode.Scripts) await RunScriptAsync(_currentFilePath);
         else                          await PreviewFormAsync();

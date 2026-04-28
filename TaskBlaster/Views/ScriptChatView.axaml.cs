@@ -41,12 +41,13 @@ public partial class ScriptChatView : UserControl
 
     private IConfigStore? _config;
     private IConnectionStore? _connectionStore;
-    private IKnowledgeBlockStore? _knowledge;
+    private Lazy<IKnowledgeBlockStore>? _knowledge;
     private LoadedReferenceCatalog? _catalog;
-    private AgentClient? _ai;
+    private Lazy<AgentClient>? _ai;
     private IVaultService? _vault;
     private Func<CancellationToken, Task>? _ensureVaultUnlocked;
     private Action<string>? _log;
+    private Action? _ensureScriptingReady;
 
     private string? _currentScriptPath;
     private Func<string>? _scriptTextProvider;
@@ -82,12 +83,13 @@ public partial class ScriptChatView : UserControl
     public void Initialize(
         IConfigStore config,
         IConnectionStore connectionStore,
-        IKnowledgeBlockStore knowledge,
+        Lazy<IKnowledgeBlockStore> knowledge,
         LoadedReferenceCatalog catalog,
-        AgentClient ai,
+        Lazy<AgentClient> ai,
         IVaultService vault,
         Func<CancellationToken, Task> ensureVaultUnlocked,
-        Action<string> log)
+        Action<string> log,
+        Action ensureScriptingReady)
     {
         _config = config;
         _connectionStore = connectionStore;
@@ -97,6 +99,7 @@ public partial class ScriptChatView : UserControl
         _vault = vault;
         _ensureVaultUnlocked = ensureVaultUnlocked;
         _log = log;
+        _ensureScriptingReady = ensureScriptingReady;
         UpdateForCurrentScript();
     }
 
@@ -273,8 +276,12 @@ public partial class ScriptChatView : UserControl
             _contextHint.Text = string.Empty;
             return;
         }
+        // The hint counts loaded refs, so make sure they're actually loaded.
+        // First call per session pays the deferred Blast + external load cost;
+        // subsequent calls are no-op.
+        _ensureScriptingReady?.Invoke();
         var ctx = BuildPickerContext();
-        var picked = KnowledgeBlockPicker.Pick(_knowledge.List(), ctx);
+        var picked = KnowledgeBlockPicker.Pick(_knowledge.Value.List(), ctx);
         var refs = _catalog.Snapshot()
             .Count(r => r.Origin is LoadedReferenceOrigin.Blast or LoadedReferenceOrigin.External);
         _contextHint.Text = $"context: {picked.Count} block(s), {refs} ref(s)";
@@ -282,6 +289,7 @@ public partial class ScriptChatView : UserControl
 
     private PickerContext BuildPickerContext()
     {
+        _ensureScriptingReady?.Invoke();
         var refs = _catalog!.Snapshot();
         var typeFqns = new HashSet<string>(StringComparer.Ordinal);
         var namespaces = new HashSet<string>(StringComparer.Ordinal);
@@ -317,13 +325,13 @@ public partial class ScriptChatView : UserControl
         var providerName = _config.AiDefaultProvider;
         if (string.IsNullOrEmpty(providerName))
         {
-            SetStatus("No AI provider configured. Open Settings → AI to pick one.", isError: true);
+            SetStatus("No Agent provider configured. Open Settings → Agent to pick one.", isError: true);
             return;
         }
         var conn = _connectionStore.Get(providerName);
         if (conn is null)
         {
-            SetStatus($"AI provider '{providerName}' not found in connections.", isError: true);
+            SetStatus($"Agent provider '{providerName}' not found in connections.", isError: true);
             return;
         }
 
@@ -367,7 +375,7 @@ public partial class ScriptChatView : UserControl
 
         var ctx = BuildPickerContext();
         var refs = _catalog.Snapshot();
-        var picked = KnowledgeBlockPicker.Pick(_knowledge.List(), ctx);
+        var picked = KnowledgeBlockPicker.Pick(_knowledge.Value.List(), ctx);
         var prompt = PromptBuilder.Build(picked, refs, userMessage: string.Empty);
 
         SetBusy(true);
@@ -378,7 +386,7 @@ public partial class ScriptChatView : UserControl
         AgentCompletionResult result;
         try
         {
-            result = await _ai.SendAsync(providerName, prompt.SystemMessage, history, _sendCts.Token);
+            result = await _ai.Value.SendAsync(providerName, prompt.SystemMessage, history, _sendCts.Token);
         }
         catch (Exception ex)
         {
