@@ -25,6 +25,14 @@ public sealed class LoadedReferenceCatalogTests : IDisposable
 
     public LoadedReferenceCatalogTests()
     {
+        // Force the Blast assemblies into the AppDomain. Was implicit when
+        // ScriptBlaster had a type-load static ctor doing this; that work
+        // is now deferred to WarmupBlasts() so the catalog tests have to
+        // run it explicitly. Without this, "is UtilBlast in the snapshot?"
+        // assertions fail under any test ordering that hasn't already
+        // touched a Blast type via ScriptBlasterTests.
+        ScriptBlaster.WarmupBlasts();
+
         _temp      = ExternalsFixtures.FreshTempFolder("catalog");
         _config    = new StubConfigStore();
         _externals = new ExternalReferenceManager(_config, Path.Combine(_temp, "packages"));
