@@ -68,6 +68,18 @@ public partial class ToolbarView : UserControl
         }
     }
 
+    /// <summary>
+    /// Hide the 🧠 Assistant mode button entirely. Used when no AI provider
+    /// is configured — without an AI, knowledge blocks have nothing to feed
+    /// into so the tab is a dead end. The button reappears the moment the
+    /// user picks an AI provider in Settings.
+    /// </summary>
+    public bool IsAssistantModeVisible
+    {
+        get => _assistantMode.IsVisible;
+        set => _assistantMode.IsVisible = value;
+    }
+
     private void OnChatToggleChanged(object? sender, RoutedEventArgs e)
     {
         if (_suppressChatEvent) return;

@@ -158,6 +158,7 @@ public partial class MainWindow : Window
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.D0, KeyModifiers.Control),       Command = new Command(_editor.ResetZoom) });
         KeyBindings.Add(new KeyBinding { Gesture = new KeyGesture(Key.L, KeyModifiers.Control),        Command = new Command(_terminal.Clear) });
 
+        ApplyAiAvailability();
         SwitchMode(AppMode.Scripts);
         ApplyTerminalVisibility(_config.TerminalVisible);
         _toolbar.IsTerminalVisible = _config.TerminalVisible;
@@ -178,6 +179,41 @@ public partial class MainWindow : Window
         ApplyTerminalVisibility(visible);
         _config.TerminalVisible = visible;
         _config.Save();
+    }
+
+    /// <summary>
+    /// True when the user has both picked an AI provider connection AND
+    /// that connection still exists in the connection store. The Assistant
+    /// mode button and the Chat toggle are gated on this — without an AI,
+    /// neither surface has anywhere to send the user's input.
+    /// </summary>
+    private bool IsAiEnabled()
+        => !string.IsNullOrEmpty(_config.AiDefaultProvider)
+           && _connectionStore.Get(_config.AiDefaultProvider!) is not null;
+
+    /// <summary>
+    /// Show or hide the AI-dependent surfaces (🧠 Assistant button + Chat
+    /// toggle) to match the current AI-enabled state. Called on startup and
+    /// after Settings is saved. If the user is sitting on the Assistant tab
+    /// when AI gets disabled, bump them back to Scripts so they can't get
+    /// stuck on a hidden tab.
+    /// </summary>
+    private void ApplyAiAvailability()
+    {
+        var enabled = IsAiEnabled();
+        _toolbar.IsAssistantModeVisible = enabled;
+
+        if (!enabled && _mode == AppMode.Assistant)
+        {
+            SwitchMode(AppMode.Scripts);
+            return;
+        }
+
+        if (_mode == AppMode.Scripts)
+        {
+            _toolbar.IsChatToggleVisible = enabled;
+            ApplyChatVisibility(enabled && _toolbar.IsChatVisible);
+        }
     }
 
     private void ApplyChatVisibility(bool visible)
@@ -277,7 +313,7 @@ public partial class MainWindow : Window
                 _scriptFormActions.SetRunLabel("▶ Run");
                 _scriptFormActions.CanRun = false;
                 _toolbar.ActionsContent = _scriptFormActions;
-                _toolbar.IsChatToggleVisible = true;
+                _toolbar.IsChatToggleVisible = IsAiEnabled();
                 ApplyChatVisibility(_toolbar.IsChatVisible);
                 break;
 
@@ -685,6 +721,8 @@ public partial class MainWindow : Window
         // Changing the vault path invalidates the currently-unlocked vault;
         // next access will hit a locked view and re-prompt.
         if (vaultChanged) _vaultService.Lock();
+
+        if (aiProviderChanged) ApplyAiAvailability();
 
         _config.Save();
 
