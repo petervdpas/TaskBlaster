@@ -47,6 +47,7 @@ public sealed class ScriptBlaster : IScriptBlaster
     {
         if (Interlocked.CompareExchange(ref _warmedUp, 1, 0) != 0) return;
         _ = typeof(UtilBlast.UtilBlastFactory).Assembly;
+        _ = typeof(AssemblyBlast.DynamicClassGenerator).Assembly;
         _ = typeof(AzureBlast.MssqlDatabase).Assembly;
         _ = typeof(GuiBlast.Prompts).Assembly;
         _ = typeof(NetworkBlast.NetClient).Assembly;

@@ -56,13 +56,14 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Avalonia 12, Avalonia.Controls.DataGrid, AvaloniaEdit + TextMateSharp.Grammars
 * Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
 * Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
-* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 1.2.1 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output
+* [UtilBlast](https://www.nuget.org/packages/UtilBlast) 2.0.0 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output. v2.0 dropped the dynamic-class generator and builder; that surface now lives in **AssemblyBlast**.
+* [AssemblyBlast](https://www.nuget.org/packages/AssemblyBlast) 1.0.0 — runtime C# type generation. Build a type programmatically via `DynamicClassBuilder` (Reflection.Emit), or compile a whole assembly from a JSON schema via `DynamicClassGenerator` (Roslyn) — and use the result in the same script.
 * [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.1 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
 * [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.1 — form specs and modal prompts
 * [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.1 — REST / OData / SOAP, vault-aware via the same resolver shape
 * [SqliteBlast](https://www.nuget.org/packages/SqliteBlast) 1.0.1 — local SQLite for staging/caching/migrations, vault-aware path
 * [SecretBlast](https://www.nuget.org/packages/SecretBlast) 1.0.3 — encrypted local vault
-* [AgentBlast](https://www.nuget.org/packages/AgentBlast) 1.0.0 — programmable LLM client + directing layer (knowledge blocks, picker, prompt builder, audit log); vault-agnostic via the same resolver shape
+* [AgentBlast](https://www.nuget.org/packages/AgentBlast) 1.1.0 — programmable LLM client + directing layer (knowledge blocks, picker, prompt builder, audit log); vault-agnostic via the same resolver shape
 
 ## Quick start
 
@@ -76,7 +77,7 @@ On first launch TaskBlaster creates `~/.taskblaster/` and seeds it with the bund
 
 ## Writing scripts
 
-Scripts are plain `.csx` files. TaskBlaster preimports the usual BCL namespaces (`System`, `System.IO`, `System.Linq`, `System.Text`, `System.Collections.Generic`, `System.Threading`, `System.Threading.Tasks`) and force-loads the Blast assemblies so you can `using GuiBlast;` / `using AzureBlast;` / `using NetworkBlast;` / `using SqliteBlast;` / `using UtilBlast.Extensions;` without a `#r`.
+Scripts are plain `.csx` files. TaskBlaster preimports the usual BCL namespaces (`System`, `System.IO`, `System.Linq`, `System.Text`, `System.Collections.Generic`, `System.Threading`, `System.Threading.Tasks`) and force-loads the Blast assemblies so you can `using GuiBlast;` / `using AzureBlast;` / `using NetworkBlast;` / `using SqliteBlast;` / `using UtilBlast.Extensions;` / `using AssemblyBlast;` without a `#r`.
 
 ### Top-level identifiers
 
@@ -356,8 +357,8 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/network-demo.csx`      | Anonymous httpbin GET via NetworkBlast.            |
 | `DemoScripts/network-odata-demo.csx`| Typed LINQ-flavored OData against the public Northwind service. |
 | `DemoScripts/sqlite-demo.csx`       | Local SQLite store via SqliteBlast — insert / query / transaction. |
-| `DemoScripts/json-csv-demo.csx`     | UtilBlast 1.1 JSON ⇆ CSV bridge + JObject helpers.   |
-| `DemoScripts/blast-display-demo.csx`| UtilBlast 1.2 `Blast` display DSL — heading / status / table / kv. |
+| `DemoScripts/json-csv-demo.csx`     | UtilBlast JSON ⇆ CSV bridge + JObject helpers.       |
+| `DemoScripts/blast-display-demo.csx`| UtilBlast `Blast` display DSL — heading / status / table / kv. |
 | `DemoScripts/connections-demo.csx`  | Named-connection layer end-to-end: dynamic field access, typed binding, vault-ref dereferencing. |
 | `DemoScripts/acme-domain-demo.csx`  | Walks the bundled `Acme.Domain` canonical-models package — Customer / Person / Address / Order. Requires importing the .nupkg via Settings → External first. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |

@@ -90,9 +90,9 @@ public sealed class LoadedReferenceCatalogTests : IDisposable
     [Fact]
     public void Snapshot_SurfacesUtilBlastFrontDoorTypes()
     {
-        // TaskBlaster references UtilBlast 1.2.1+, which carries the
-        // attribute we just added. The catalog should expose the two
-        // declared facade types.
+        // TaskBlaster references UtilBlast 2.0+, which carries the
+        // Blast.PrimaryFacade assembly attribute. The catalog should
+        // expose the two declared facade types.
         var snapshot = _catalog.Snapshot();
         var utilBlast = snapshot.FirstOrDefault(r =>
             string.Equals(r.Name, "UtilBlast", StringComparison.OrdinalIgnoreCase));
