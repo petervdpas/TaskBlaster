@@ -253,7 +253,16 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
         if (_field is null || _selected is null) return;
         var idx = _field.Options.IndexOf(_selected);
         if (idx < 0 || idx >= _displayItems.Count) return;
+
+        // Replacing the string at idx makes ListBox's SelectedItem reference
+        // stale; selection drops and a phantom SelectionChanged(null) fires.
+        // Suppress the spurious event and re-pin the selection by index.
+        var wasSuppressed = _suppress;
+        _suppress = true;
         _displayItems[idx] = FormatOption(_selected);
+        _optionList.SelectedIndex = idx;
+        if (!wasSuppressed)
+            Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
     }
 
     private static string FormatOption(OptionEditor o) =>
@@ -315,6 +324,13 @@ public partial class OptionsPropertyEditor : UserControl, IFieldPropertyEditor
         _field.Options.Remove(_selected);
         _selected = null;
         RefreshOptionList();
+
+        _suppress = true;
+        _valueBox.Text = "";
+        _labelBox.Text = "";
+        _valueCombo.SelectedItem = null;
+        Dispatcher.UIThread.Post(() => _suppress = false, DispatcherPriority.Loaded);
+
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

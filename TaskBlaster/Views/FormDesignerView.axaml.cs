@@ -21,6 +21,8 @@ namespace TaskBlaster.Views;
 /// </summary>
 public partial class FormDesignerView : UserControl
 {
+    private readonly Grid _titleRow;
+    private readonly Grid _fieldsRow;
     private readonly TextBox _titleBox;
     private readonly ListBox _fieldList;
     private readonly TextBox _keyBox;
@@ -56,6 +58,8 @@ public partial class FormDesignerView : UserControl
     {
         InitializeComponent();
 
+        _titleRow         = this.FindControl<Grid>("TitleRow")!;
+        _fieldsRow        = this.FindControl<Grid>("FieldsRow")!;
         _titleBox         = this.FindControl<TextBox>("TitleBox")!;
         _fieldList        = this.FindControl<ListBox>("FieldList")!;
         _keyBox           = this.FindControl<TextBox>("KeyBox")!;
@@ -114,6 +118,10 @@ public partial class FormDesignerView : UserControl
 
     private void RefreshAll()
     {
+        var hasDoc = _document is not null;
+        _titleRow.IsVisible  = hasDoc;
+        _fieldsRow.IsVisible = hasDoc;
+
         _updatingFromDocument = true;
         _titleBox.Text = _document?.Title ?? "";
         _updatingFromDocument = false;
@@ -152,6 +160,15 @@ public partial class FormDesignerView : UserControl
     {
         var field = _document?.SelectedField;
         _updatingFromDocument = true;
+
+        // Keep the listbox highlight in sync with the document. AddField fires
+        // FieldsChanged before SelectField, so RefreshFieldList runs while
+        // SelectedField is still null; without this, the new row never lights up.
+        var fields = _document?.Fields;
+        var idx = -1;
+        if (field is not null && fields is not null)
+            for (int i = 0; i < fields.Count; i++) if (ReferenceEquals(fields[i], field)) { idx = i; break; }
+        if (_fieldList.SelectedIndex != idx) _fieldList.SelectedIndex = idx;
 
         if (field is null)
         {
@@ -254,7 +271,19 @@ public partial class FormDesignerView : UserControl
 
     private void OnFormSettingsClicked(object? sender, RoutedEventArgs e) => FormSettingsClicked?.Invoke(this, EventArgs.Empty);
 
-    private void OnAddField(object? sender, RoutedEventArgs e)    => _document?.AddField();
+    private void OnAddField(object? sender, RoutedEventArgs e)
+    {
+        if (_document is null) return;
+        _document.AddField();
+        // Land focus in Key with the auto-generated name selected so the user
+        // can just start typing the real name. Posted at Loaded priority so it
+        // runs after BindSelectedField's own deferred unsuppression.
+        Dispatcher.UIThread.Post(() =>
+        {
+            _keyBox.Focus();
+            _keyBox.SelectAll();
+        }, DispatcherPriority.Loaded);
+    }
     private void OnRemoveField(object? sender, RoutedEventArgs e) => _document?.RemoveSelected();
     private void OnMoveUp(object? sender, RoutedEventArgs e)      => _document?.MoveUp();
     private void OnMoveDown(object? sender, RoutedEventArgs e)    => _document?.MoveDown();
