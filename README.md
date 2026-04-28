@@ -364,6 +364,7 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoKnowledge/acme-domain-rules.md`| Knowledge block scoped to scripts that load the `Acme.Domain` namespace. |
 | `DemoKnowledge/mssql-conventions.md`| MS-SQL conventions block; fires when `AzureBlast.MssqlDatabase` is in scope. Pulls in `sql-shared` via `includes:`. |
 | `DemoKnowledge/networkblast-when-loaded.md` | NetworkBlast usage notes; fires when `NetworkBlast.NetClient` is loaded. |
+| `DemoKnowledge/agentblast-when-loaded.md` | AgentBlast usage notes; fires when any `AgentBlast.*` namespace is loaded. Tells the model what the package is and the host-glue pattern, since it post-dates the training cutoff. |
 | `DemoKnowledge/runbook-queue-drain.md` | Operational runbook block; only fires when the caller hands the picker a `runbook` tag (`tag:runbook` rule shape). |
 | `DemoKnowledge/sql-shared.md`       | Shared SQL helper text with no `when:` rule; never picked as an entry point, only pulled in via another block's `includes:`. |
 
