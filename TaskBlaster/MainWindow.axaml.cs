@@ -20,6 +20,7 @@ using TaskBlaster.Externals;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Views;
+using UtilBlast.Interfaces;
 
 namespace TaskBlaster;
 
@@ -58,6 +59,7 @@ public partial class MainWindow : Window
     private readonly LoadedReferenceCatalog _catalog;
     private readonly PromptArtifactWriter _artifacts;
     private readonly Lazy<AgentClient> _ai;
+    private readonly IBlastContext _ctx;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -77,7 +79,8 @@ public partial class MainWindow : Window
         Lazy<IKnowledgeBlockStore> knowledge,
         LoadedReferenceCatalog catalog,
         PromptArtifactWriter artifacts,
-        Lazy<AgentClient> ai)
+        Lazy<AgentClient> ai,
+        IBlastContext ctx)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";
@@ -92,7 +95,16 @@ public partial class MainWindow : Window
         _catalog = catalog;
         _artifacts = artifacts;
         _ai = ai;
+        _ctx = ctx;
         _prompts = promptFactory.Create(this);
+
+        // Bind logical folder names to live providers — so Settings folder
+        // edits propagate without re-registration. The default extensions
+        // line the registry up with how each folder is filtered today
+        // (forms = *.json, scripts = *.csx).
+        _ctx.Folders.Register("forms",   () => _config.FormsFolder,   ".json");
+        _ctx.Folders.Register("scripts", () => _config.ScriptsFolder, ".csx");
+        _ctx.Folders.Register("vault",   () => _config.VaultFolder);
 
         _toolbar   = this.FindControl<ToolbarView>("Toolbar")!;
         _sidebar   = this.FindControl<SidebarView>("Sidebar")!;
@@ -498,7 +510,8 @@ public partial class MainWindow : Window
         try
         {
             var globals = new ScriptGlobals(
-                new ScriptSecrets(_vaultService, EnsureVaultUnlockedAsync, _connectionStore));
+                new ScriptSecrets(_vaultService, EnsureVaultUnlockedAsync, _connectionStore),
+                _ctx);
 
             result = await _blaster.RunAsync(
                 scriptText,

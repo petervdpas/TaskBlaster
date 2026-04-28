@@ -18,6 +18,8 @@ using TaskBlaster.Interfaces;
 using TaskBlaster.Secrets;
 using TaskBlaster.UI;
 using TaskBlaster.Views;
+using UtilBlast;
+using UtilBlast.Interfaces;
 
 namespace TaskBlaster;
 
@@ -203,6 +205,13 @@ class Program
         // and the JIT cost of provider methods all add up.
         services.AddSingleton<Lazy<AgentClient>>(sp =>
             new Lazy<AgentClient>(() => sp.GetRequiredService<AgentClient>()));
+
+        // UtilBlast system context — folders registry is populated with
+        // live providers in MainWindow (folders move when the user edits
+        // Settings, so we bind the lambda once and let the registry call
+        // back into IConfigStore on every read).
+        services.AddSingleton<IBlastFolders, BlastFolders>();
+        services.AddSingleton<IBlastContext, BlastContext>();
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

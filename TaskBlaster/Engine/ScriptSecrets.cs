@@ -187,6 +187,16 @@ public sealed class ScriptSecrets
     }
 
     /// <summary>
+    /// Resolves any <c>optionsFrom</c> hints in a form JSON document
+    /// against the live vault, returning the rewritten JSON ready for
+    /// <c>DynamicForm.ShowJsonAsync</c>. Documents without hints
+    /// round-trip unchanged. Triggers the standard unlock-on-demand
+    /// handshake the first time a hint actually needs the vault.
+    /// </summary>
+    public Task<string> ExpandFormJsonAsync(string json, CancellationToken ct = default)
+        => Forms.FormJsonExpander.ExpandAsync(json, _vault, ct);
+
+    /// <summary>
     /// Category names the vault knows about. Useful for building form
     /// dropdowns (e.g. <c>Prompts.Select("Category", "…", Secrets.Categories())</c>).
     /// Values are never included.

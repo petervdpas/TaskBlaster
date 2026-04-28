@@ -7,6 +7,7 @@ using SecretBlast;
 using TaskBlaster.Engine;
 using TaskBlaster.Interfaces;
 using TaskBlaster.Secrets;
+using UtilBlast;
 
 namespace TaskBlaster.Tests;
 
@@ -49,7 +50,7 @@ public sealed class ScriptSecretsTests : IDisposable
         await _vault.InitializeAsync("pw", Ct);
         await _vault.AddAsync("api", "token", "super-secret", ct: Ct);
 
-        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
+        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask), new BlastContext());
 
         var blaster = new ScriptBlaster();
         var output = new System.Collections.Generic.List<string>();
@@ -74,7 +75,7 @@ public sealed class ScriptSecretsTests : IDisposable
         await _vault.InitializeAsync("pw", Ct);
         await _vault.AddAsync("github", "pat", "ghp_xxx", ct: Ct);
 
-        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
+        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask), new BlastContext());
 
         var blaster = new ScriptBlaster();
         var output = new System.Collections.Generic.List<string>();
@@ -101,7 +102,7 @@ public sealed class ScriptSecretsTests : IDisposable
         //   1. abort — Console.WriteLine("after") never runs,
         //   2. report as Cancelled (⊘), not Error (✗),
         //   3. surface only the clean message, no stack trace in output.
-        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask));
+        var globals = new ScriptGlobals(new ScriptSecrets(_vault, _ => Task.CompletedTask), new BlastContext());
 
         var blaster = new ScriptBlaster();
         var output = new System.Collections.Generic.List<string>();

@@ -1,0 +1,22 @@
+{
+  "title": "Move data between SQL DBs",
+  "size": { "width": 480, "height": 360 },
+  "fields": [
+    { "key": "sourceDb", "type": "select", "label": "Source DB",
+      "required": true,
+      "optionsFrom": { "source": "vault", "category": "sql-dbs" } },
+    { "key": "targetDb", "type": "select", "label": "Target DB",
+      "required": true,
+      "optionsFrom": { "source": "vault", "category": "sql-dbs" } },
+    { "key": "table", "type": "text", "label": "Table",
+      "required": true, "placeholder": "dbo.Customers" },
+    { "key": "limit", "type": "number", "label": "Row limit",
+      "min": 1, "max": 100000, "default": 100 },
+    { "key": "dryRun", "type": "switch", "label": "Dry run (read only, no insert)",
+      "default": true }
+  ],
+  "actions": [
+    { "id": "run",    "label": "Run",    "submit":  true },
+    { "id": "cancel", "label": "Cancel", "dismiss": true }
+  ]
+}
