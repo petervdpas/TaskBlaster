@@ -8,8 +8,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TaskBlaster.Connections;
-using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Ai;
 
@@ -44,16 +42,16 @@ public sealed class AnthropicProvider : IAiProvider
     };
 
     public async Task<AiPingResult> PingAsync(
-        Connection connection,
-        IVaultService vault,
+        string connectionName,
+        ConnectionFieldResolver resolver,
         HttpClient http,
         CancellationToken ct)
     {
         try
         {
-            var apiKey  = await AiClient.ResolveFieldAsync(connection, "apikey",  vault, ct).ConfigureAwait(false);
-            var baseUrl = await AiClient.ResolveFieldAsync(connection, "baseUrl", vault, ct).ConfigureAwait(false);
-            var model   = await AiClient.ResolveFieldAsync(connection, "model",   vault, ct).ConfigureAwait(false);
+            var apiKey  = await resolver(connectionName, "apikey",  ct).ConfigureAwait(false);
+            var baseUrl = await resolver(connectionName, "baseUrl", ct).ConfigureAwait(false);
+            var model   = await resolver(connectionName, "model",   ct).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(apiKey))  return AiPingResult.Fail("Connection has no apikey field (or it resolved empty).");
             if (string.IsNullOrEmpty(baseUrl)) return AiPingResult.Fail("Connection has no baseUrl field.");
@@ -105,19 +103,19 @@ public sealed class AnthropicProvider : IAiProvider
     }
 
     public async Task<AiCompletionResult> SendAsync(
-        Connection connection,
+        string connectionName,
         string systemPrompt,
         IReadOnlyList<AiMessage> messages,
-        IVaultService vault,
+        ConnectionFieldResolver resolver,
         HttpClient http,
         CancellationToken ct)
     {
         try
         {
-            var apiKey  = await AiClient.ResolveFieldAsync(connection, "apikey",  vault, ct).ConfigureAwait(false);
-            var baseUrl = await AiClient.ResolveFieldAsync(connection, "baseUrl", vault, ct).ConfigureAwait(false);
-            var model   = await AiClient.ResolveFieldAsync(connection, "model",   vault, ct).ConfigureAwait(false);
-            var maxTokensRaw = await AiClient.ResolveFieldAsync(connection, "maxTokens", vault, ct).ConfigureAwait(false);
+            var apiKey  = await resolver(connectionName, "apikey",  ct).ConfigureAwait(false);
+            var baseUrl = await resolver(connectionName, "baseUrl", ct).ConfigureAwait(false);
+            var model   = await resolver(connectionName, "model",   ct).ConfigureAwait(false);
+            var maxTokensRaw = await resolver(connectionName, "maxTokens", ct).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(apiKey))  return AiCompletionResult.Fail("Connection has no apikey field (or it resolved empty).");
             if (string.IsNullOrEmpty(baseUrl)) return AiCompletionResult.Fail("Connection has no baseUrl field.");

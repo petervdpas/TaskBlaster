@@ -4,8 +4,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using TaskBlaster.Connections;
-using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Ai;
 
@@ -72,10 +70,28 @@ public sealed record AiCompletionResult(
 }
 
 /// <summary>
+/// Connection-aware resolver delegate. Same shape Blast libraries already
+/// consume (NetworkBlast, AzureBlast): the first arg is the connection
+/// name (== resolver category in the Blast convention), the second is the
+/// field name. Plaintext fields return their literal; vault-backed fields
+/// go through whatever vault machinery the host wires in. A field that
+/// doesn't exist or resolves empty MUST come back as <c>string.Empty</c>
+/// — providers treat absent and empty the same way.
+/// </summary>
+public delegate Task<string> ConnectionFieldResolver(
+    string connectionName,
+    string fieldName,
+    CancellationToken ct);
+
+/// <summary>
 /// One AI provider. Implementations are stateless and registered in
 /// DI; <see cref="AiClient"/> dispatches to whichever one matches the
-/// connection's <c>kind</c> field. Future verbs (ChatAsync,
-/// StreamAsync, etc.) live here too — Ping is just the first.
+/// connection's <c>kind</c> field. The interface is deliberately
+/// vault-free and connection-store-free: the provider never sees a
+/// <c>Connection</c> object or an <c>IVaultService</c>, only a
+/// <see cref="ConnectionFieldResolver"/>. That keeps providers easy to
+/// extract into a future <c>AgentBlast</c> nuget without dragging
+/// TaskBlaster types along.
 /// </summary>
 public interface IAiProvider
 {
@@ -94,7 +110,11 @@ public interface IAiProvider
     IReadOnlyList<AiModelInfo> KnownModels { get; }
 
     /// <summary>Send a minimal request and classify the response into success / friendly failure.</summary>
-    Task<AiPingResult> PingAsync(Connection connection, IVaultService vault, HttpClient http, CancellationToken ct);
+    Task<AiPingResult> PingAsync(
+        string connectionName,
+        ConnectionFieldResolver resolver,
+        HttpClient http,
+        CancellationToken ct);
 
     /// <summary>
     /// Send a chat completion. <paramref name="systemPrompt"/> is the
@@ -103,10 +123,10 @@ public interface IAiProvider
     /// user message as the final entry.
     /// </summary>
     Task<AiCompletionResult> SendAsync(
-        Connection connection,
+        string connectionName,
         string systemPrompt,
         IReadOnlyList<AiMessage> messages,
-        IVaultService vault,
+        ConnectionFieldResolver resolver,
         HttpClient http,
         CancellationToken ct);
 }
@@ -121,11 +141,16 @@ public interface IAiProvider
 public sealed class AiClient
 {
     private readonly HttpClient _http;
+    private readonly ConnectionFieldResolver _resolver;
     private readonly IReadOnlyDictionary<string, IAiProvider> _providersByKind;
 
-    public AiClient(HttpClient http, IEnumerable<IAiProvider> providers)
+    public AiClient(
+        HttpClient http,
+        IEnumerable<IAiProvider> providers,
+        ConnectionFieldResolver resolver)
     {
         _http = http;
+        _resolver = resolver;
         _providersByKind = providers.ToDictionary(
             p => p.Kind,
             p => p,
@@ -143,15 +168,15 @@ public sealed class AiClient
     public IReadOnlyList<IAiProvider> AllProviders => _providersByKind.Values.ToArray();
 
     /// <summary>
-    /// Ping the configured provider. The connection must carry a plaintext
-    /// <c>kind</c> field whose value matches a registered provider.
+    /// Ping the configured provider. The connection (looked up by name
+    /// through the wired resolver) must carry a plaintext <c>kind</c>
+    /// field whose value matches a registered provider.
     /// </summary>
     public async Task<AiPingResult> PingAsync(
-        Connection connection,
-        IVaultService vault,
+        string connectionName,
         CancellationToken ct = default)
     {
-        var kind = await ResolveFieldAsync(connection, "kind", vault, ct).ConfigureAwait(false);
+        var kind = await _resolver(connectionName, "kind", ct).ConfigureAwait(false);
         if (string.IsNullOrEmpty(kind))
             return AiPingResult.Fail(
                 "Connection has no 'kind' field. Add a plaintext field 'kind' with one of: "
@@ -162,7 +187,7 @@ public sealed class AiClient
                 $"No provider registered for kind '{kind}'. Known kinds: "
                 + string.Join(", ", _providersByKind.Keys));
 
-        return await provider.PingAsync(connection, vault, _http, ct).ConfigureAwait(false);
+        return await provider.PingAsync(connectionName, _resolver, _http, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -171,13 +196,12 @@ public sealed class AiClient
     /// field selects the provider.
     /// </summary>
     public async Task<AiCompletionResult> SendAsync(
-        Connection connection,
+        string connectionName,
         string systemPrompt,
         IReadOnlyList<AiMessage> messages,
-        IVaultService vault,
         CancellationToken ct = default)
     {
-        var kind = await ResolveFieldAsync(connection, "kind", vault, ct).ConfigureAwait(false);
+        var kind = await _resolver(connectionName, "kind", ct).ConfigureAwait(false);
         if (string.IsNullOrEmpty(kind))
             return AiCompletionResult.Fail(
                 "Connection has no 'kind' field. Add a plaintext field 'kind' with one of: "
@@ -188,28 +212,6 @@ public sealed class AiClient
                 $"No provider registered for kind '{kind}'. Known kinds: "
                 + string.Join(", ", _providersByKind.Keys));
 
-        return await provider.SendAsync(connection, systemPrompt, messages, vault, _http, ct).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Look up a connection field case-insensitively and resolve it.
-    /// Plaintext fields return the literal; vault-backed fields go
-    /// through <paramref name="vault"/>. Missing or empty → empty string,
-    /// so callers can treat absent and empty fields the same way.
-    /// </summary>
-    public static async Task<string> ResolveFieldAsync(
-        Connection conn,
-        string fieldName,
-        IVaultService vault,
-        CancellationToken ct = default)
-    {
-        var match = conn.Fields.FirstOrDefault(kvp =>
-            string.Equals(kvp.Key, fieldName, StringComparison.OrdinalIgnoreCase));
-        if (match.Value is null) return string.Empty;
-
-        var field = match.Value;
-        if (!string.IsNullOrEmpty(field.Value)) return field.Value;
-        if (field.FromVault is { } vr) return await vault.ResolveAsync(vr.Category, vr.Key, ct).ConfigureAwait(false);
-        return string.Empty;
+        return await provider.SendAsync(connectionName, systemPrompt, messages, _resolver, _http, ct).ConfigureAwait(false);
     }
 }

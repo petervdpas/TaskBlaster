@@ -6,8 +6,6 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using TaskBlaster.Ai;
-using TaskBlaster.Connections;
-using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Tests;
 
@@ -16,17 +14,20 @@ namespace TaskBlaster.Tests;
 /// <see cref="AnthropicProvider"/> implementation. Uses a mock
 /// <see cref="HttpMessageHandler"/> so we can simulate every Anthropic
 /// response shape (200, 401, 404, network failure) without touching
-/// the network.
+/// the network, and a stub <see cref="ConnectionFieldResolver"/> so the
+/// AI layer is exercised without involving the vault or connection store.
 /// </summary>
 public sealed class AiClientTests
 {
+    private const string Anthropic = "Anthropic";
+
     [Fact]
     public async Task PingAsync_HappyPath_ReturnsSuccessWithLatency()
     {
-        var (client, vault) = NewClient(StubHandler.Ok("""{"id":"msg_01","content":[{"type":"text","text":"ok"}]}"""));
-        var conn = NewAnthropicConnection(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Ok("""{"id":"msg_01","content":[{"type":"text","text":"ok"}]}"""),
+            AnthropicResolver(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.True(result.Success);
         Assert.Equal(200, result.StatusCode);
@@ -37,10 +38,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_401_MapsToInvalidApiKey()
     {
-        var (client, vault) = NewClient(StubHandler.Status(HttpStatusCode.Unauthorized, """{"error":{"message":"invalid x-api-key"}}"""));
-        var conn = NewAnthropicConnection(apiKey: "sk-bogus", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Status(HttpStatusCode.Unauthorized, """{"error":{"message":"invalid x-api-key"}}"""),
+            AnthropicResolver(apiKey: "sk-bogus", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.False(result.Success);
         Assert.Equal(401, result.StatusCode);
@@ -50,10 +51,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_404_MapsToEndpointOrModelNotFound()
     {
-        var (client, vault) = NewClient(StubHandler.Status(HttpStatusCode.NotFound, "{}"));
-        var conn = NewAnthropicConnection(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "no-such-model");
+        var client = NewClient(StubHandler.Status(HttpStatusCode.NotFound, "{}"),
+            AnthropicResolver(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "no-such-model"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.False(result.Success);
         Assert.Contains("model name", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -62,10 +63,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_NetworkException_MapsToNetworkError()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new HttpRequestException("name resolution failed")));
-        var conn = NewAnthropicConnection(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Throws(new HttpRequestException("name resolution failed")),
+            AnthropicResolver(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.False(result.Success);
         Assert.Contains("Network error", result.Message);
@@ -82,12 +83,10 @@ public sealed class AiClientTests
             Content = new StringContent("ok"),
             RequestMessage = req,
         }));
-        var http = new HttpClient(capturing);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        var vault = new StubVault();
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com/v1/messages", model: "claude-opus-4-7");
+        var client = NewClient(capturing,
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com/v1/messages", model: "claude-opus-4-7"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.True(result.Success);
         Assert.NotNull(capturing.LastUrl);
@@ -97,16 +96,13 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_MissingKindField_FailsBeforeReachingProvider()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        // No 'kind' field at all.
-        var conn = new Connection("noKind", new Dictionary<string, ConnectionField>
-        {
-            ["baseUrl"] = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]   = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]  = ConnectionField.Plaintext("k"),
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set("noKind", "baseUrl", "https://api.anthropic.com")
+                .Set("noKind", "model", "claude-opus-4-7")
+                .Set("noKind", "apikey", "k"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync("noKind");
 
         Assert.False(result.Success);
         Assert.Contains("kind", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -115,16 +111,14 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_UnknownKind_ListsRegisteredKinds()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = new Connection("alien", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]    = ConnectionField.Plaintext("alien-llm"),
-            ["baseUrl"] = ConnectionField.Plaintext("https://example.com"),
-            ["model"]   = ConnectionField.Plaintext("x"),
-            ["apikey"]  = ConnectionField.Plaintext("k"),
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set("alien", "kind", "alien-llm")
+                .Set("alien", "baseUrl", "https://example.com")
+                .Set("alien", "model", "x")
+                .Set("alien", "apikey", "k"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync("alien");
 
         Assert.False(result.Success);
         Assert.Contains("alien-llm", result.Message);
@@ -132,27 +126,20 @@ public sealed class AiClientTests
     }
 
     [Fact]
-    public async Task PingAsync_VaultBackedApiKey_ResolvesThroughVault()
+    public async Task PingAsync_VaultBackedApiKey_ResolvesThroughResolver()
     {
-        // Confirm the Test button can use the same vault-ref shape the
-        // user actually sets up in the Connections tab.
+        // The resolver delegate models the vault-backed-apikey case: it
+        // returns the resolved string regardless of whether the underlying
+        // field was plaintext or vault-ref. The provider does not care.
         var capturing = new StubHandler((req, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("ok"),
             RequestMessage = req,
         }));
-        var http = new HttpClient(capturing);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        var vault = new StubVault { ["Anthropic", "apikey"] = "sk-from-vault" };
-        var conn = new Connection("Anthropic", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]    = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"] = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]   = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]  = ConnectionField.OfVault("Anthropic", "apikey"),
-        });
+        var client = NewClient(capturing,
+            AnthropicResolver(apiKey: "sk-from-vault", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.True(result.Success);
         Assert.Equal("sk-from-vault", capturing.LastApiKeyHeader);
@@ -161,16 +148,14 @@ public sealed class AiClientTests
     [Fact]
     public async Task PingAsync_MissingApiKeyField_FailsCleanly()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = new Connection("Anthropic", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]    = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"] = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]   = ConnectionField.Plaintext("claude-opus-4-7"),
-            // no apikey
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set(Anthropic, "kind", "anthropic")
+                .Set(Anthropic, "baseUrl", "https://api.anthropic.com")
+                .Set(Anthropic, "model", "claude-opus-4-7"));
+                // no apikey
 
-        var result = await client.PingAsync(conn, vault);
+        var result = await client.PingAsync(Anthropic);
 
         Assert.False(result.Success);
         Assert.Contains("apikey", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -188,26 +173,50 @@ public sealed class AiClientTests
     [Fact]
     public void AiClient_FindProvider_IsCaseInsensitive()
     {
-        var (client, _) = NewClient(StubHandler.Throws(new InvalidOperationException()));
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException()), new StubResolver());
         Assert.NotNull(client.FindProvider("anthropic"));
         Assert.NotNull(client.FindProvider("ANTHROPIC"));
         Assert.NotNull(client.FindProvider("Anthropic"));
         Assert.Null(client.FindProvider("openai")); // not registered
     }
 
-    // ---------- helpers ----------
+    [Fact]
+    public async Task PingAsync_PassesConnectionNameToResolver()
+    {
+        // Guard the contract: the provider must ask the resolver for the
+        // exact connection name AiClient was called with, not e.g. its kind.
+        var seenNames = new List<string>();
+        var resolver = new ConnectionFieldResolver((name, field, _) =>
+        {
+            seenNames.Add(name);
+            return field switch
+            {
+                "kind"    => Task.FromResult("anthropic"),
+                "apikey"  => Task.FromResult("k"),
+                "baseUrl" => Task.FromResult("https://api.anthropic.com"),
+                "model"   => Task.FromResult("claude-opus-4-7"),
+                _         => Task.FromResult(string.Empty),
+            };
+        });
+        var http = new HttpClient(StubHandler.Ok("""{"content":[{"type":"text","text":"ok"}]}"""));
+        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() }, resolver);
+
+        await client.PingAsync("MyAiConnection");
+
+        Assert.NotEmpty(seenNames);
+        Assert.All(seenNames, n => Assert.Equal("MyAiConnection", n));
+    }
 
     // ───────────────────────── SendAsync ────────────────────────────
 
     [Fact]
     public async Task SendAsync_HappyPath_ReturnsExtractedText()
     {
-        var (client, vault) = NewClient(StubHandler.Ok(
-            """{"id":"msg_01","content":[{"type":"text","text":"Hi from Claude."}],"stop_reason":"end_turn"}"""));
-        var conn = NewAnthropicConnection(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Ok(
+            """{"id":"msg_01","content":[{"type":"text","text":"Hi from Claude."}],"stop_reason":"end_turn"}"""),
+            AnthropicResolver(apiKey: "sk-test", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "you are helpful",
-            new[] { AiMessage.User("hi") }, vault);
+        var result = await client.SendAsync(Anthropic, "you are helpful", new[] { AiMessage.User("hi") });
 
         Assert.True(result.Success);
         Assert.Equal(200, result.StatusCode);
@@ -218,11 +227,11 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_MultipleTextBlocks_AreConcatenated()
     {
-        var (client, vault) = NewClient(StubHandler.Ok(
-            """{"content":[{"type":"text","text":"first"},{"type":"text","text":"second"}]}"""));
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Ok(
+            """{"content":[{"type":"text","text":"first"},{"type":"text","text":"second"}]}"""),
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync(Anthropic, "", new[] { AiMessage.User("x") });
 
         Assert.True(result.Success);
         Assert.Equal("first\nsecond", result.Text);
@@ -241,18 +250,12 @@ public sealed class AiClientTests
                 RequestMessage = req,
             });
         });
-        var http = new HttpClient(capturing);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(capturing,
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, systemPrompt: "", new[] { AiMessage.User("x") }, new StubVault());
+        var result = await client.SendAsync(Anthropic, systemPrompt: "", new[] { AiMessage.User("x") });
 
         Assert.True(result.Success);
-        // The handler captured the request; we can't easily peek the body
-        // without a body-capturing variant — but the behaviour we care about
-        // (no exception, success result) is already covered by the call
-        // returning ok. This test mainly guards the "do not throw on empty
-        // system" path.
     }
 
     [Fact]
@@ -267,11 +270,10 @@ public sealed class AiClientTests
                 Content = new StringContent("""{"content":[{"type":"text","text":"ok"}]}"""),
             };
         });
-        var http = new HttpClient(handler);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(handler,
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        await client.SendAsync(conn, systemPrompt: "you are helpful", new[] { AiMessage.User("x") }, new StubVault());
+        await client.SendAsync(Anthropic, systemPrompt: "you are helpful", new[] { AiMessage.User("x") });
 
         Assert.NotNull(capturedBody);
         Assert.Contains("\"system\":\"you are helpful\"", capturedBody);
@@ -280,10 +282,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_NoMessages_FailsCleanly()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "sys", Array.Empty<AiMessage>(), vault);
+        var result = await client.SendAsync(Anthropic, "sys", Array.Empty<AiMessage>());
 
         Assert.False(result.Success);
         Assert.Contains("at least one message", result.Error);
@@ -292,11 +294,11 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_401_MapsToInvalidApiKey()
     {
-        var (client, vault) = NewClient(StubHandler.Status(HttpStatusCode.Unauthorized,
-            """{"error":{"message":"invalid x-api-key"}}"""));
-        var conn = NewAnthropicConnection(apiKey: "bogus", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Status(HttpStatusCode.Unauthorized,
+            """{"error":{"message":"invalid x-api-key"}}"""),
+            AnthropicResolver(apiKey: "bogus", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync(Anthropic, "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Equal(401, result.StatusCode);
@@ -306,10 +308,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_NetworkException_MapsToNetworkError()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new HttpRequestException("dns fail")));
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Throws(new HttpRequestException("dns fail")),
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync(Anthropic, "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Contains("Network error", result.Error);
@@ -318,10 +320,10 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_ResponseWithNoTextContent_FailsCleanly()
     {
-        var (client, vault) = NewClient(StubHandler.Ok("""{"content":[{"type":"image","source":"..."}]}"""));
-        var conn = NewAnthropicConnection(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7");
+        var client = NewClient(StubHandler.Ok("""{"content":[{"type":"image","source":"..."}]}"""),
+            AnthropicResolver(apiKey: "k", baseUrl: "https://api.anthropic.com", model: "claude-opus-4-7"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync(Anthropic, "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Contains("no text content", result.Error);
@@ -330,15 +332,13 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_MissingKindField_FailsBeforeReachingProvider()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = new Connection("X", new Dictionary<string, ConnectionField>
-        {
-            ["baseUrl"] = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]   = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]  = ConnectionField.Plaintext("k"),
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set("X", "baseUrl", "https://api.anthropic.com")
+                .Set("X", "model", "claude-opus-4-7")
+                .Set("X", "apikey", "k"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync("X", "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Contains("'kind' field", result.Error);
@@ -349,17 +349,15 @@ public sealed class AiClientTests
     {
         // Silent fallback on bad input would hide typos like "8k" — a
         // common mistake that's hard to debug otherwise. Strict fail.
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = new Connection("X", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]      = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"]   = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]     = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]    = ConnectionField.Plaintext("k"),
-            ["maxTokens"] = ConnectionField.Plaintext("8k"),
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set("X", "kind",      "anthropic")
+                .Set("X", "baseUrl",   "https://api.anthropic.com")
+                .Set("X", "model",     "claude-opus-4-7")
+                .Set("X", "apikey",    "k")
+                .Set("X", "maxTokens", "8k"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync("X", "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Contains("maxTokens", result.Error);
@@ -369,17 +367,15 @@ public sealed class AiClientTests
     [Fact]
     public async Task SendAsync_NegativeMaxTokensField_FailsWithClearMessage()
     {
-        var (client, vault) = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")));
-        var conn = new Connection("X", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]      = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"]   = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]     = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]    = ConnectionField.Plaintext("k"),
-            ["maxTokens"] = ConnectionField.Plaintext("-1"),
-        });
+        var client = NewClient(StubHandler.Throws(new InvalidOperationException("HTTP should not be called")),
+            new StubResolver()
+                .Set("X", "kind",      "anthropic")
+                .Set("X", "baseUrl",   "https://api.anthropic.com")
+                .Set("X", "model",     "claude-opus-4-7")
+                .Set("X", "apikey",    "k")
+                .Set("X", "maxTokens", "-1"));
 
-        var result = await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, vault);
+        var result = await client.SendAsync("X", "sys", new[] { AiMessage.User("x") });
 
         Assert.False(result.Success);
         Assert.Contains("positive integer", result.Error);
@@ -397,18 +393,15 @@ public sealed class AiClientTests
                 Content = new StringContent("""{"content":[{"type":"text","text":"ok"}]}"""),
             };
         });
-        var http = new HttpClient(handler);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        var conn = new Connection("X", new Dictionary<string, ConnectionField>
-        {
-            ["kind"]      = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"]   = ConnectionField.Plaintext("https://api.anthropic.com"),
-            ["model"]     = ConnectionField.Plaintext("claude-opus-4-7"),
-            ["apikey"]    = ConnectionField.Plaintext("k"),
-            ["maxTokens"] = ConnectionField.Plaintext("1024"),
-        });
+        var client = NewClient(handler,
+            new StubResolver()
+                .Set("X", "kind",      "anthropic")
+                .Set("X", "baseUrl",   "https://api.anthropic.com")
+                .Set("X", "model",     "claude-opus-4-7")
+                .Set("X", "apikey",    "k")
+                .Set("X", "maxTokens", "1024"));
 
-        await client.SendAsync(conn, "sys", new[] { AiMessage.User("x") }, new StubVault());
+        await client.SendAsync("X", "sys", new[] { AiMessage.User("x") });
 
         Assert.NotNull(capturedBody);
         Assert.Contains("\"max_tokens\":1024", capturedBody);
@@ -416,21 +409,36 @@ public sealed class AiClientTests
 
     // ───────────────────────── helpers ──────────────────────────────
 
-    private static (AiClient client, StubVault vault) NewClient(StubHandler handler)
+    private static AiClient NewClient(StubHandler handler, StubResolver resolver)
     {
         var http = new HttpClient(handler);
-        var client = new AiClient(http, new IAiProvider[] { new AnthropicProvider() });
-        return (client, new StubVault());
+        return new AiClient(http, new IAiProvider[] { new AnthropicProvider() }, resolver.Delegate);
     }
 
-    private static Connection NewAnthropicConnection(string apiKey, string baseUrl, string model)
-        => new("Anthropic", new Dictionary<string, ConnectionField>
+    private static StubResolver AnthropicResolver(string apiKey, string baseUrl, string model)
+        => new StubResolver()
+            .Set(Anthropic, "kind",    "anthropic")
+            .Set(Anthropic, "baseUrl", baseUrl)
+            .Set(Anthropic, "model",   model)
+            .Set(Anthropic, "apikey",  apiKey);
+
+    /// <summary>Tiny in-memory <see cref="ConnectionFieldResolver"/> backed by a (connection, field) → value map.</summary>
+    private sealed class StubResolver
+    {
+        private readonly Dictionary<(string conn, string field), string> _values =
+            new(EqualityComparer<(string, string)>.Default);
+
+        public StubResolver Set(string connectionName, string fieldName, string value)
         {
-            ["kind"]    = ConnectionField.Plaintext("anthropic"),
-            ["baseUrl"] = ConnectionField.Plaintext(baseUrl),
-            ["model"]   = ConnectionField.Plaintext(model),
-            ["apikey"]  = ConnectionField.Plaintext(apiKey),
-        });
+            _values[(connectionName, fieldName)] = value;
+            return this;
+        }
+
+        public ConnectionFieldResolver Delegate => ResolveAsync;
+
+        public Task<string> ResolveAsync(string connectionName, string fieldName, CancellationToken ct)
+            => Task.FromResult(_values.TryGetValue((connectionName, fieldName), out var v) ? v : string.Empty);
+    }
 
     /// <summary>HttpMessageHandler that lets a test inject any response or exception.</summary>
     private sealed class StubHandler : HttpMessageHandler
@@ -456,39 +464,5 @@ public sealed class AiClientTests
             => new((_, _) => Task.FromResult(new HttpResponseMessage(code) { Content = new StringContent(body) }));
 
         public static StubHandler Throws(Exception ex) => new((_, _) => throw ex);
-    }
-
-    /// <summary>Tiny stand-in for <see cref="IVaultService"/> covering only what AiClient calls.</summary>
-    private sealed class StubVault : IVaultService
-    {
-        private readonly Dictionary<(string cat, string key), string> _values =
-            new(EqualityComparer<(string, string)>.Default);
-
-        public string this[string category, string key]
-        {
-            set => _values[(category, key)] = value;
-        }
-
-        public Task<string> ResolveAsync(string category, string key, CancellationToken ct = default)
-            => Task.FromResult(_values.TryGetValue((category, key), out var v) ? v : string.Empty);
-
-        // ---- everything below is unused by AiClient and intentionally throws to surface accidental use. ----
-
-        public bool Exists     => true;
-        public bool IsUnlocked => true;
-        public event EventHandler? Locked { add { } remove { } }
-
-        public Task InitializeAsync(string masterPassword, CancellationToken ct = default)      => throw new NotImplementedException();
-        public Task UnlockAsync(string masterPassword, CancellationToken ct = default)          => throw new NotImplementedException();
-        public Task ChangePasswordAsync(string newPassword, CancellationToken ct = default)     => throw new NotImplementedException();
-        public Task DestroyAsync(CancellationToken ct = default)                                => throw new NotImplementedException();
-        public void Lock()                                                                      { }
-        public Task<IReadOnlyList<TaskBlaster.Secrets.SecretEntry>> ListAsync(CancellationToken ct = default) => throw new NotImplementedException();
-        public Task<TaskBlaster.Secrets.SecretEntry> AddAsync(string c, string k, string v, string? d = null, CancellationToken ct = default) => throw new NotImplementedException();
-        public Task<TaskBlaster.Secrets.SecretEntry> UpdateAsync(string id, string c, string k, string v, string? d, CancellationToken ct = default) => throw new NotImplementedException();
-        public Task DeleteAsync(string id, CancellationToken ct = default)                      => throw new NotImplementedException();
-        public Task<IReadOnlyList<string>> GetCategoriesAsync(CancellationToken ct = default)   => throw new NotImplementedException();
-        public Task SetCategoriesAsync(IEnumerable<string> categories, CancellationToken ct = default) => throw new NotImplementedException();
-        public Task<int> RenameCategoryAsync(string oldName, string newName, CancellationToken ct = default) => throw new NotImplementedException();
     }
 }

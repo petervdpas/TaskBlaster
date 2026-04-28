@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using TaskBlaster.Ai;
 using TaskBlaster.Connections;
 using TaskBlaster.Dialogs;
@@ -160,6 +162,27 @@ class Program
         // big markdown table) can legitimately take 30-60+ seconds.
         // 20s was tuned for Ping and was strangling the chat path.
         services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = System.TimeSpan.FromSeconds(120) });
+
+        // Resolver delegate the AI providers consume. Wraps the connection
+        // store so plaintext fields short-circuit without touching the
+        // vault, while vault-backed fields go through the vault when it's
+        // unlocked. The vault leg is locked-state-tolerant: if the vault
+        // is locked at the moment the provider asks, the resolver returns
+        // empty rather than throwing — the provider then surfaces a clean
+        // "apikey resolved empty" error. The UI layer (ConfigDialog,
+        // ScriptChatView) is responsible for the unlock prompt before
+        // calling AiClient; the resolver is a pure read.
+        services.AddSingleton<ConnectionFieldResolver>(sp =>
+        {
+            var connections = sp.GetRequiredService<IConnectionStore>();
+            var vault = sp.GetRequiredService<IVaultService>();
+
+            Task<string> SafeVaultResolve(string c, string k, CancellationToken ct)
+                => vault.IsUnlocked ? vault.ResolveAsync(c, k, ct) : Task.FromResult(string.Empty);
+
+            var connectionsResolver = new ConnectionsResolver(connections, SafeVaultResolve);
+            return new ConnectionFieldResolver(connectionsResolver.ResolveAsync);
+        });
         services.AddSingleton<AiClient>();
 
         services.AddSingleton<App>();

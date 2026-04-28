@@ -376,7 +376,7 @@ public partial class ScriptChatView : UserControl
         AiCompletionResult result;
         try
         {
-            result = await _ai.SendAsync(conn, prompt.SystemMessage, history, _vault, _sendCts.Token);
+            result = await _ai.SendAsync(providerName, prompt.SystemMessage, history, _sendCts.Token);
         }
         catch (Exception ex)
         {

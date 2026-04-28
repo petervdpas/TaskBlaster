@@ -399,7 +399,7 @@ public partial class ConfigDialog : Window
                 ShowAiTestStatus(null, "Pinging…");
             }
 
-            result = await _ai.PingAsync(conn, _vault, cts.Token).ConfigureAwait(true);
+            result = await _ai.PingAsync(conn.Name, cts.Token).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
