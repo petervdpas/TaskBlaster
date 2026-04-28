@@ -382,8 +382,7 @@ public partial class AssistantView : UserControl
 
         var allBlocks = _store.Value.List();
         var picked = KnowledgeBlockPicker.PickWithReasons(allBlocks, ctx);
-        var pickedOnly = picked.Select(p => p.Block).ToList();
-        var prompt = PromptBuilder.Build(pickedOnly, refs, userMessage: string.Empty);
+        var prompt = PromptBuilder.Build(picked, refs, userMessage: string.Empty);
 
         var path = _artifacts.Write("preview", ctx, refs, picked, prompt);
         _log?.Invoke($"Preview: {picked.Count}/{allBlocks.Count} block(s) picked. Wrote {path}");

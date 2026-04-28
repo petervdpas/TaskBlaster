@@ -17,7 +17,7 @@ namespace TaskBlaster.Engine;
 /// to <see cref="ScriptBlaster"/>'s loadable-assemblies enumeration).
 /// The catalog produces AgentBlast's <see cref="LoadedReference"/> shape
 /// directly, so its output can be handed straight to
-/// <see cref="PromptBuilder.Build"/> without conversion.
+/// <see cref="PromptBuilder"/> without conversion.
 ///
 /// Reads the Blast-family <c>[AssemblyMetadata("Blast.PrimaryFacade", "...")]</c>
 /// convention so the AI assistant can identify a package's canonical

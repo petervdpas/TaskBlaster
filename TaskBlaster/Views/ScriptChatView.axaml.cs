@@ -375,7 +375,7 @@ public partial class ScriptChatView : UserControl
 
         var ctx = BuildPickerContext();
         var refs = _catalog.Snapshot();
-        var picked = KnowledgeBlockPicker.Pick(_knowledge.Value.List(), ctx);
+        var picked = KnowledgeBlockPicker.PickWithReasons(_knowledge.Value.List(), ctx);
         var prompt = PromptBuilder.Build(picked, refs, userMessage: string.Empty);
 
         SetBusy(true);
