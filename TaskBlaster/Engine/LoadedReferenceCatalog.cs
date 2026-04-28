@@ -4,52 +4,23 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using AgentBlast.Prompts;
 using TaskBlaster.Externals;
 using TaskBlaster.Interfaces;
 
 namespace TaskBlaster.Engine;
 
 /// <summary>
-/// What kind of code <see cref="LoadedReference"/> represents. Used to
-/// filter the noisy AppDomain (which has 100+ framework assemblies on a
-/// typical run) down to "the things a script can actually use".
-/// </summary>
-public enum LoadedReferenceOrigin
-{
-    /// <summary>Runtime BCL — <c>System.*</c>, <c>Microsoft.*</c> shipping with .NET.</summary>
-    Framework,
-    /// <summary>TaskBlaster's own assemblies + the deps it ships with.</summary>
-    Application,
-    /// <summary>One of the Blast-family nugets (carries the <c>Blast.PrimaryFacade</c> attribute).</summary>
-    Blast,
-    /// <summary>User-imported via the External tab (loose DLL or unpacked nupkg).</summary>
-    External,
-    /// <summary>Anything else loaded into the AppDomain that doesn't match the above.</summary>
-    Other,
-}
-
-/// <summary>
-/// Structured snapshot of one loaded assembly. Designed to be the unit
-/// the eventual AI script-assistant feeds an LLM as "what's available in
-/// scope right now"; immediately useful as diagnostics for "why isn't my
-/// type resolving" questions.
-/// </summary>
-public sealed record LoadedReference(
-    string Name,
-    string Version,
-    string? Location,
-    LoadedReferenceOrigin Origin,
-    IReadOnlyList<string> PrimaryFacades,
-    IReadOnlyList<string> Namespaces);
-
-/// <summary>
 /// Walks <see cref="AppDomain.CurrentDomain"/> and produces a structured
 /// snapshot of every loadable assembly (filtering out ghosts whose
 /// backing files have disappeared, matching the same hardening applied
 /// to <see cref="ScriptBlaster"/>'s loadable-assemblies enumeration).
+/// The catalog produces AgentBlast's <see cref="LoadedReference"/> shape
+/// directly, so its output can be handed straight to
+/// <see cref="PromptBuilder.Build"/> without conversion.
 ///
 /// Reads the Blast-family <c>[AssemblyMetadata("Blast.PrimaryFacade", "...")]</c>
-/// convention so a future AI helper can identify a package's canonical
+/// convention so the AI assistant can identify a package's canonical
 /// front-door types (<c>NetClient</c>, <c>MssqlDatabase</c>, etc.) without
 /// scanning every public type.
 /// </summary>

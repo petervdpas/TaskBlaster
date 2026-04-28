@@ -1,3 +1,7 @@
+using AgentBlast;
+using AgentBlast.Interfaces;
+using AgentBlast.Knowledge;
+using AgentBlast.Prompts;
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -5,14 +9,12 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using TaskBlaster.Ai;
 using TaskBlaster.Connections;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Externals;
 using TaskBlaster.Forms;
 using TaskBlaster.Interfaces;
-using TaskBlaster.Knowledge;
 using TaskBlaster.Secrets;
 using TaskBlaster.UI;
 using TaskBlaster.Views;
@@ -153,17 +155,17 @@ class Program
             return new PromptArtifactWriter(Path.Combine(anchor, "ai-history"));
         });
 
-        // AI providers + dispatcher. Each provider self-describes its
-        // kind and known models; new providers (OpenAI, Ollama, ...)
-        // plug in by adding another IAiProvider registration here.
-        services.AddSingleton<IAiProvider, AnthropicProvider>();
+        // AgentBlast providers + dispatcher. Each provider self-describes
+        // its kind and known models; new providers (OpenAI, Ollama, ...)
+        // plug in by adding another IAgentProvider registration here.
+        services.AddSingleton<IAgentProvider, AnthropicProvider>();
         // 120s is a sane upper bound for AI calls — Ping returns in
         // milliseconds, but a long chat completion (full code rewrite,
         // big markdown table) can legitimately take 30-60+ seconds.
         // 20s was tuned for Ping and was strangling the chat path.
         services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = System.TimeSpan.FromSeconds(120) });
 
-        // Resolver delegate the AI providers consume. Wraps the connection
+        // Resolver delegate AgentBlast consumes. Wraps the connection
         // store so plaintext fields short-circuit without touching the
         // vault, while vault-backed fields go through the vault when it's
         // unlocked. The vault leg is locked-state-tolerant: if the vault
@@ -171,7 +173,7 @@ class Program
         // empty rather than throwing — the provider then surfaces a clean
         // "apikey resolved empty" error. The UI layer (ConfigDialog,
         // ScriptChatView) is responsible for the unlock prompt before
-        // calling AiClient; the resolver is a pure read.
+        // calling AgentClient; the resolver is a pure read.
         services.AddSingleton<ConnectionFieldResolver>(sp =>
         {
             var connections = sp.GetRequiredService<IConnectionStore>();
@@ -183,7 +185,7 @@ class Program
             var connectionsResolver = new ConnectionsResolver(connections, SafeVaultResolve);
             return new ConnectionFieldResolver(connectionsResolver.ResolveAsync);
         });
-        services.AddSingleton<AiClient>();
+        services.AddSingleton<AgentClient>();
 
         services.AddSingleton<App>();
         services.AddTransient<SplashWindow>();

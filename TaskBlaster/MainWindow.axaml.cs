@@ -8,10 +8,12 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using AgentBlast;
+using AgentBlast.Interfaces;
+using AgentBlast.Prompts;
 using GuiBlast.Forms.Rendering;
 using GuiBlast.Forms.Result;
 using SecretBlast;
-using TaskBlaster.Ai;
 using TaskBlaster.Dialogs;
 using TaskBlaster.Engine;
 using TaskBlaster.Externals;
@@ -55,7 +57,7 @@ public partial class MainWindow : Window
     private readonly IKnowledgeBlockStore _knowledge;
     private readonly LoadedReferenceCatalog _catalog;
     private readonly PromptArtifactWriter _artifacts;
-    private readonly AiClient _ai;
+    private readonly AgentClient _ai;
     private CancellationTokenSource? _runCts;
     private IFormDocument? _currentFormDoc;
 
@@ -75,7 +77,7 @@ public partial class MainWindow : Window
         IKnowledgeBlockStore knowledge,
         LoadedReferenceCatalog catalog,
         PromptArtifactWriter artifacts,
-        AiClient ai)
+        AgentClient ai)
     {
         InitializeComponent();
         Title = $"{AppInfo.Name} - v{AppInfo.Version}";

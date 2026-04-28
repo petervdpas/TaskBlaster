@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AgentBlast.Prompts;
 using TaskBlaster.Engine;
 using TaskBlaster.Externals;
 using TaskBlaster.Interfaces;

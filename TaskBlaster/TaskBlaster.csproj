@@ -61,6 +61,7 @@
     <PackageReference Include="NetworkBlast" Version="1.0.1" />
     <PackageReference Include="SqliteBlast" Version="1.0.1" />
     <PackageReference Include="SecretBlast" Version="1.0.3" />
+    <PackageReference Include="AgentBlast" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

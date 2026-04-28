@@ -4,13 +4,14 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Styling;
+using AgentBlast.Interfaces;
+using AgentBlast.Knowledge;
+using AgentBlast.Prompts;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.TextMate;
-using TaskBlaster.Ai;
 using TaskBlaster.Engine;
 using TaskBlaster.Interfaces;
-using TaskBlaster.Knowledge;
 using TextMateSharp.Grammars;
 
 namespace TaskBlaster.Views;

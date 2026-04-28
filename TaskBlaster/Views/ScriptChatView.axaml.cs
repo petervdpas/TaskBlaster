@@ -10,19 +10,21 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using AgentBlast;
+using AgentBlast.Interfaces;
+using AgentBlast.Knowledge;
+using AgentBlast.Prompts;
 using Avalonia.Threading;
-using TaskBlaster.Ai;
 using TaskBlaster.Connections;
 using TaskBlaster.Engine;
 using TaskBlaster.Interfaces;
-using TaskBlaster.Knowledge;
 
 namespace TaskBlaster.Views;
 
 /// <summary>
 /// Script-scoped chat panel. Each turn auto-runs the picker against the
 /// open script + loaded references, assembles the system prompt, sends
-/// the conversation history to <see cref="AiClient"/>, and appends the
+/// the conversation history to <see cref="AgentClient"/>, and appends the
 /// response. Conversation state is per-script, kept in memory; switching
 /// scripts swaps the visible history.
 /// </summary>
@@ -41,7 +43,7 @@ public partial class ScriptChatView : UserControl
     private IConnectionStore? _connectionStore;
     private IKnowledgeBlockStore? _knowledge;
     private LoadedReferenceCatalog? _catalog;
-    private AiClient? _ai;
+    private AgentClient? _ai;
     private IVaultService? _vault;
     private Func<CancellationToken, Task>? _ensureVaultUnlocked;
     private Action<string>? _log;
@@ -50,7 +52,7 @@ public partial class ScriptChatView : UserControl
     private Func<string>? _scriptTextProvider;
 
     /// <summary>Per-script chat history, keyed by absolute file path.</summary>
-    private readonly Dictionary<string, List<AiMessage>> _historyByScript = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<AgentMessage>> _historyByScript = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Invisible padding at the bottom of the chat panel. Always lives
@@ -82,7 +84,7 @@ public partial class ScriptChatView : UserControl
         IConnectionStore connectionStore,
         IKnowledgeBlockStore knowledge,
         LoadedReferenceCatalog catalog,
-        AiClient ai,
+        AgentClient ai,
         IVaultService vault,
         Func<CancellationToken, Task> ensureVaultUnlocked,
         Action<string> log)
@@ -132,17 +134,17 @@ public partial class ScriptChatView : UserControl
         UpdateContextHint();
     }
 
-    private List<AiMessage> GetHistory(string path)
+    private List<AgentMessage> GetHistory(string path)
     {
         if (!_historyByScript.TryGetValue(path, out var list))
         {
-            list = new List<AiMessage>();
+            list = new List<AgentMessage>();
             _historyByScript[path] = list;
         }
         return list;
     }
 
-    private void RenderHistory(IReadOnlyList<AiMessage> history)
+    private void RenderHistory(IReadOnlyList<AgentMessage> history)
     {
         // Clear() drops the spacer too — RenderMessage re-pins it via
         // PinSpacerToEnd, but we add it back here for the empty-state
@@ -170,7 +172,7 @@ public partial class ScriptChatView : UserControl
         });
     }
 
-    private void RenderMessage(AiMessage m)
+    private void RenderMessage(AgentMessage m)
     {
         var isUser = string.Equals(m.Role, "user", StringComparison.OrdinalIgnoreCase);
         // User bubble: plain text — they typed it, no markdown intended.
@@ -355,11 +357,11 @@ public partial class ScriptChatView : UserControl
             userContent = question;
         }
 
-        history.Add(AiMessage.User(userContent));
+        history.Add(AgentMessage.User(userContent));
         // Render the user's *typed* question rather than the script-laden
         // first-turn payload — the giant code dump is for the model, not
         // the visual transcript.
-        RenderMessage(AiMessage.User(question));
+        RenderMessage(AgentMessage.User(question));
         ScrollToBottom();
         _inputBox.Text = string.Empty;
 
@@ -373,14 +375,14 @@ public partial class ScriptChatView : UserControl
 
         _sendCts?.Cancel();
         _sendCts = new CancellationTokenSource();
-        AiCompletionResult result;
+        AgentCompletionResult result;
         try
         {
             result = await _ai.SendAsync(providerName, prompt.SystemMessage, history, _sendCts.Token);
         }
         catch (Exception ex)
         {
-            result = AiCompletionResult.Fail(ex.Message);
+            result = AgentCompletionResult.Fail(ex.Message);
         }
         finally
         {
@@ -398,8 +400,8 @@ public partial class ScriptChatView : UserControl
             return;
         }
 
-        history.Add(AiMessage.Assistant(result.Text!));
-        RenderMessage(AiMessage.Assistant(result.Text!));
+        history.Add(AgentMessage.Assistant(result.Text!));
+        RenderMessage(AgentMessage.Assistant(result.Text!));
         ScrollToBottom();
         var ms = result.Latency?.TotalMilliseconds ?? 0;
         var truncated = string.Equals(result.StopReason, "max_tokens", StringComparison.OrdinalIgnoreCase);
@@ -439,7 +441,7 @@ public partial class ScriptChatView : UserControl
     {
         if (_currentScriptPath is null) return;
         _historyByScript.Remove(_currentScriptPath);
-        RenderHistory(Array.Empty<AiMessage>());
+        RenderHistory(Array.Empty<AgentMessage>());
         SetStatus("Conversation cleared.", isError: false);
     }
 }

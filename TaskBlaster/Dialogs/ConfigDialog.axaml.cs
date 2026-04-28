@@ -7,9 +7,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using AgentBlast;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using TaskBlaster.Ai;
 using TaskBlaster.Connections;
 using TaskBlaster.Externals;
 using TaskBlaster.Interfaces;
@@ -52,7 +52,7 @@ public partial class ConfigDialog : Window
     private readonly ExternalReferenceManager? _externals;
     private readonly IConnectionStore? _connectionStore;
     private readonly IVaultService? _vault;
-    private readonly AiClient? _ai;
+    private readonly AgentClient? _ai;
     private readonly Func<CancellationToken, System.Threading.Tasks.Task>? _ensureVaultUnlocked;
 
     /// <summary>Sentinel item shown in the AI provider dropdown when no connection is selected.</summary>
@@ -88,7 +88,7 @@ public partial class ConfigDialog : Window
         string? currentAiProvider,
         IConnectionStore? connectionStore,
         IVaultService? vault,
-        AiClient? ai,
+        AgentClient? ai,
         Func<CancellationToken, System.Threading.Tasks.Task>? ensureVaultUnlocked)
     {
         InitializeComponent();
@@ -378,7 +378,7 @@ public partial class ConfigDialog : Window
         _aiProviderBox.IsEnabled = false;
         ShowAiTestStatus(null, "Pinging…");
 
-        AiPingResult result;
+        AgentPingResult result;
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
@@ -403,7 +403,7 @@ public partial class ConfigDialog : Window
         }
         catch (Exception ex)
         {
-            result = AiPingResult.Fail($"Test crashed: {ex.Message}");
+            result = AgentPingResult.Fail($"Test crashed: {ex.Message}");
         }
         finally
         {
