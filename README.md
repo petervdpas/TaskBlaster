@@ -57,7 +57,7 @@ This is the successor to the legacy `ScriptRunner.Plugins` package, rebuilt on .
 * Microsoft.Extensions.DependencyInjection (singletons + transients wired in `Program.cs`)
 * Microsoft.CodeAnalysis.CSharp.Scripting (Roslyn) for `.csx` execution
 * [UtilBlast](https://www.nuget.org/packages/UtilBlast) 2.0.0 — common utilities, JSON ⇆ CSV, JObject flatten / GetByPath, plus the `Blast` display DSL (heading / status / table / kv) for structured script output. v2.0 dropped the dynamic-class generator and builder; that surface now lives in **AssemblyBlast**.
-* [AssemblyBlast](https://www.nuget.org/packages/AssemblyBlast) 1.0.0 — runtime C# type generation. Build a type programmatically via `DynamicClassBuilder` (Reflection.Emit), or compile a whole assembly from a JSON schema via `DynamicClassGenerator` (Roslyn) — and use the result in the same script.
+* [AssemblyBlast](https://www.nuget.org/packages/AssemblyBlast) 1.2.0 — runtime C# type generation **and** reflection. Build a type programmatically via `DynamicClassBuilder` (Reflection.Emit), compile a whole assembly from a JSON schema via `DynamicClassGenerator` (Roslyn), reflect any loaded `Assembly` into `ClassDefinition[]` / `EnumDefinition[]` shapes via `AssemblyReader` (1.1+), or render those shapes back to `.cs` source via `AssemblyWriter` (1.2+). Closes the loop *Assembly → ClassDefinition → C# source*.
 * [AzureBlast](https://www.nuget.org/packages/AzureBlast) 2.1.1 — SQL / Service Bus / Key Vault, with vault-aware resolver overloads
 * [GuiBlast](https://www.nuget.org/packages/GuiBlast) 2.1.1 — form specs and modal prompts
 * [NetworkBlast](https://www.nuget.org/packages/NetworkBlast) 1.0.1 — REST / OData / SOAP, vault-aware via the same resolver shape
@@ -361,6 +361,7 @@ This copies every `DemoScripts/*.csx` and `DemoForms/*.json` from the build outp
 | `DemoScripts/blast-display-demo.csx`| UtilBlast `Blast` display DSL — heading / status / table / kv. |
 | `DemoScripts/connections-demo.csx`  | Named-connection layer end-to-end: dynamic field access, typed binding, vault-ref dereferencing. |
 | `DemoScripts/acme-domain-demo.csx`  | Walks the bundled `Acme.Domain` canonical-models package — Customer / Person / Address / Order. Requires importing the .nupkg via Settings → External first. |
+| `DemoScripts/acme-domain-to-formidable.csx` | Reflects any loaded External assembly via `AssemblyBlast.AssemblyReader` and POSTs its classes / enums to a running [Formidable](https://github.com/petervdpas/Formidable) instance as FCDM model entries. Idempotent (deterministic GUIDs from FQN) and uses the named `Formidable` connection for its base URL. |
 | `DemoForms/quick-task.json`         | Plain form: text / select / number / textarea.       |
 | `DemoForms/peer.json`               | Plain form: switch + bounded number.                 |
 | `DemoForms/deploy.json`             | Vault-backed select + conditional visibility.        |

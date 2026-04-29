@@ -55,6 +55,17 @@ section below). Still open:
    in real usage, or scripts being shared between teams that need explicit
    manifests). Until then the simpler global model is fine for the
    "everyone uses one canonical-models package" case.
+6. **Formidable → C# round-trip companion script.** The forward leg
+   (`acme-domain-to-formidable.csx`, landed 2026-04-29) reflects a loaded
+   DLL into FCDM forms via `AssemblyBlast.AssemblyReader`. The return leg
+   would `GET /api/collections/fcdm-{entities,enums}?include=data`,
+   re-hydrate the items into `ClassDefinition[]` / `EnumDefinition[]`,
+   and run `AssemblyBlast.AssemblyWriter.WriteToFolder(...)` to write
+   `.cs` files into a configurable target folder (namespace-as-path
+   layout). Closes the design ↔ development loop: the FCDM form is the
+   design surface, the `.cs` files are derived. Drift detection
+   (`git status` against the target folder) is the natural next step
+   after that.
 
 ## Roadmap (in-app)
 
@@ -310,6 +321,90 @@ once the consumer-side Directed AI ships and stabilises.
 AzureBlast 2.1.0, GuiBlast 2.1.0, SecretBlast 1.0.2.)*
 
 ## Done
+
+### 2026-04-29 — AssemblyBlast round-trip (1.1 → 1.2) + FCDM/Formidable demo
+
+AssemblyBlast grew the second half of its loop and TaskBlaster gained a
+working **DLL → Formidable FCDM → DLL** demo against a locally-running
+[Formidable](https://github.com/petervdpas/Formidable) instance.
+
+**AssemblyBlast 1.1.0 — `AssemblyReader`.** Reflects any loaded
+`Assembly` into the same `ClassDefinition[]` / `EnumDefinition[]` shapes
+the generator path consumes. Captures namespace + kind (class / record
+/ struct / interface), base type, implemented interfaces, every public
+constructor's parameters, public properties with full nullability and
+collection unwrapping, ctor-fed property detection (so `public string
+Id { get; }` set in a public ctor is *not* flagged as derived), and
+XML-doc summaries when the sibling `<Name>.xml` ships next to the dll.
+New `EnumDefinition` + `EnumMemberDefinition` model types added (members
+with values normalised to `long`, `IsFlags` set from the `[Flags]`
+attribute).
+
+**AssemblyBlast 1.1.1 — auto-implemented interface filter + static-class
+skip.** Records' compiler-generated `IEquatable<TSelf>` is filtered from
+`Implements` (kept on hand-written non-record `IEquatable<T>` cases —
+distinction enforced by tests). `static` classes (CLR-side: sealed +
+abstract) are skipped by `ReadClasses` since they're not domain types.
+
+**AssemblyBlast 1.1.2 — nullable ctor parameter preservation.** Reader
+now keeps NRT `string? line2` and value-type `int? count` annotated as
+`string?` / `int?` in `ParameterDefinition.Type`, instead of stripping
+them. Both `NullableAttribute` (param-level) and the surrounding
+`NullableContextAttribute` (method / type fallback) are honoured.
+
+**AssemblyBlast 1.2.0 — `AssemblyWriter`.** Mirror of the reader: turns
+a `ClassDefinition` or `EnumDefinition` back into C# source with
+file-scoped namespace, XML-doc preservation, ctor body assignments
+derived from a case-insensitive ctor-param ↔ property match
+(`line1 → Line1 = line1;`), accessor-aware property rendering
+(`{ get; }` / `{ get; init; }` / `{ get; set; }`), nullability +
+`List<T>` collection wrapping, `[Flags]` and underlying-type emission
+for enums (omitted for `int` default). `WriteToFolder` lays out files
+under a namespace-as-path tree (`Acme.Domain.Crm` →
+`Acme/Domain/Crm/`). 6 new tests, all green.
+
+**SampleModels (`Acme.Domain`) refactored to the canonical Fontys
+domain shape.** Was records with positional ctors; is now a `class` per
+file with `public Foo(...)` ctor that assigns `Property = paramName;`
+into auto-properties with `{ get; init; }`. Truly computed members
+preserved get-only (`Person.FullName`, `Order.Total`,
+`OrderLine.LineTotal`).
+
+**Demo script `acme-domain-to-formidable.csx`.** Generic
+"reflect any loaded External assembly into Formidable" tool — picks the
+target by name (`const string AssemblyName = "Acme.Domain";`), no
+static type reference, no `using Acme.Domain;`. Walks
+`AppDomain.CurrentDomain.GetAssemblies()` to find the named DLL,
+runs `AssemblyReader.ReadClasses` / `ReadEnums`, maps each definition
+to an FCDM entity / enum payload, and POSTs both batches to
+`collections/fcdm-{entities,enums}/batch?mode=replace` via
+`NetworkBlast.NetClient` over the named `Formidable` connection. GUIDs
+are MD5-derived from `Namespace.Name`, so reruns are idempotent.
+
+**Companion changes in Formidable** (separate repo, written but unpublished
+by us — published by the user):
+
+- `POST /api/collections/{template}` and `PUT .../{id}` now accept
+  `?upsert=true` for idempotent reimports.
+- New `POST /api/collections/{template}/batch?mode=create|replace|merge`
+  endpoint: bulk apply many items in one request, per-item failures
+  collected in `errors` rather than aborting the batch.
+- New entries get a slug-from-`item_field` filename (e.g.
+  `customer.meta.json`) instead of `<guid>.meta.json`, with numeric
+  suffix on collision.
+- `fcdm-entities.yaml` template: new `constructor-parameters` table
+  (Type, Naam columns) + new `accessor` column on the `attributes`
+  table so the markdown_template can render the C# class shape with the
+  ctor body fully expanded (assignments + property accessors). New
+  `cell` / `pascal` / `camel` Handlebars helpers in the markdown
+  renderer.
+
+End result: opening any FCDM-Entities form in Formidable shows the
+class rendered as proper C# in the HTML preview pane, complete with
+ctor signature, ctor body assignments, property accessors with the
+right shape per case, and XML doc summaries. The reverse half (a
+Formidable → `.cs` script using `AssemblyWriter` to regenerate the
+project) is the next planned step in the design ↔ development loop.
 
 ### 2026-04-28 — AgentBlast 1.0.0 extraction + agent UI rename + lazy-load sweep
 
