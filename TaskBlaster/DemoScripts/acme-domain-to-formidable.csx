@@ -13,17 +13,32 @@
 //   4. Make sure both fcdm-entities.yaml and fcdm-enums.yaml templates are
 //      present in Formidable.
 
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Acme.Domain;
 using AssemblyBlast;
 using AssemblyBlast.Models;
 using NetworkBlast;
 using UtilBlast.Tabular;
 
-// 1. Reflect over the Acme.Domain assembly via AssemblyBlast 1.1.
-var asm = typeof(Customer).Assembly;
+// Change this to point the script at any loaded External assembly.
+const string AssemblyName = "Acme.Domain";
+
+// 1. Locate the assembly by name in the current AppDomain.
+//    The External tab loader already injected it; no static type reference needed.
+var asm = AppDomain.CurrentDomain.GetAssemblies()
+    .FirstOrDefault(a => string.Equals(
+        a.GetName().Name, AssemblyName, StringComparison.OrdinalIgnoreCase));
+
+if (asm is null)
+{
+    Blast.WriteStatus(
+        $"Assembly '{AssemblyName}' isn't loaded. Add the .nupkg via Settings → External, then restart.",
+        BlastLevel.Error);
+    return;
+}
+
 var classes = AssemblyReader.ReadClasses(asm);
 var enums   = AssemblyReader.ReadEnums(asm);
 
